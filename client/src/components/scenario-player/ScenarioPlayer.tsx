@@ -22,6 +22,9 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
   const [timelineEntries, setTimelineEntries] = useState<any[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [trainerHints, setTrainerHints] = useState<string[]>([]);
+  // Track checkpoint IDs answered in this session so we can filter them
+  // immediately, even before the server refetch completes
+  const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<string>>(new Set());
 
   const { data: attempt, isLoading } = useQuery({
     queryKey: ['attempt', attemptId],
@@ -145,8 +148,10 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
   const stages = scenario?.stages || [];
   const currentStageData = stages.find((s: any) => s.stageNumber === attempt.currentStage);
   const checkpoints = scenario?.checkpoints?.filter((c: any) => c.stageNumber === attempt.currentStage) || [];
-  const answeredIds = new Set(attempt.answers?.map((a: any) => a.checkpointId) || []);
-  const unansweredCheckpoints = checkpoints.filter((c: any) => !answeredIds.has(c.id));
+  const serverAnsweredIds = new Set(attempt.answers?.map((a: any) => a.checkpointId) || []);
+  const unansweredCheckpoints = checkpoints.filter(
+    (c: any) => !serverAnsweredIds.has(c.id) && !localAnsweredIds.has(c.id)
+  );
 
   if (attempt.status === 'COMPLETED') {
     return (
@@ -254,8 +259,10 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
           onComplete={handleCheckpointComplete}
           onClose={() => {
             setShowCheckpoint(false);
-            // Refresh attempt data so unanswered count updates
             queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
+          }}
+          onAnswered={(checkpointId) => {
+            setLocalAnsweredIds(prev => new Set(prev).add(checkpointId));
           }}
         />
       )}
