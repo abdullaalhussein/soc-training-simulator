@@ -1,0 +1,333 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TRAINER
+  TRAINEE
+}
+
+enum SessionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  TIMED_OUT
+}
+
+enum LogType {
+  WINDOWS_EVENT
+  SYSMON
+  EDR_ALERT
+  NETWORK_FLOW
+  SIEM_ALERT
+  FIREWALL
+  PROXY
+  DNS
+  EMAIL_GATEWAY
+  AUTH_LOG
+}
+
+enum UnlockCondition {
+  AFTER_CHECKPOINT
+  AFTER_TIME_DELAY
+  AFTER_PREVIOUS
+  MANUAL
+}
+
+enum CheckpointType {
+  TRUE_FALSE
+  MULTIPLE_CHOICE
+  SEVERITY_CLASSIFICATION
+  RECOMMENDED_ACTION
+  SHORT_ANSWER
+  EVIDENCE_SELECTION
+  INCIDENT_REPORT
+}
+
+enum ActionType {
+  SEARCH_QUERY
+  FILTER_APPLIED
+  LOG_OPENED
+  EVIDENCE_ADDED
+  EVIDENCE_REMOVED
+  TIMELINE_ENTRY_ADDED
+  TIMELINE_ENTRY_REMOVED
+  PROCESS_NODE_ADDED
+  HINT_REQUESTED
+  CHECKPOINT_ANSWERED
+  STAGE_UNLOCKED
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(TRAINEE)
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdSessions  Session[]           @relation("CreatedSessions")
+  sessionMembers   SessionMember[]
+  attempts         Attempt[]
+  trainerNotes     TrainerNote[]       @relation("TrainerNotes")
+  auditLogs        AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Scenario {
+  id               String     @id @default(cuid())
+  name             String
+  description      String     @db.Text
+  difficulty       Difficulty
+  category         String
+  mitreAttackIds   String[]
+  briefing         String     @db.Text
+  estimatedMinutes Int        @default(60)
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  stages      ScenarioStage[]
+  checkpoints Checkpoint[]
+  sessions    Session[]
+
+  @@index([difficulty])
+  @@index([category])
+}
+
+model ScenarioStage {
+  id              String          @id @default(cuid())
+  scenarioId      String
+  stageNumber     Int
+  title           String
+  description     String          @db.Text
+  unlockCondition UnlockCondition @default(AFTER_PREVIOUS)
+  unlockDelay     Int?            // delay in seconds for AFTER_TIME_DELAY
+  createdAt       DateTime        @default(now())
+
+  scenario Scenario       @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  logs     SimulatedLog[]
+  hints    Hint[]
+
+  @@unique([scenarioId, stageNumber])
+  @@index([scenarioId])
+}
+
+model SimulatedLog {
+  id          String   @id @default(cuid())
+  stageId     String
+  logType     LogType
+  rawLog      Json
+  summary     String   @db.Text
+  severity    String   @default("INFO")
+  hostname    String?
+  username    String?
+  processName String?
+  eventId     String?
+  sourceIp    String?
+  destIp      String?
+  timestamp   DateTime
+  isEvidence  Boolean  @default(false)
+  evidenceTag String?
+  sortOrder   Int      @default(0)
+
+  stage ScenarioStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId])
+  @@index([logType])
+  @@index([hostname])
+  @@index([username])
+  @@index([processName])
+  @@index([eventId])
+  @@index([sourceIp])
+  @@index([destIp])
+  @@index([timestamp])
+  @@index([stageId, logType])
+  @@index([stageId, timestamp])
+  @@index([isEvidence])
+}
+
+model Checkpoint {
+  id             String         @id @default(cuid())
+  scenarioId     String
+  stageNumber    Int
+  checkpointType CheckpointType
+  question       String         @db.Text
+  options        Json?          // for MC/TF: array of option strings
+  correctAnswer  Json           // correct answer(s)
+  points         Int            @default(10)
+  category       String?        // maps to score category: accuracy, response, report
+  explanation    String?        @db.Text
+  sortOrder      Int            @default(0)
+
+  scenario Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  answers  Answer[]
+
+  @@index([scenarioId, stageNumber])
+}
+
+model Hint {
+  id            String @id @default(cuid())
+  stageId       String
+  content       String @db.Text
+  pointsPenalty Int    @default(5)
+  sortOrder     Int    @default(0)
+
+  stage ScenarioStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId])
+}
+
+model Session {
+  id          String        @id @default(cuid())
+  name        String
+  scenarioId  String
+  createdById String
+  status      SessionStatus @default(DRAFT)
+  timeLimit   Int?          // in minutes
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  scenario  Scenario        @relation(fields: [scenarioId], references: [id])
+  createdBy User            @relation("CreatedSessions", fields: [createdById], references: [id])
+  members   SessionMember[]
+  attempts  Attempt[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([scenarioId])
+}
+
+model SessionMember {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  status    String   @default("ASSIGNED") // ASSIGNED, STARTED, COMPLETED
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+}
+
+model Attempt {
+  id               String        @id @default(cuid())
+  sessionId        String
+  userId           String
+  currentStage     Int           @default(1)
+  status           AttemptStatus @default(NOT_STARTED)
+  accuracyScore    Float         @default(0)
+  investigationScore Float       @default(0)
+  evidenceScore    Float         @default(0)
+  responseScore    Float         @default(0)
+  reportScore      Float         @default(0)
+  hintPenalty      Float         @default(0)
+  trainerAdjustment Float        @default(0)
+  totalScore       Float         @default(0)
+  hintsUsed        Int           @default(0)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  session Session              @relation(fields: [sessionId], references: [id])
+  user    User                 @relation(fields: [userId], references: [id])
+  answers Answer[]
+  actions InvestigationAction[]
+  notes   TrainerNote[]
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Answer {
+  id           String   @id @default(cuid())
+  attemptId    String
+  checkpointId String
+  answer       Json
+  isCorrect    Boolean  @default(false)
+  pointsAwarded Float   @default(0)
+  answeredAt   DateTime @default(now())
+
+  attempt    Attempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  checkpoint Checkpoint @relation(fields: [checkpointId], references: [id])
+
+  @@unique([attemptId, checkpointId])
+  @@index([attemptId])
+}
+
+model InvestigationAction {
+  id        String     @id @default(cuid())
+  attemptId String
+  actionType ActionType
+  details   Json?
+  createdAt DateTime   @default(now())
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@index([actionType])
+  @@index([attemptId, actionType])
+}
+
+model TrainerNote {
+  id        String   @id @default(cuid())
+  attemptId String
+  trainerId String
+  content   String   @db.Text
+  isHint    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  trainer User    @relation("TrainerNotes", fields: [trainerId], references: [id])
+
+  @@index([attemptId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  resource  String
+  resourceId String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
