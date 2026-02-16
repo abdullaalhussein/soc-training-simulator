@@ -108,10 +108,12 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
 
   const handleCheckpointComplete = async () => {
     setShowCheckpoint(false);
+    // Always refresh attempt data when modal closes (answers were submitted)
+    queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
     try {
       await api.post(`/attempts/${attemptId}/advance-stage`);
       queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
-    } catch { /* may be last stage */ }
+    } catch { /* may be last stage or still has unanswered checkpoints */ }
   };
 
   const handleComplete = async () => {
@@ -250,8 +252,11 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
           checkpoints={unansweredCheckpoints}
           attemptId={attemptId}
           onComplete={handleCheckpointComplete}
-          onClose={() => setShowCheckpoint(false)}
-          onAnswerSubmitted={() => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] })}
+          onClose={() => {
+            setShowCheckpoint(false);
+            // Refresh attempt data so unanswered count updates
+            queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
+          }}
         />
       )}
     </div>
