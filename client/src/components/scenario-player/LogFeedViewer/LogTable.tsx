@@ -53,21 +53,21 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
       <div className="flex-1 overflow-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[68px]" />
-            <col className="w-[90px]" />
-            <col className="w-[72px]" />
-            <col className="w-[80px]" />
+            <col style={{ width: '60px' }} />
+            <col style={{ width: '76px' }} />
+            <col style={{ width: '62px' }} />
+            <col style={{ width: '72px' }} />
             <col />
-            <col className="w-[60px]" />
+            <col style={{ width: '52px' }} />
           </colgroup>
           <TableHeader>
             <TableRow>
               <TableHead>Time</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Severity</TableHead>
+              <TableHead>Sev.</TableHead>
               <TableHead>Source</TableHead>
               <TableHead>Summary</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -98,13 +98,13 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{log.hostname || '-'}</TableCell>
-                  <TableCell className="text-sm">{log.summary}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-sm truncate" title={log.summary}>{log.summary}</TableCell>
+                  <TableCell className="p-1">
+                    <div className="flex gap-0" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7"
+                        className="h-6 w-6"
                         title="Add to Evidence"
                         onClick={() => onAddEvidence(log)}
                       >
@@ -113,7 +113,7 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7"
+                        className="h-6 w-6"
                         title="Add to Timeline"
                         onClick={() => onAddTimeline({ timestamp: log.timestamp, summary: log.summary, logId: log.id })}
                       >
