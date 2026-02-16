@@ -23,9 +23,10 @@ const updateUserSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-router.use(authenticate, requireRole('ADMIN'));
+router.use(authenticate);
 
-router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+// Trainers can list users (needed for assigning trainees to sessions)
+router.get('/', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { role, isActive, search } = req.query;
     const where: any = {};
@@ -49,7 +50,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.params.id as string;
     const user = await prisma.user.findUnique({
@@ -63,7 +64,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-router.post('/', auditLog('CREATE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', requireRole('ADMIN'), auditLog('CREATE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = createUserSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email: data.email } });
@@ -81,7 +82,7 @@ router.post('/', auditLog('CREATE', 'USER'), async (req: Request, res: Response,
   }
 });
 
-router.put('/:id', auditLog('UPDATE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
+router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.params.id as string;
     const data = updateUserSchema.parse(req.body);
@@ -97,7 +98,7 @@ router.put('/:id', auditLog('UPDATE', 'USER'), async (req: Request, res: Respons
   }
 });
 
-router.delete('/:id', auditLog('DELETE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.params.id as string;
     await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
@@ -107,7 +108,7 @@ router.delete('/:id', auditLog('DELETE', 'USER'), async (req: Request, res: Resp
   }
 });
 
-router.post('/:id/reset-password', auditLog('RESET_PASSWORD', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/:id/reset-password', requireRole('ADMIN'), auditLog('RESET_PASSWORD', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.params.id as string;
     const { password } = req.body;
