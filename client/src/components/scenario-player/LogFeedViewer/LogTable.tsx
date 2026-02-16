@@ -51,15 +51,23 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
-        <Table className="min-w-[700px]">
+        <Table className="w-full table-fixed">
+          <colgroup>
+            <col className="w-[68px]" />
+            <col className="w-[90px]" />
+            <col className="w-[72px]" />
+            <col className="w-[80px]" />
+            <col />
+            <col className="w-[60px]" />
+          </colgroup>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-20">Time</TableHead>
-              <TableHead className="w-24">Type</TableHead>
-              <TableHead className="w-20">Severity</TableHead>
-              <TableHead className="w-20">Source</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Severity</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Summary</TableHead>
-              <TableHead className="w-16 text-right">Actions</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
