@@ -51,8 +51,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.params.id as string;
     const user = await prisma.user.findUnique({
-      where: { id: req.params.id },
+      where: { id: userId },
       select: { id: true, email: true, name: true, role: true, isActive: true, lastLogin: true, createdAt: true },
     });
     if (!user) throw new AppError('User not found', 404);
@@ -82,9 +83,10 @@ router.post('/', auditLog('CREATE', 'USER'), async (req: Request, res: Response,
 
 router.put('/:id', auditLog('UPDATE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.params.id as string;
     const data = updateUserSchema.parse(req.body);
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: userId },
       data,
       select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
     });
@@ -97,7 +99,8 @@ router.put('/:id', auditLog('UPDATE', 'USER'), async (req: Request, res: Respons
 
 router.delete('/:id', auditLog('DELETE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.user.update({ where: { id: req.params.id }, data: { isActive: false } });
+    const userId = req.params.id as string;
+    await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
     res.json({ message: 'User deactivated' });
   } catch (error) {
     next(error);
@@ -106,10 +109,11 @@ router.delete('/:id', auditLog('DELETE', 'USER'), async (req: Request, res: Resp
 
 router.post('/:id/reset-password', auditLog('RESET_PASSWORD', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const userId = req.params.id as string;
     const { password } = req.body;
     if (!password || password.length < 8) throw new AppError('Password must be at least 8 characters', 400);
     const hashedPassword = await AuthService.hashPassword(password);
-    await prisma.user.update({ where: { id: req.params.id }, data: { password: hashedPassword } });
+    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
     next(error);

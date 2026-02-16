@@ -13,7 +13,7 @@
     "build": "npm run build -w shared && npm run build -w server && npm run build -w client",
     "db:migrate": "npx prisma migrate dev --schema=prisma/schema.prisma",
     "db:push": "npx prisma db push --schema=prisma/schema.prisma",
-    "db:seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "db:seed": "npx tsx prisma/seed.ts",
     "db:studio": "npx prisma studio --schema=prisma/schema.prisma",
     "db:generate": "npx prisma generate --schema=prisma/schema.prisma",
     "postinstall": "npx prisma generate --schema=prisma/schema.prisma"

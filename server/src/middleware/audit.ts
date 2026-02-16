@@ -7,7 +7,7 @@ export const auditLog = (action: string, resource: string) => {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.userId;
-      const resourceId = req.params.id || req.params.attemptId || req.params.sessionId;
+      const resourceId = (req.params.id || req.params.attemptId || req.params.sessionId) as string | undefined;
 
       await prisma.auditLog.create({
         data: {

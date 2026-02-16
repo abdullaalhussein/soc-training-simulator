@@ -39,8 +39,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const session = await prisma.session.findUnique({
-      where: { id: req.params.id },
+      where: { id: sessionId },
       include: {
         scenario: true,
         createdBy: { select: { id: true, name: true } },
@@ -88,8 +89,9 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SESSION'),
 
 router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const session = await prisma.session.update({
-      where: { id: req.params.id },
+      where: { id: sessionId },
       data: req.body,
     });
     res.json(session);
@@ -100,6 +102,7 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SESSION'
 
 router.put('/:id/status', requireRole('ADMIN', 'TRAINER'), auditLog('STATUS_CHANGE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const { status } = req.body;
     const data: any = { status };
 
@@ -107,7 +110,7 @@ router.put('/:id/status', requireRole('ADMIN', 'TRAINER'), auditLog('STATUS_CHAN
     if (status === 'COMPLETED') data.endedAt = new Date();
 
     const session = await prisma.session.update({
-      where: { id: req.params.id },
+      where: { id: sessionId },
       data,
     });
     res.json(session);
@@ -118,10 +121,11 @@ router.put('/:id/status', requireRole('ADMIN', 'TRAINER'), auditLog('STATUS_CHAN
 
 router.post('/:id/members', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const { userIds } = req.body;
     const created = await prisma.sessionMember.createMany({
       data: userIds.map((userId: string) => ({
-        sessionId: req.params.id,
+        sessionId,
         userId,
       })),
       skipDuplicates: true,
@@ -134,8 +138,10 @@ router.post('/:id/members', requireRole('ADMIN', 'TRAINER'), async (req: Request
 
 router.delete('/:id/members/:userId', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
+    const userId = req.params.userId as string;
     await prisma.sessionMember.deleteMany({
-      where: { sessionId: req.params.id, userId: req.params.userId },
+      where: { sessionId, userId },
     });
     res.json({ message: 'Member removed' });
   } catch (error) {

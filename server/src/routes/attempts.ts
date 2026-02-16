@@ -68,8 +68,9 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
 // Get attempt details
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.id as string;
     const attempt = await prisma.attempt.findUnique({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       include: {
         session: {
           include: {
@@ -104,7 +105,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // Submit checkpoint answer
 router.post('/:id/answers', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const attempt = await prisma.attempt.findUnique({ where: { id: req.params.id } });
+    const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
     if (!attempt) throw new AppError('Attempt not found', 404);
     if (attempt.userId !== req.user!.userId) throw new AppError('Access denied', 403);
     if (attempt.status !== 'IN_PROGRESS') throw new AppError('Attempt is not in progress', 400);
@@ -117,13 +119,13 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     const { isCorrect, pointsAwarded } = ScoringService.gradeAnswer(checkpoint, answer);
 
     const savedAnswer = await prisma.answer.upsert({
-      where: { attemptId_checkpointId: { attemptId: req.params.id, checkpointId } },
+      where: { attemptId_checkpointId: { attemptId, checkpointId } },
       update: { answer, isCorrect, pointsAwarded },
-      create: { attemptId: req.params.id, checkpointId, answer, isCorrect, pointsAwarded },
+      create: { attemptId, checkpointId, answer, isCorrect, pointsAwarded },
     });
 
     // Recalculate scores
-    await ScoringService.recalculateScores(req.params.id);
+    await ScoringService.recalculateScores(attemptId);
 
     res.json(savedAnswer);
   } catch (error) {
@@ -134,9 +136,10 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
 // Track investigation actions
 router.post('/:id/actions', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.id as string;
     const { actionType, details } = req.body;
     const action = await prisma.investigationAction.create({
-      data: { attemptId: req.params.id, actionType, details },
+      data: { attemptId, actionType, details },
     });
     res.status(201).json(action);
   } catch (error) {
@@ -147,12 +150,13 @@ router.post('/:id/actions', async (req: Request, res: Response, next: NextFuncti
 // Request hint
 router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.id as string;
     const { hintId } = req.body;
     const hint = await prisma.hint.findUnique({ where: { id: hintId } });
     if (!hint) throw new AppError('Hint not found', 404);
 
     await prisma.attempt.update({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       data: {
         hintsUsed: { increment: 1 },
         hintPenalty: { increment: hint.pointsPenalty },
@@ -160,10 +164,10 @@ router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction
     });
 
     await prisma.investigationAction.create({
-      data: { attemptId: req.params.id, actionType: 'HINT_REQUESTED', details: { hintId, penalty: hint.pointsPenalty } },
+      data: { attemptId, actionType: 'HINT_REQUESTED', details: { hintId, penalty: hint.pointsPenalty } },
     });
 
-    await ScoringService.recalculateScores(req.params.id);
+    await ScoringService.recalculateScores(attemptId);
 
     res.json({ content: hint.content, penalty: hint.pointsPenalty });
   } catch (error) {
@@ -174,8 +178,9 @@ router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction
 // Advance stage
 router.post('/:id/advance-stage', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.id as string;
     const attempt = await prisma.attempt.findUnique({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       include: { session: { include: { scenario: { include: { stages: true } } } } },
     });
     if (!attempt) throw new AppError('Attempt not found', 404);
@@ -186,12 +191,12 @@ router.post('/:id/advance-stage', async (req: Request, res: Response, next: Next
     }
 
     const updated = await prisma.attempt.update({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       data: { currentStage: attempt.currentStage + 1 },
     });
 
     await prisma.investigationAction.create({
-      data: { attemptId: req.params.id, actionType: 'STAGE_UNLOCKED', details: { newStage: updated.currentStage } },
+      data: { attemptId, actionType: 'STAGE_UNLOCKED', details: { newStage: updated.currentStage } },
     });
 
     res.json(updated);
@@ -203,14 +208,15 @@ router.post('/:id/advance-stage', async (req: Request, res: Response, next: Next
 // Complete attempt
 router.post('/:id/complete', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const attempt = await prisma.attempt.findUnique({ where: { id: req.params.id } });
+    const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
     if (!attempt) throw new AppError('Attempt not found', 404);
     if (attempt.userId !== req.user!.userId && req.user!.role === 'TRAINEE') throw new AppError('Access denied', 403);
 
-    await ScoringService.recalculateScores(req.params.id);
+    await ScoringService.recalculateScores(attemptId);
 
     const completed = await prisma.attempt.update({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       data: { status: 'COMPLETED', completedAt: new Date() },
     });
 
@@ -228,8 +234,9 @@ router.post('/:id/complete', async (req: Request, res: Response, next: NextFunct
 // Get attempt results
 router.get('/:id/results', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.id as string;
     const attempt = await prisma.attempt.findUnique({
-      where: { id: req.params.id },
+      where: { id: attemptId },
       include: {
         answers: { include: { checkpoint: true } },
         actions: { orderBy: { createdAt: 'asc' } },

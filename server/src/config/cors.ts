@@ -1,8 +1,18 @@
 import { CorsOptions } from 'cors';
 import { env } from './env';
 
+const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+
 export const corsOptions: CorsOptions = {
-  origin: env.CORS_ORIGIN,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    // Allow configured origins and any Railway domain
+    if (allowedOrigins.includes(origin) || origin.endsWith('.railway.app')) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
