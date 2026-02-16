@@ -17,16 +17,18 @@ interface CheckpointModalProps {
   attemptId: string;
   onComplete: () => void;
   onClose: () => void;
-  onAnswerSubmitted: () => void;
 }
 
-export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, onAnswerSubmitted }: CheckpointModalProps) {
+export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }: CheckpointModalProps) {
+  // Capture a stable copy of checkpoints on mount so external query
+  // invalidation doesn't shrink the list while the modal is open
+  const [stableCheckpoints] = useState(() => checkpoints);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [results, setResults] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const cp = checkpoints[currentIndex];
+  const cp = stableCheckpoints[currentIndex];
   if (!cp) return null;
 
   const handleSubmitAnswer = async () => {
@@ -43,9 +45,8 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
         answer,
       });
       setResults(prev => ({ ...prev, [cp.id]: data }));
-      onAnswerSubmitted();
 
-      if (currentIndex < checkpoints.length - 1) {
+      if (currentIndex < stableCheckpoints.length - 1) {
         setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
       } else {
         setTimeout(() => onComplete(), 2000);
@@ -185,7 +186,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Checkpoint Question
-            <Badge variant="outline">{currentIndex + 1}/{checkpoints.length}</Badge>
+            <Badge variant="outline">{currentIndex + 1}/{stableCheckpoints.length}</Badge>
             <Badge variant="secondary">{cp.points} pts</Badge>
           </DialogTitle>
         </DialogHeader>
