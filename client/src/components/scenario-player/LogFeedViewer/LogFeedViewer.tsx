@@ -71,7 +71,7 @@ export function LogFeedViewer({ attemptId, onTrackAction, onAddEvidence, onAddTi
           onFilter={handleFilter}
         />
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0">
         <LogTable
           logs={data?.logs || []}
           pagination={data?.pagination}
