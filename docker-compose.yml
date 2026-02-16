@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: soc-sim-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: soc_training
+      POSTGRES_USER: soc_admin
+      POSTGRES_PASSWORD: soc_password_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soc_admin -d soc_training"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: soc-sim-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@soc.local
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
