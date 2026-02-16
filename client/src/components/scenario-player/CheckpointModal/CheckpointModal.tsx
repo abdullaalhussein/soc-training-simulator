@@ -17,9 +17,10 @@ interface CheckpointModalProps {
   attemptId: string;
   onComplete: () => void;
   onClose: () => void;
+  onAnswerSubmitted: () => void;
 }
 
-export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }: CheckpointModalProps) {
+export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, onAnswerSubmitted }: CheckpointModalProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [results, setResults] = useState<Record<string, any>>({});
@@ -42,6 +43,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }:
         answer,
       });
       setResults(prev => ({ ...prev, [cp.id]: data }));
+      onAnswerSubmitted();
 
       if (currentIndex < checkpoints.length - 1) {
         setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
