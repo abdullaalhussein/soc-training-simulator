@@ -17,7 +17,12 @@ RUN npm ci
 COPY shared/ ./shared/
 COPY client/ ./client/
 
-# Build client
+# Build client — NEXT_PUBLIC_* vars must be set at build time
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+
 WORKDIR /app/client
 RUN npm run build
 
