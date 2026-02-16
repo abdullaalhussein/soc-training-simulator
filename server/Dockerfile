@@ -9,12 +9,11 @@ COPY server/package.json ./server/
 COPY prisma/package.json ./prisma/
 COPY client/package.json ./client/
 
-# Install all dependencies
-RUN npm ci
-
-# Copy prisma schema and generate client
+# Copy prisma schema BEFORE npm ci (postinstall runs prisma generate)
 COPY prisma/schema.prisma ./prisma/
-RUN npx prisma generate --schema=prisma/schema.prisma
+
+# Install all dependencies (postinstall will run prisma generate)
+RUN npm ci
 
 # Copy source code
 COPY shared/ ./shared/
