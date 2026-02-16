@@ -14,9 +14,10 @@ router.use(authenticate, requireRole('ADMIN', 'TRAINER'));
 // PDF Report for individual attempt
 router.get('/attempt/:id/pdf', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const pdf = await PdfReportService.generateAttemptReport(req.params.id);
+    const attemptId = req.params.id as string;
+    const pdf = await PdfReportService.generateAttemptReport(attemptId);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=report-${req.params.id}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=report-${attemptId}.pdf`);
     res.send(pdf);
   } catch (error) {
     next(error);
@@ -26,8 +27,9 @@ router.get('/attempt/:id/pdf', async (req: Request, res: Response, next: NextFun
 // Session summary
 router.get('/session/:id/summary', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const session = await prisma.session.findUnique({
-      where: { id: req.params.id },
+      where: { id: sessionId },
       include: {
         scenario: true,
         attempts: {
@@ -39,9 +41,9 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
     });
     if (!session) throw new AppError('Session not found', 404);
 
-    const completed = session.attempts.filter(a => a.status === 'COMPLETED');
+    const completed = session.attempts.filter((a: any) => a.status === 'COMPLETED');
     const avgScore = completed.length > 0
-      ? completed.reduce((sum, a) => sum + a.totalScore, 0) / completed.length
+      ? completed.reduce((sum: number, a: any) => sum + a.totalScore, 0) / completed.length
       : 0;
 
     res.json({
@@ -51,8 +53,8 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
         totalAttempts: session.attempts.length,
         completedAttempts: completed.length,
         averageScore: Math.round(avgScore * 10) / 10,
-        highestScore: completed.length > 0 ? Math.max(...completed.map(a => a.totalScore)) : 0,
-        lowestScore: completed.length > 0 ? Math.min(...completed.map(a => a.totalScore)) : 0,
+        highestScore: completed.length > 0 ? Math.max(...completed.map((a: any) => a.totalScore)) : 0,
+        lowestScore: completed.length > 0 ? Math.min(...completed.map((a: any) => a.totalScore)) : 0,
       },
     });
   } catch (error) {
@@ -63,8 +65,9 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
 // Leaderboard
 router.get('/session/:id/leaderboard', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const attempts = await prisma.attempt.findMany({
-      where: { sessionId: req.params.id },
+      where: { sessionId },
       include: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { totalScore: 'desc' },
     });
@@ -95,8 +98,9 @@ router.get('/session/:id/leaderboard', async (req: Request, res: Response, next:
 // CSV export
 router.get('/session/:id/csv', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const sessionId = req.params.id as string;
     const attempts = await prisma.attempt.findMany({
-      where: { sessionId: req.params.id },
+      where: { sessionId },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { totalScore: 'desc' },
     });
@@ -124,7 +128,7 @@ router.get('/session/:id/csv', async (req: Request, res: Response, next: NextFun
 
     const csv = stringify(records, { header: true });
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=session-${req.params.id}-results.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename=session-${sessionId}-results.csv`);
     res.send(csv);
   } catch (error) {
     next(error);
@@ -134,9 +138,10 @@ router.get('/session/:id/csv', async (req: Request, res: Response, next: NextFun
 // Scenario analytics
 router.get('/scenario/:id/analytics', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const scenarioId = req.params.id as string;
     const attempts = await prisma.attempt.findMany({
       where: {
-        session: { scenarioId: req.params.id },
+        session: { scenarioId },
         status: 'COMPLETED',
       },
       include: { answers: { include: { checkpoint: true } } },
@@ -169,7 +174,7 @@ router.get('/scenario/:id/analytics', async (req: Request, res: Response, next: 
       .sort((a, b) => a.correctRate - b.correctRate)
       .slice(0, 5);
 
-    const distribution = { '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0 };
+    const distribution: Record<string, number> = { '0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0 };
     for (const a of attempts) {
       if (a.totalScore <= 20) distribution['0-20']++;
       else if (a.totalScore <= 40) distribution['21-40']++;

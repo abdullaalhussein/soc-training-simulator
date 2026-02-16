@@ -1,5 +1,7 @@
 import dotenv from 'dotenv';
+// Load .env file in development; in production (Railway), env vars are injected
 dotenv.config({ path: '../.env' });
+dotenv.config();
 
 import express from 'express';
 import { createServer } from 'http';
@@ -19,7 +21,14 @@ const httpServer = createServer(app);
 // Socket.io
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
+      if (allowedOrigins.includes(origin) || origin.endsWith('.railway.app')) {
+        return callback(null, true);
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -45,8 +54,8 @@ app.use(errorHandler);
 // Initialize Socket.io
 initializeSocket(io);
 
-// Start server
-httpServer.listen(env.SERVER_PORT, () => {
+// Start server — bind 0.0.0.0 for Railway/Docker compatibility
+httpServer.listen(env.SERVER_PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${env.SERVER_PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
 });

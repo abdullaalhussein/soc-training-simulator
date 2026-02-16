@@ -4,7 +4,6 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AppError } from '../middleware/errorHandler';
-import { z } from 'zod';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -37,8 +36,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
 
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const scenarioId = req.params.id as string;
     const scenario = await prisma.scenario.findUnique({
-      where: { id: req.params.id },
+      where: { id: scenarioId },
       include: {
         stages: {
           include: {
@@ -127,9 +127,10 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
 
 router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const scenarioId = req.params.id as string;
     const { stages, checkpoints, ...scenarioData } = req.body;
     const scenario = await prisma.scenario.update({
-      where: { id: req.params.id },
+      where: { id: scenarioId },
       data: scenarioData,
     });
     res.json(scenario);
@@ -140,7 +141,8 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
 
 router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'SCENARIO'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.scenario.update({ where: { id: req.params.id }, data: { isActive: false } });
+    const scenarioId = req.params.id as string;
+    await prisma.scenario.update({ where: { id: scenarioId }, data: { isActive: false } });
     res.json({ message: 'Scenario deactivated' });
   } catch (error) {
     next(error);
@@ -150,8 +152,9 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'SCENARIO'), asyn
 // Stage management
 router.post('/:id/stages', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const scenarioId = req.params.id as string;
     const stage = await prisma.scenarioStage.create({
-      data: { scenarioId: req.params.id, ...req.body },
+      data: { scenarioId, ...req.body },
     });
     res.status(201).json(stage);
   } catch (error) {
@@ -162,10 +165,11 @@ router.post('/:id/stages', requireRole('ADMIN', 'TRAINER'), async (req: Request,
 // Add logs to a stage
 router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const stageId = req.params.stageId as string;
     const logs = Array.isArray(req.body) ? req.body : [req.body];
     const created = await prisma.simulatedLog.createMany({
       data: logs.map((l: any) => ({
-        stageId: req.params.stageId,
+        stageId,
         logType: l.logType,
         rawLog: l.rawLog,
         summary: l.summary,
@@ -191,8 +195,9 @@ router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async 
 // Add checkpoints
 router.post('/:id/checkpoints', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const scenarioId = req.params.id as string;
     const checkpoint = await prisma.checkpoint.create({
-      data: { scenarioId: req.params.id, ...req.body },
+      data: { scenarioId, ...req.body },
     });
     res.status(201).json(checkpoint);
   } catch (error) {

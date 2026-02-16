@@ -18,8 +18,9 @@ router.use(authenticate, logRateLimit);
 
 router.get('/attempt/:attemptId', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.attemptId as string;
     const attempt = await prisma.attempt.findUnique({
-      where: { id: req.params.attemptId },
+      where: { id: attemptId },
       include: {
         session: {
           include: {
@@ -38,8 +39,8 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
 
     // Only return logs from unlocked stages
     const unlockedStageIds = attempt.session.scenario.stages
-      .filter(s => s.stageNumber <= attempt.currentStage)
-      .map(s => s.id);
+      .filter((s: { stageNumber: number }) => s.stageNumber <= attempt.currentStage)
+      .map((s: { id: string }) => s.id);
 
     const {
       logType, hostname, username, processName, eventId,
@@ -95,8 +96,9 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
 // Get distinct filter values for an attempt
 router.get('/attempt/:attemptId/filters', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const attemptId = req.params.attemptId as string;
     const attempt = await prisma.attempt.findUnique({
-      where: { id: req.params.attemptId },
+      where: { id: attemptId },
       include: {
         session: {
           include: {
@@ -109,8 +111,8 @@ router.get('/attempt/:attemptId/filters', async (req: Request, res: Response, ne
     if (!attempt) throw new AppError('Attempt not found', 404);
 
     const unlockedStageIds = attempt.session.scenario.stages
-      .filter(s => s.stageNumber <= attempt.currentStage)
-      .map(s => s.id);
+      .filter((s: { stageNumber: number }) => s.stageNumber <= attempt.currentStage)
+      .map((s: { id: string }) => s.id);
 
     const logs = await prisma.simulatedLog.findMany({
       where: { stageId: { in: unlockedStageIds } },
