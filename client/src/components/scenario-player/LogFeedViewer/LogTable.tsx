@@ -3,7 +3,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import { format } from 'date-fns';
@@ -50,16 +50,16 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
 
   return (
     <div className="flex flex-col h-full">
-      <ScrollArea className="flex-1">
-        <Table>
+      <div className="flex-1 overflow-auto">
+        <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-36">Timestamp</TableHead>
-              <TableHead className="w-28">Type</TableHead>
-              <TableHead className="w-24">Severity</TableHead>
-              <TableHead className="w-24">Source</TableHead>
+              <TableHead className="w-20">Time</TableHead>
+              <TableHead className="w-24">Type</TableHead>
+              <TableHead className="w-20">Severity</TableHead>
+              <TableHead className="w-20">Source</TableHead>
               <TableHead>Summary</TableHead>
-              <TableHead className="w-20">Actions</TableHead>
+              <TableHead className="w-16 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -76,23 +76,23 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
                   className="cursor-pointer hover:bg-muted/70"
                   onClick={() => onLogClick(log)}
                 >
-                  <TableCell className="text-xs font-mono">
+                  <TableCell className="text-xs font-mono whitespace-nowrap">
                     {format(new Date(log.timestamp), 'HH:mm:ss')}
                   </TableCell>
                   <TableCell>
-                    <Badge className={`text-xs ${logTypeColors[log.logType] || ''}`}>
+                    <Badge className={`text-[10px] whitespace-nowrap ${logTypeColors[log.logType] || ''}`}>
                       {log.logType.replace('_', ' ')}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={`text-xs ${severityColors[log.severity] || ''}`}>
+                    <Badge className={`text-[10px] ${severityColors[log.severity] || ''}`}>
                       {log.severity}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs">{log.hostname || '-'}</TableCell>
-                  <TableCell className="text-sm max-w-md truncate">{log.summary}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{log.hostname || '-'}</TableCell>
+                  <TableCell className="text-sm">{log.summary}</TableCell>
                   <TableCell>
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -118,7 +118,7 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
             )}
           </TableBody>
         </Table>
-      </ScrollArea>
+      </div>
       {pagination && pagination.totalPages > 1 && (
         <div className="border-t p-2 flex items-center justify-between text-sm">
           <span className="text-muted-foreground">

@@ -207,7 +207,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
         onComplete={handleComplete}
       />
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-72 border-r overflow-y-auto">
+        <div className="w-64 flex-shrink-0 border-r overflow-y-auto">
           <BriefingPanel
             briefing={scenario?.briefing || ''}
             stageTitle={currentStageData?.title || ''}
@@ -218,7 +218,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
             onHintUsed={() => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] })}
           />
         </div>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <LogFeedViewer
             attemptId={attemptId}
             onTrackAction={trackAction}
@@ -226,7 +226,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
             onAddTimeline={addTimelineEntry}
           />
         </div>
-        <div className="w-80 border-l overflow-y-auto">
+        <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
           <InvestigationWorkspace
             evidence={evidence}
             timelineEntries={timelineEntries}
