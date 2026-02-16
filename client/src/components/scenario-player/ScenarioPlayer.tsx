@@ -202,9 +202,12 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
         scenarioName={scenario?.name || ''}
         currentStage={attempt.currentStage}
         totalStages={stages.length}
+        stageTitle={currentStageData?.title || ''}
         elapsedSeconds={elapsedSeconds}
         score={attempt.totalScore}
+        unansweredCount={unansweredCheckpoints.length}
         onComplete={handleComplete}
+        onOpenCheckpoints={handleStageComplete}
       />
       <div className="flex-1 flex overflow-hidden">
         <div className="w-64 flex-shrink-0 border-r overflow-y-auto">
@@ -234,6 +237,10 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
             onRemoveTimeline={removeTimelineEntry}
             onStageComplete={handleStageComplete}
             hasUnansweredCheckpoints={unansweredCheckpoints.length > 0}
+            unansweredCount={unansweredCheckpoints.length}
+            currentStage={attempt.currentStage}
+            totalStages={stages.length}
+            stageTitle={currentStageData?.title || ''}
           />
         </div>
       </div>
@@ -244,6 +251,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
           attemptId={attemptId}
           onComplete={handleCheckpointComplete}
           onClose={() => setShowCheckpoint(false)}
+          onAnswerSubmitted={() => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] })}
         />
       )}
     </div>
