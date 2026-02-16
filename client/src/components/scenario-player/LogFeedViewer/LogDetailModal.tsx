@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Plus } from 'lucide-react';
 
 interface LogDetailModalProps {
@@ -15,15 +15,15 @@ interface LogDetailModalProps {
 export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalProps) {
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Log Detail
             <Badge variant="outline">{log.logType}</Badge>
             <Badge variant="outline">{log.severity}</Badge>
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
           <p className="text-sm">{log.summary}</p>
           <div className="grid grid-cols-2 gap-2 text-xs">
             {log.hostname && <div><span className="font-medium">Hostname:</span> {log.hostname}</div>}
@@ -35,14 +35,12 @@ export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalPr
           </div>
           <div>
             <h4 className="text-sm font-medium mb-1">Raw Log (JSON)</h4>
-            <ScrollArea className="h-64">
-              <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
-                {JSON.stringify(log.rawLog, null, 2)}
-              </pre>
-            </ScrollArea>
+            <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto max-h-48">
+              {JSON.stringify(log.rawLog, null, 2)}
+            </pre>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={onClose}>Close</Button>
           <Button onClick={() => { onAddEvidence(log); onClose(); }}>
             <Plus className="mr-2 h-4 w-4" /> Add to Evidence

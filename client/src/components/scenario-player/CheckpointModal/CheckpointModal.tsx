@@ -179,15 +179,15 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }:
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Checkpoint Question
             <Badge variant="outline">{currentIndex + 1}/{checkpoints.length}</Badge>
             <Badge variant="secondary">{cp.points} pts</Badge>
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
           <p className="text-sm font-medium">{cp.question}</p>
 
           {result ? (
@@ -202,7 +202,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }:
             renderQuestion()
           )}
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           {!result && (
             <Button onClick={handleSubmitAnswer} disabled={submitting}>
               {submitting ? 'Submitting...' : 'Submit Answer'}
