@@ -17,9 +17,10 @@ interface CheckpointModalProps {
   attemptId: string;
   onComplete: () => void;
   onClose: () => void;
+  onAnswered: (checkpointId: string) => void;
 }
 
-export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }: CheckpointModalProps) {
+export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, onAnswered }: CheckpointModalProps) {
   // Capture a stable copy of checkpoints on mount so external query
   // invalidation doesn't shrink the list while the modal is open
   const [stableCheckpoints] = useState(() => checkpoints);
@@ -45,6 +46,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose }:
         answer,
       });
       setResults(prev => ({ ...prev, [cp.id]: data }));
+      onAnswered(cp.id);
 
       if (currentIndex < stableCheckpoints.length - 1) {
         setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
