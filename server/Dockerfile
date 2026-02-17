@@ -49,4 +49,4 @@ WORKDIR /app/server
 
 EXPOSE 3001
 
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --schema=../prisma/schema.prisma --skip-generate && node dist/index.js"]
