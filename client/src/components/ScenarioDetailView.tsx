@@ -8,7 +8,9 @@ import {
   Layers, CheckSquare, Lightbulb, FileText,
   Clock, AlertTriangle, CheckCircle2, HelpCircle,
   ScrollText, Shield, Tag, Monitor, Globe, User,
+  BookOpen,
 } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 const difficultyColors: Record<string, string> = {
   BEGINNER: 'bg-green-100 text-green-800',
@@ -132,6 +134,23 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
           )}
         </CardContent>
       </Card>
+
+      {/* Lesson Content */}
+      {scenario.lessonContent && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" /> Lesson Content
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Present this material to trainees before starting the investigation.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <MarkdownRenderer content={scenario.lessonContent} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stages & Checkpoints Breakdown */}
       <div>

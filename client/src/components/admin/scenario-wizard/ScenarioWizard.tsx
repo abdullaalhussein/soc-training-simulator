@@ -34,12 +34,13 @@ export function ScenarioWizard({ onComplete, scenario: existingScenario }: Scena
         category: existingScenario.category || '',
         difficulty: existingScenario.difficulty || 'BEGINNER',
         briefing: existingScenario.briefing || '',
+        lessonContent: existingScenario.lessonContent || '',
         estimatedMinutes: existingScenario.estimatedMinutes || 45,
       };
     }
     return {
       name: '', description: '', category: '', difficulty: 'BEGINNER',
-      briefing: '', estimatedMinutes: 45,
+      briefing: '', lessonContent: '', estimatedMinutes: 45,
     };
   });
 
@@ -188,6 +189,11 @@ export function ScenarioWizard({ onComplete, scenario: existingScenario }: Scena
           <div className="space-y-2">
             <Label>Briefing (Markdown supported)</Label>
             <Textarea value={basicInfo.briefing} onChange={(e) => setBasicInfo({ ...basicInfo, briefing: e.target.value })} placeholder="## Scenario Briefing\n\nYou are a Tier 1 SOC Analyst..." rows={6} />
+          </div>
+          <div className="space-y-2">
+            <Label>Lesson Content (Markdown supported, optional)</Label>
+            <Textarea value={basicInfo.lessonContent} onChange={(e) => setBasicInfo({ ...basicInfo, lessonContent: e.target.value })} placeholder="# Lesson Material\n\nEducational content shown to trainees before starting the investigation..." rows={10} />
+            <p className="text-xs text-muted-foreground">When provided, trainees will see this lesson before entering the investigation view.</p>
           </div>
         </div>
       )}

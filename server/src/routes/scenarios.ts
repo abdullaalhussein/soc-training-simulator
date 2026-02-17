@@ -245,6 +245,7 @@ router.get('/:id/export', requireRole('ADMIN', 'TRAINER'), async (req: Request, 
       category: scenario.category,
       mitreAttackIds: scenario.mitreAttackIds,
       briefing: scenario.briefing,
+      lessonContent: scenario.lessonContent,
       estimatedMinutes: scenario.estimatedMinutes,
       stages: scenario.stages.map((s) => ({
         stageNumber: s.stageNumber,
