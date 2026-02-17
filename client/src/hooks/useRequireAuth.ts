@@ -2,14 +2,15 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, useAuthHydrated } from '@/store/authStore';
 
 export function useRequireAuth(allowedRoles?: string[]) {
   const router = useRouter();
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const hydrated = useAuthHydrated();
 
   useEffect(() => {
-    if (!_hasHydrated) return;
+    if (!hydrated) return;
 
     if (!isAuthenticated || !user) {
       router.push('/login');
@@ -29,7 +30,7 @@ export function useRequireAuth(allowedRoles?: string[]) {
           break;
       }
     }
-  }, [_hasHydrated, isAuthenticated, user, allowedRoles, router]);
+  }, [hydrated, isAuthenticated, user, allowedRoles, router]);
 
-  return { user, isAuthenticated, isLoading: !_hasHydrated };
+  return { user, isAuthenticated, isLoading: !hydrated };
 }
