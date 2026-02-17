@@ -106,6 +106,7 @@ model Scenario {
   category         String
   mitreAttackIds   String[]
   briefing         String     @db.Text
+  lessonContent    String?    @db.Text
   estimatedMinutes Int        @default(60)
   isActive         Boolean    @default(true)
   createdAt        DateTime   @default(now())
