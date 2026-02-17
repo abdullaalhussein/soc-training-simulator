@@ -116,7 +116,7 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     const checkpoint = await prisma.checkpoint.findUnique({ where: { id: checkpointId } });
     if (!checkpoint) throw new AppError('Checkpoint not found', 404);
 
-    const { isCorrect, pointsAwarded } = ScoringService.gradeAnswer(checkpoint, answer);
+    const { isCorrect, pointsAwarded } = await ScoringService.gradeAnswer(checkpoint, answer);
 
     const savedAnswer = await prisma.answer.upsert({
       where: { attemptId_checkpointId: { attemptId, checkpointId } },

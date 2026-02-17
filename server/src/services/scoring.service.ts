@@ -3,7 +3,7 @@ import { PrismaClient, CheckpointType } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export class ScoringService {
-  static gradeAnswer(checkpoint: any, answer: any): { isCorrect: boolean; pointsAwarded: number } {
+  static async gradeAnswer(checkpoint: any, answer: any): Promise<{ isCorrect: boolean; pointsAwarded: number }> {
     const { checkpointType, correctAnswer, points } = checkpoint;
 
     switch (checkpointType) {
@@ -61,6 +61,21 @@ export class ScoringService {
         score += recScore * 0.5;
 
         return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10 };
+      }
+
+      case 'YARA_RULE': {
+        const { YaraService } = await import('./yara.service');
+        const correctData = typeof correctAnswer === 'object' ? correctAnswer : {};
+        const samples = (correctData as any).samples || [];
+        const sanitizedRule = YaraService.sanitizeRule(String(answer));
+        const result = await YaraService.testRule(sanitizedRule, samples);
+
+        if (!result.compiled) {
+          return { isCorrect: false, pointsAwarded: 0 };
+        }
+
+        const pointsAwarded = Math.round(result.accuracy * points * 10) / 10;
+        return { isCorrect: result.accuracy >= 0.8, pointsAwarded };
       }
 
       default:

@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/toaster';
 import { CheckCircle, XCircle } from 'lucide-react';
+import { YaraRuleEditor } from './YaraRuleEditor';
 
 interface CheckpointModalProps {
   checkpoints: any[];
@@ -177,6 +178,25 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           </div>
         );
 
+      case 'YARA_RULE': {
+        const correctAnswerData = cp.correctAnswer as any;
+        const samplesMeta = (correctAnswerData?.samples || []).map((s: any) => ({
+          name: s.name,
+          description: s.description || '',
+          shouldMatch: s.shouldMatch,
+          previewStrings: s.previewStrings || [],
+          previewHex: s.previewHex || '',
+        }));
+        return (
+          <YaraRuleEditor
+            checkpointId={cp.id}
+            samples={samplesMeta}
+            value={answers[cp.id] || ''}
+            onChange={(v) => setAnswers({ ...answers, [cp.id]: v })}
+          />
+        );
+      }
+
       default:
         return <p className="text-muted-foreground">Unknown question type</p>;
     }
@@ -184,7 +204,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+      <DialogContent className={`${cp.checkpointType === 'YARA_RULE' ? 'max-w-2xl' : 'max-w-lg'} max-h-[80vh] flex flex-col`}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Checkpoint Question

@@ -26,6 +26,8 @@ RUN npx tsc
 # Production stage
 FROM node:20-alpine AS production
 
+RUN apk add --no-cache yara
+
 WORKDIR /app
 
 COPY --from=base /app/package.json /app/package-lock.json ./
