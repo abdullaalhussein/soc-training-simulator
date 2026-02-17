@@ -43,6 +43,15 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         stages: {
           include: {
             hints: { select: { id: true, content: true, pointsPenalty: true, sortOrder: true }, orderBy: { sortOrder: 'asc' } },
+            logs: {
+              select: {
+                id: true, logType: true, summary: true, severity: true,
+                hostname: true, username: true, processName: true, eventId: true,
+                sourceIp: true, destIp: true, timestamp: true,
+                isEvidence: true, evidenceTag: true, sortOrder: true,
+              },
+              orderBy: { sortOrder: 'asc' },
+            },
             _count: { select: { logs: true } },
           },
           orderBy: { stageNumber: 'asc' },
