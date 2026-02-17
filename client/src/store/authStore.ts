@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
@@ -52,17 +52,13 @@ export const useAuthStore = create<AuthState>()(
 
 /**
  * Hook that returns true once the auth store has finished rehydrating from localStorage.
- * Use this to prevent auth-dependent logic from running before hydration completes.
+ * Uses useSyncExternalStore to ensure hydration status and store state are read
+ * in the same synchronous render cycle, avoiding race conditions.
  */
 export function useAuthHydrated() {
-  const [hydrated, setHydrated] = useState(
-    () => useAuthStore.persist?.hasHydrated?.() ?? false
+  return useSyncExternalStore(
+    useAuthStore.persist.onFinishHydration,
+    useAuthStore.persist.hasHydrated,
+    () => false
   );
-
-  useEffect(() => {
-    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
-    return unsub;
-  }, []);
-
-  return hydrated;
 }
