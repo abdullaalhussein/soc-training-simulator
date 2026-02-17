@@ -5,9 +5,9 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 
 export default function TrainerLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useRequireAuth(['TRAINER', 'ADMIN']);
+  const { isAuthenticated, isLoading } = useRequireAuth(['TRAINER', 'ADMIN']);
 
-  if (!isAuthenticated) return null;
+  if (isLoading || !isAuthenticated) return null;
 
   return (
     <div className="flex h-screen">

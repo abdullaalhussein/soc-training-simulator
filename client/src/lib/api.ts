@@ -26,8 +26,10 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        // Dynamically import to avoid circular dependencies
+        import('@/store/authStore').then(({ useAuthStore }) => {
+          useAuthStore.getState().logout();
+        });
         window.location.href = '/login';
       }
     }

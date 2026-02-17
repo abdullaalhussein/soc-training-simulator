@@ -6,9 +6,11 @@ import { useAuthStore } from '@/store/authStore';
 
 export function useRequireAuth(allowedRoles?: string[]) {
   const router = useRouter();
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
+    if (!_hasHydrated) return;
+
     if (!isAuthenticated || !user) {
       router.push('/login');
       return;
@@ -27,7 +29,7 @@ export function useRequireAuth(allowedRoles?: string[]) {
           break;
       }
     }
-  }, [isAuthenticated, user, allowedRoles, router]);
+  }, [_hasHydrated, isAuthenticated, user, allowedRoles, router]);
 
-  return { user, isAuthenticated };
+  return { user, isAuthenticated, isLoading: !_hasHydrated };
 }
