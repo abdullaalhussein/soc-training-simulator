@@ -649,7 +649,7 @@
             "samples": [
               {
                 "name": "darkforge_dropper_v1.exe",
-                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAALmRmcmcAAAAAAAAARARLRk9SR0VfQ0ZHAAAAAABDcmVhdGVQcm9jZXNzVwAAAHVwZGF0ZTEuZGFya2ZvcmdlLWNkbi5jb20AAABTb2Z0d2FyZVxNaWNyb3NvZnRcV2luZG93c1xDdXJyZW50VmVyc2lvblxSdW4=",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAALmRmcmcAAAAAAABEQVJLRk9SR0VfQ0ZHAAAAAAAAQ3JlYXRlUHJvY2Vzc1cAAAAAdXBkYXRlMS5kYXJrZm9yZ2UtY2RuLmNvbQAAAABTb2Z0d2FyZVxNaWNyb3NvZnRcV2luZG93c1xDdXJyZW50VmVyc2lvblxSdW4=",
                 "shouldMatch": true,
                 "description": "DARKFORGE dropper v1: PE file with .dfrg section, DARKFORGE_CFG marker, CreateProcessW API, C2 domain update1.darkforge-cdn.com, and registry persistence.",
                 "previewStrings": ["DARKFORGE_CFG", ".dfrg", "CreateProcessW", "darkforge-cdn.com", "CurrentVersion\\Run"],
