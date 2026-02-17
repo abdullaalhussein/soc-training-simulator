@@ -43,7 +43,7 @@ export default function TrainerScenariosPage() {
             <Card
               key={scenario.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => router.push(`/scenarios/${scenario.id}`)}
+              onClick={() => router.push(`/scenario-guide/${scenario.id}`)}
             >
               <CardHeader>
                 <div className="flex items-center justify-between">

@@ -14,7 +14,7 @@ export default function TrainerScenarioDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push('/scenarios')}>
+        <Button variant="ghost" size="sm" onClick={() => router.push('/scenario-guide')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Scenarios
         </Button>
       </div>
