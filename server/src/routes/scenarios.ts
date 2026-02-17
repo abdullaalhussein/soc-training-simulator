@@ -15,7 +15,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { difficulty, category, search } = req.query;
     const where: any = {};
-    if (req.user!.role === 'TRAINEE') where.isActive = true;
+    where.isActive = true;
     if (difficulty) where.difficulty = difficulty;
     if (category) where.category = category;
     if (search) where.name = { contains: search as string, mode: 'insensitive' };
