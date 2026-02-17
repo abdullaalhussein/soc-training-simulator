@@ -17,6 +17,7 @@ const navItems = {
   ],
   TRAINER: [
     { href: '/console', label: 'Console', icon: Monitor },
+    { href: '/scenarios', label: 'Scenarios', icon: BookOpen },
     { href: '/reports', label: 'Reports', icon: BarChart3 },
   ],
   ADMIN: [
