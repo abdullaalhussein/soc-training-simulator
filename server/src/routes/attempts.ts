@@ -138,7 +138,23 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     // Recalculate scores
     await ScoringService.recalculateScores(attemptId);
 
-    res.json(savedAnswer);
+    const response: any = { ...savedAnswer };
+
+    // For BEGINNER scenarios, include correct answer + explanation on wrong answers
+    if (!isCorrect) {
+      const attemptWithScenario = await prisma.attempt.findUnique({
+        where: { id: attemptId },
+        include: { session: { include: { scenario: { select: { difficulty: true } } } } },
+      });
+      if (attemptWithScenario?.session?.scenario?.difficulty === 'BEGINNER') {
+        response.correctAnswer = checkpoint.correctAnswer;
+        response.explanation = checkpoint.explanation;
+        response.checkpointType = checkpoint.checkpointType;
+        response.options = checkpoint.options;
+      }
+    }
+
+    res.json(response);
   } catch (error) {
     next(error);
   }

@@ -78,6 +78,17 @@ export function initializeSocket(io: SocketIOServer) {
       logger.info(`Trainer sent hint to attempt:${data.attemptId}`);
     });
 
+    socket.on('send-session-alert', (data: { sessionId: string; message: string }) => {
+      if (!data.message?.trim()) return;
+      const room = `session:${data.sessionId}`;
+      traineeNsp.to(room).emit('session-alert', {
+        message: data.message.trim(),
+        fromTrainer: socket.data.user.email,
+        timestamp: new Date().toISOString(),
+      });
+      logger.info(`Trainer broadcast alert to session:${data.sessionId}`);
+    });
+
     socket.on('pause-session', (sessionId: string) => {
       traineeNsp.emit('session-paused', { sessionId });
       logger.info(`Session ${sessionId} paused by trainer`);

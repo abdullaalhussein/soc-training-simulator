@@ -11,10 +11,11 @@ import { CheckpointModal } from './CheckpointModal/CheckpointModal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useMobile } from '@/hooks/useMobile';
 import { getTraineeSocket } from '@/lib/socket';
-import { FileText, MessageCircle } from 'lucide-react';
+import { FileText, MessageCircle, AlertTriangle } from 'lucide-react';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
 
 interface ScenarioPlayerProps {
@@ -32,6 +33,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<string>>(new Set());
   const [briefingSheetOpen, setBriefingSheetOpen] = useState(false);
   const [chatSheetOpen, setChatSheetOpen] = useState(false);
+  const [trainerAlert, setTrainerAlert] = useState<string | null>(null);
 
   const isMobile = useMobile();
   const isTablet = useMobile(1024);
@@ -72,9 +74,14 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
       queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
     });
 
+    socket.on('session-alert', (data: { message: string }) => {
+      setTrainerAlert(data.message);
+    });
+
     return () => {
       socket.off('hint-sent');
       socket.off('session-paused');
+      socket.off('session-alert');
       socket.disconnect();
     };
   }, [attemptId, sessionId, queryClient]);
@@ -272,6 +279,23 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     />
   );
 
+  const trainerAlertDialog = trainerAlert !== null && (
+    <Dialog open={true} onOpenChange={() => setTrainerAlert(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            Message from Trainer
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm whitespace-pre-wrap">{trainerAlert}</p>
+        <DialogFooter>
+          <Button onClick={() => setTrainerAlert(null)}>OK</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Mobile layout: tabbed interface
   if (isMobile) {
     return (
@@ -300,6 +324,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
           )}
         </Tabs>
         {checkpointModal}
+        {trainerAlertDialog}
       </div>
     );
   }
@@ -356,6 +381,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
           )}
         </div>
         {checkpointModal}
+        {trainerAlertDialog}
       </div>
     );
   }
@@ -396,6 +422,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         )}
       </div>
       {checkpointModal}
+      {trainerAlertDialog}
     </div>
   );
 }

@@ -109,6 +109,8 @@ export default function SessionMonitorPage() {
   const [selectedNewTrainees, setSelectedNewTrainees] = useState<string[]>([]);
   const [traineeSearch, setTraineeSearch] = useState('');
   const [startingForTrainee, setStartingForTrainee] = useState<string | null>(null);
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   // Auto-refresh session data every 10 seconds as fallback for socket
   useEffect(() => {
@@ -314,6 +316,15 @@ export default function SessionMonitorPage() {
     }
   };
 
+  const handleBroadcastAlert = () => {
+    if (!alertMessage.trim()) return;
+    const socket = getTrainerSocket();
+    socket.emit('send-session-alert', { sessionId, message: alertMessage });
+    toast({ title: 'Alert broadcast to all trainees' });
+    setAlertDialogOpen(false);
+    setAlertMessage('');
+  };
+
   // Get predefined hints for the current stage
   const getPredefinedHints = (): { content: string; penalty: number }[] => {
     if (!selectedTrainee || !session?.scenario?.stages) return [];
@@ -387,6 +398,11 @@ export default function SessionMonitorPage() {
           <Button size="sm" variant="outline" onClick={() => setAddTraineeDialogOpen(true)}>
             <UserPlus className="mr-1 h-4 w-4" /> Add Trainee
           </Button>
+          {session?.status === 'ACTIVE' && (
+            <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50" onClick={() => setAlertDialogOpen(true)}>
+              <AlertTriangle className="mr-1 h-4 w-4" /> Broadcast Alert
+            </Button>
+          )}
           {session?.status === 'ACTIVE' && (
             <>
               <Button size="sm" variant="outline" onClick={() => handleStatusChange('PAUSED')}>
@@ -733,6 +749,38 @@ export default function SessionMonitorPage() {
                 {addMembers.isPending ? 'Starting...' : `Add & Start (${selectedNewTrainees.length})`}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Broadcast Alert Dialog */}
+      <Dialog open={alertDialogOpen} onOpenChange={(open) => {
+        setAlertDialogOpen(open);
+        if (!open) setAlertMessage('');
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Broadcast Alert to All Trainees
+            </DialogTitle>
+            <DialogDescription>
+              This message will appear as an unmissable dialog overlay for every trainee in this session.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={alertMessage}
+            onChange={(e) => setAlertMessage(e.target.value)}
+            placeholder="Type your alert message..."
+            rows={4}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAlertDialogOpen(false); setAlertMessage(''); }}>
+              Cancel
+            </Button>
+            <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={handleBroadcastAlert} disabled={!alertMessage.trim()}>
+              <Send className="mr-2 h-4 w-4" /> Send Alert
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
