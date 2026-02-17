@@ -153,7 +153,21 @@ router.delete('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('DELETE', 'SESSI
       throw new AppError('Only completed or draft sessions can be deleted', 400);
     }
 
+    // Delete in order to satisfy foreign key constraints
+    const attempts = await prisma.attempt.findMany({ where: { sessionId }, select: { id: true } });
+    const attemptIds = attempts.map(a => a.id);
+
+    if (attemptIds.length > 0) {
+      await prisma.investigationAction.deleteMany({ where: { attemptId: { in: attemptIds } } });
+      await prisma.answer.deleteMany({ where: { attemptId: { in: attemptIds } } });
+      await prisma.trainerNote.deleteMany({ where: { attemptId: { in: attemptIds } } });
+      await prisma.attempt.deleteMany({ where: { sessionId } });
+    }
+
+    await prisma.sessionMessage.deleteMany({ where: { sessionId } });
+    await prisma.sessionMember.deleteMany({ where: { sessionId } });
     await prisma.session.delete({ where: { id: sessionId } });
+
     res.json({ message: 'Session deleted' });
   } catch (error) {
     next(error);
