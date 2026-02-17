@@ -55,7 +55,9 @@ export const useAuthStore = create<AuthState>()(
  * Use this to prevent auth-dependent logic from running before hydration completes.
  */
 export function useAuthHydrated() {
-  const [hydrated, setHydrated] = useState(useAuthStore.persist.hasHydrated());
+  const [hydrated, setHydrated] = useState(
+    () => useAuthStore.persist?.hasHydrated?.() ?? false
+  );
 
   useEffect(() => {
     const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true));
