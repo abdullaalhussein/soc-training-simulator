@@ -93,12 +93,6 @@ export default function LoginPage() {
             </Button>
           </CardFooter>
         </form>
-        <div className="px-6 pb-6">
-          <div className="text-xs text-muted-foreground text-center space-y-1">
-            <p>Demo accounts (password: Password123!)</p>
-            <p>admin@soc.local | trainer@soc.local | trainee@soc.local</p>
-          </div>
-        </div>
       </Card>
     </div>
   );
