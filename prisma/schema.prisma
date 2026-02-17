@@ -94,6 +94,7 @@ model User {
   attempts         Attempt[]
   trainerNotes     TrainerNote[]       @relation("TrainerNotes")
   auditLogs        AuditLog[]
+  messages         SessionMessage[]
 
   @@index([email])
   @@index([role])
@@ -220,6 +221,7 @@ model Session {
   createdBy User            @relation("CreatedSessions", fields: [createdById], references: [id])
   members   SessionMember[]
   attempts  Attempt[]
+  messages  SessionMessage[]
 
   @@index([status])
   @@index([createdById])
@@ -332,4 +334,17 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+model SessionMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([sessionId, createdAt])
 }

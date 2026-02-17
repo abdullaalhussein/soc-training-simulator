@@ -9,22 +9,32 @@ import { LogFeedViewer } from './LogFeedViewer/LogFeedViewer';
 import { InvestigationWorkspace } from './InvestigationWorkspace/InvestigationWorkspace';
 import { CheckpointModal } from './CheckpointModal/CheckpointModal';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { useMobile } from '@/hooks/useMobile';
 import { getTraineeSocket } from '@/lib/socket';
+import { FileText, MessageCircle } from 'lucide-react';
+import { DiscussionPanel } from '@/components/DiscussionPanel';
 
 interface ScenarioPlayerProps {
   attemptId: string;
+  sessionId?: string;
 }
 
-export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
+export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const queryClient = useQueryClient();
   const [showCheckpoint, setShowCheckpoint] = useState(false);
   const [evidence, setEvidence] = useState<any[]>([]);
   const [timelineEntries, setTimelineEntries] = useState<any[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [trainerHints, setTrainerHints] = useState<string[]>([]);
-  // Track checkpoint IDs answered in this session so we can filter them
-  // immediately, even before the server refetch completes
   const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<string>>(new Set());
+  const [briefingSheetOpen, setBriefingSheetOpen] = useState(false);
+  const [chatSheetOpen, setChatSheetOpen] = useState(false);
+
+  const isMobile = useMobile();
+  const isTablet = useMobile(1024);
 
   const { data: attempt, isLoading } = useQuery({
     queryKey: ['attempt', attemptId],
@@ -50,6 +60,9 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
     socket.auth = { token: localStorage.getItem('token') };
     socket.connect();
     socket.emit('join-attempt', attemptId);
+    if (sessionId) {
+      socket.emit('join-session', sessionId);
+    }
 
     socket.on('hint-sent', (data: { content: string }) => {
       setTrainerHints(prev => [...prev, data.content]);
@@ -64,12 +77,11 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
       socket.off('session-paused');
       socket.disconnect();
     };
-  }, [attemptId, queryClient]);
+  }, [attemptId, sessionId, queryClient]);
 
   const trackAction = useCallback(async (actionType: string, details?: any) => {
     try {
       await api.post(`/attempts/${attemptId}/actions`, { actionType, details });
-      // Emit to trainer via socket — include details for rich activity feed
       const socket = getTraineeSocket();
       socket.emit('progress-update', {
         attemptId,
@@ -112,7 +124,6 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
 
   const handleCheckpointComplete = async () => {
     setShowCheckpoint(false);
-    // Always refresh attempt data when modal closes (answers were submitted)
     queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
     try {
       await api.post(`/attempts/${attemptId}/advance-stage`);
@@ -156,9 +167,9 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
 
   if (attempt.status === 'COMPLETED') {
     return (
-      <div className="min-h-screen bg-background p-8">
+      <div className="min-h-screen bg-background p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          <h1 className="text-3xl font-bold">Investigation Complete</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Investigation Complete</h1>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-card border rounded-lg p-4 text-center">
               <p className="text-3xl font-bold text-primary">{attempt.totalScore}</p>
@@ -204,69 +215,187 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
     );
   }
 
+  const briefingProps = {
+    briefing: scenario?.briefing || '',
+    stageTitle: currentStageData?.title || '',
+    stageDescription: currentStageData?.description || '',
+    hints: currentStageData?.hints || [],
+    attemptId,
+    trainerHints,
+    onHintUsed: () => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] }),
+  };
+
+  const logProps = {
+    attemptId,
+    onTrackAction: trackAction,
+    onAddEvidence: addEvidence,
+    onAddTimeline: addTimelineEntry,
+  };
+
+  const workspaceProps = {
+    evidence,
+    timelineEntries,
+    onRemoveEvidence: removeEvidence,
+    onRemoveTimeline: removeTimelineEntry,
+    onStageComplete: handleStageComplete,
+    hasUnansweredCheckpoints: unansweredCheckpoints.length > 0,
+    unansweredCount: unansweredCheckpoints.length,
+    currentStage: attempt.currentStage,
+    totalStages: stages.length,
+    stageTitle: currentStageData?.title || '',
+  };
+
+  const headerProps = {
+    scenarioName: scenario?.name || '',
+    currentStage: attempt.currentStage,
+    totalStages: stages.length,
+    stageTitle: currentStageData?.title || '',
+    elapsedSeconds,
+    score: attempt.totalScore,
+    unansweredCount: unansweredCheckpoints.length,
+    onComplete: handleComplete,
+    onOpenCheckpoints: handleStageComplete,
+  };
+
+  const checkpointModal = showCheckpoint && unansweredCheckpoints.length > 0 && (
+    <CheckpointModal
+      checkpoints={unansweredCheckpoints}
+      attemptId={attemptId}
+      onComplete={handleCheckpointComplete}
+      onClose={() => {
+        setShowCheckpoint(false);
+        queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
+      }}
+      onAnswered={(checkpointId) => {
+        setLocalAnsweredIds(prev => new Set(prev).add(checkpointId));
+      }}
+    />
+  );
+
+  // Mobile layout: tabbed interface
+  if (isMobile) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <PlayerHeader {...headerProps} />
+        <Tabs defaultValue="logs" className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="w-full rounded-none border-b shrink-0">
+            <TabsTrigger value="brief" className="flex-1">Brief</TabsTrigger>
+            <TabsTrigger value="logs" className="flex-1">Logs</TabsTrigger>
+            <TabsTrigger value="work" className="flex-1">Work</TabsTrigger>
+            {sessionId && <TabsTrigger value="chat" className="flex-1">Chat</TabsTrigger>}
+          </TabsList>
+          <TabsContent value="brief" className="flex-1 overflow-y-auto mt-0">
+            <BriefingPanel {...briefingProps} />
+          </TabsContent>
+          <TabsContent value="logs" className="flex-1 overflow-hidden mt-0">
+            <LogFeedViewer {...logProps} />
+          </TabsContent>
+          <TabsContent value="work" className="flex-1 overflow-y-auto mt-0">
+            <InvestigationWorkspace {...workspaceProps} />
+          </TabsContent>
+          {sessionId && (
+            <TabsContent value="chat" className="flex-1 overflow-hidden mt-0">
+              <DiscussionPanel sessionId={sessionId} />
+            </TabsContent>
+          )}
+        </Tabs>
+        {checkpointModal}
+      </div>
+    );
+  }
+
+  // Tablet layout: briefing in sheet, logs + workspace side by side
+  if (isTablet) {
+    return (
+      <div className="h-screen flex flex-col bg-background">
+        <PlayerHeader {...headerProps} />
+        <div className="flex-1 flex overflow-hidden relative">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <LogFeedViewer {...logProps} />
+          </div>
+          <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
+            <InvestigationWorkspace {...workspaceProps} />
+          </div>
+          <div className="absolute bottom-4 left-4 z-10 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="shadow-md"
+              onClick={() => setBriefingSheetOpen(true)}
+            >
+              <FileText className="mr-1 h-4 w-4" /> Briefing
+            </Button>
+            {sessionId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="shadow-md"
+                onClick={() => setChatSheetOpen(true)}
+              >
+                <MessageCircle className="mr-1 h-4 w-4" /> Chat
+              </Button>
+            )}
+          </div>
+          <Sheet open={briefingSheetOpen} onOpenChange={setBriefingSheetOpen}>
+            <SheetContent side="left" className="w-80 p-0 overflow-y-auto">
+              <SheetHeader className="px-4 py-3 border-b">
+                <SheetTitle>Briefing</SheetTitle>
+              </SheetHeader>
+              <BriefingPanel {...briefingProps} />
+            </SheetContent>
+          </Sheet>
+          {sessionId && (
+            <Sheet open={chatSheetOpen} onOpenChange={setChatSheetOpen}>
+              <SheetContent side="right" className="w-80 p-0 flex flex-col">
+                <SheetHeader className="px-4 py-3 border-b">
+                  <SheetTitle>Discussion</SheetTitle>
+                </SheetHeader>
+                <DiscussionPanel sessionId={sessionId} />
+              </SheetContent>
+            </Sheet>
+          )}
+        </div>
+        {checkpointModal}
+      </div>
+    );
+  }
+
+  // Desktop layout: 3-panel with chat button
   return (
     <div className="h-screen flex flex-col bg-background">
-      <PlayerHeader
-        scenarioName={scenario?.name || ''}
-        currentStage={attempt.currentStage}
-        totalStages={stages.length}
-        stageTitle={currentStageData?.title || ''}
-        elapsedSeconds={elapsedSeconds}
-        score={attempt.totalScore}
-        unansweredCount={unansweredCheckpoints.length}
-        onComplete={handleComplete}
-        onOpenCheckpoints={handleStageComplete}
-      />
-      <div className="flex-1 flex overflow-hidden">
+      <PlayerHeader {...headerProps} />
+      <div className="flex-1 flex overflow-hidden relative">
         <div className="w-64 flex-shrink-0 border-r overflow-y-auto">
-          <BriefingPanel
-            briefing={scenario?.briefing || ''}
-            stageTitle={currentStageData?.title || ''}
-            stageDescription={currentStageData?.description || ''}
-            hints={currentStageData?.hints || []}
-            attemptId={attemptId}
-            trainerHints={trainerHints}
-            onHintUsed={() => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] })}
-          />
+          <BriefingPanel {...briefingProps} />
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
-          <LogFeedViewer
-            attemptId={attemptId}
-            onTrackAction={trackAction}
-            onAddEvidence={addEvidence}
-            onAddTimeline={addTimelineEntry}
-          />
+          <LogFeedViewer {...logProps} />
         </div>
         <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
-          <InvestigationWorkspace
-            evidence={evidence}
-            timelineEntries={timelineEntries}
-            onRemoveEvidence={removeEvidence}
-            onRemoveTimeline={removeTimelineEntry}
-            onStageComplete={handleStageComplete}
-            hasUnansweredCheckpoints={unansweredCheckpoints.length > 0}
-            unansweredCount={unansweredCheckpoints.length}
-            currentStage={attempt.currentStage}
-            totalStages={stages.length}
-            stageTitle={currentStageData?.title || ''}
-          />
+          <InvestigationWorkspace {...workspaceProps} />
         </div>
+        {sessionId && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="absolute bottom-4 right-[19rem] z-10 shadow-md"
+              onClick={() => setChatSheetOpen(true)}
+            >
+              <MessageCircle className="mr-1 h-4 w-4" /> Chat
+            </Button>
+            <Sheet open={chatSheetOpen} onOpenChange={setChatSheetOpen}>
+              <SheetContent side="right" className="w-80 p-0 flex flex-col">
+                <SheetHeader className="px-4 py-3 border-b">
+                  <SheetTitle>Discussion</SheetTitle>
+                </SheetHeader>
+                <DiscussionPanel sessionId={sessionId} />
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
       </div>
-
-      {showCheckpoint && unansweredCheckpoints.length > 0 && (
-        <CheckpointModal
-          checkpoints={unansweredCheckpoints}
-          attemptId={attemptId}
-          onComplete={handleCheckpointComplete}
-          onClose={() => {
-            setShowCheckpoint(false);
-            queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
-          }}
-          onAnswered={(checkpointId) => {
-            setLocalAnsweredIds(prev => new Set(prev).add(checkpointId));
-          }}
-        />
-      )}
+      {checkpointModal}
     </div>
   );
 }

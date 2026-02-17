@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Menu } from 'lucide-react';
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
@@ -21,7 +21,11 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   TRAINEE: 'outline',
 };
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const router = useRouter();
   const { user, logout } = useAuthStore();
 
@@ -40,14 +44,19 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
+    <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
       <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold">
+        {onMenuClick && (
+          <Button variant="ghost" size="icon" className="md:hidden h-9 w-9" onClick={onMenuClick}>
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <h2 className="text-lg font-semibold hidden sm:block">
           {user.role === 'ADMIN' && 'Admin Panel'}
           {user.role === 'TRAINER' && 'Trainer Console'}
           {user.role === 'TRAINEE' && 'Training Dashboard'}
         </h2>
-        <Badge variant={roleBadgeVariant[user.role]}>{user.role}</Badge>
+        <Badge variant={roleBadgeVariant[user.role]} className="hidden sm:inline-flex">{user.role}</Badge>
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

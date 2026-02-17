@@ -43,5 +43,5 @@ export default function ScenarioPage() {
     );
   }
 
-  return <ScenarioPlayer attemptId={attemptId} />;
+  return <ScenarioPlayer attemptId={attemptId} sessionId={attempt?.sessionId} />;
 }

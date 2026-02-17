@@ -1,6 +1,9 @@
 import { Server as SocketIOServer } from 'socket.io';
+import { PrismaClient } from '@prisma/client';
 import { AuthService } from '../services/auth.service';
 import { logger } from '../utils/logger';
+
+const prisma = new PrismaClient();
 
 export function initializeSocket(io: SocketIOServer) {
   const trainerNsp = io.of('/trainer');
@@ -23,6 +26,39 @@ export function initializeSocket(io: SocketIOServer) {
 
   trainerNsp.use(authenticateSocket);
   traineeNsp.use(authenticateSocket);
+
+  // Shared handler for send-session-message on both namespaces
+  function handleSessionMessage(socket: any) {
+    socket.on('send-session-message', async (data: { sessionId: string; content: string }) => {
+      const { sessionId, content } = data;
+      if (!content || !content.trim()) return;
+
+      try {
+        const message = await prisma.sessionMessage.create({
+          data: {
+            sessionId,
+            userId: socket.data.user.userId,
+            content: content.trim(),
+          },
+          include: { user: { select: { id: true, name: true, role: true } } },
+        });
+
+        const room = `session:${sessionId}`;
+        const payload = {
+          id: message.id,
+          sessionId: message.sessionId,
+          content: message.content,
+          createdAt: message.createdAt,
+          user: message.user,
+        };
+
+        trainerNsp.to(room).emit('session-message', payload);
+        traineeNsp.to(room).emit('session-message', payload);
+      } catch (err) {
+        logger.error('Failed to save session message', { error: err });
+      }
+    });
+  }
 
   // Trainer namespace
   trainerNsp.on('connection', (socket) => {
@@ -52,6 +88,8 @@ export function initializeSocket(io: SocketIOServer) {
       logger.info(`Session ${sessionId} resumed by trainer`);
     });
 
+    handleSessionMessage(socket);
+
     socket.on('disconnect', () => {
       logger.info(`Trainer disconnected: ${socket.id}`);
     });
@@ -66,6 +104,11 @@ export function initializeSocket(io: SocketIOServer) {
       logger.info(`Trainee ${socket.data.user.email} joined attempt:${attemptId}`);
     });
 
+    socket.on('join-session', (sessionId: string) => {
+      socket.join(`session:${sessionId}`);
+      logger.info(`Trainee ${socket.data.user.email} joined session:${sessionId}`);
+    });
+
     socket.on('progress-update', (data: any) => {
       // Forward progress to all trainers watching this session
       if (data.sessionId) {
@@ -75,6 +118,8 @@ export function initializeSocket(io: SocketIOServer) {
         });
       }
     });
+
+    handleSessionMessage(socket);
 
     socket.on('disconnect', () => {
       logger.info(`Trainee disconnected: ${socket.id}`);

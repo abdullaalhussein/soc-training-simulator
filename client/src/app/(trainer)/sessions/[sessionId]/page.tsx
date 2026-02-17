@@ -1,8 +1,9 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useSession, useUpdateSessionStatus } from '@/hooks/useSessions';
-import { useEffect, useState, useCallback } from 'react';
+import { useSession, useUpdateSessionStatus, useAddSessionMembers } from '@/hooks/useSessions';
+import { useUsers } from '@/hooks/useUsers';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,13 +12,17 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/components/ui/toaster';
 import { api } from '@/lib/api';
 import { getTrainerSocket } from '@/lib/socket';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DiscussionPanel } from '@/components/DiscussionPanel';
 import {
   Play, Pause, Square, Send, Eye, Users, Activity, MessageSquare,
   Search, FileText, Lightbulb, CheckCircle2, ArrowRight, Bookmark,
-  Clock, X, AlertTriangle,
+  Clock, X, AlertTriangle, UserPlus,
 } from 'lucide-react';
 
 interface ActionEntry {
@@ -90,12 +95,18 @@ export default function SessionMonitorPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const { data: session, refetch } = useSession(sessionId);
   const updateStatus = useUpdateSessionStatus();
+  const addMembers = useAddSessionMembers();
+  const { data: allTrainees } = useUsers({ role: 'TRAINEE' });
 
   const [trainees, setTrainees] = useState<Map<string, TraineeState>>(new Map());
   const [selectedTrainee, setSelectedTrainee] = useState<string | null>(null);
   const [hintDialogOpen, setHintDialogOpen] = useState(false);
   const [hintContent, setHintContent] = useState('');
   const [hintType, setHintType] = useState<'custom' | 'predefined'>('custom');
+  const [addTraineeDialogOpen, setAddTraineeDialogOpen] = useState(false);
+  const [selectedNewTrainees, setSelectedNewTrainees] = useState<string[]>([]);
+  const [traineeSearch, setTraineeSearch] = useState('');
+  const [startingForTrainee, setStartingForTrainee] = useState<string | null>(null);
 
   // Auto-refresh session data every 10 seconds as fallback for socket
   useEffect(() => {
@@ -252,6 +263,45 @@ export default function SessionMonitorPage() {
     }
   };
 
+  const handleAddTrainees = async (andStart = false) => {
+    if (selectedNewTrainees.length === 0) return;
+    try {
+      await addMembers.mutateAsync({ sessionId, userIds: selectedNewTrainees });
+
+      if (andStart && session?.status === 'ACTIVE') {
+        // Start scenario for each added trainee
+        await Promise.all(
+          selectedNewTrainees.map((userId) =>
+            api.post('/attempts/start', { sessionId, userId }).catch(() => {})
+          )
+        );
+        toast({ title: `${selectedNewTrainees.length} trainee${selectedNewTrainees.length > 1 ? 's' : ''} added & started` });
+      } else {
+        toast({ title: `${selectedNewTrainees.length} trainee${selectedNewTrainees.length > 1 ? 's' : ''} added` });
+      }
+
+      setAddTraineeDialogOpen(false);
+      setSelectedNewTrainees([]);
+      setTraineeSearch('');
+      refetch();
+    } catch {
+      toast({ title: 'Failed to add trainees', variant: 'destructive' });
+    }
+  };
+
+  const handleStartForTrainee = async (userId: string, userName: string) => {
+    setStartingForTrainee(userId);
+    try {
+      await api.post('/attempts/start', { sessionId, userId });
+      toast({ title: `Scenario started for ${userName}` });
+      refetch();
+    } catch {
+      toast({ title: 'Failed to start scenario', variant: 'destructive' });
+    } finally {
+      setStartingForTrainee(null);
+    }
+  };
+
   // Get predefined hints for the current stage
   const getPredefinedHints = (): { content: string; penalty: number }[] => {
     if (!selectedTrainee || !session?.scenario?.stages) return [];
@@ -267,21 +317,64 @@ export default function SessionMonitorPage() {
   const traineeList = Array.from(trainees.values());
   const predefinedHints = getPredefinedHints();
 
+  // Build the full member list: members with attempts + assigned-only members
+  const existingMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    session?.members?.forEach((m: any) => ids.add(m.userId));
+    return ids;
+  }, [session?.members]);
+
+  // Members who are assigned but haven't started an attempt yet
+  const assignedOnlyMembers: { userId: string; userName: string; status: string }[] = useMemo(() => {
+    if (!session?.members) return [];
+    const attemptUserIds = new Set(traineeList.map(t => t.userId));
+    return session.members
+      .filter((m: any) => !attemptUserIds.has(m.userId))
+      .map((m: any) => ({
+        userId: m.userId as string,
+        userName: (m.user?.name || m.user?.email || 'Unknown') as string,
+        status: (m.status || 'ASSIGNED') as string,
+      }));
+  }, [session?.members, traineeList]);
+
+  // Available trainees to add (not already session members)
+  const availableTrainees = useMemo(() => {
+    if (!allTrainees) return [];
+    return allTrainees.filter((t: any) => t.isActive && !existingMemberIds.has(t.id));
+  }, [allTrainees, existingMemberIds]);
+
+  const filteredAvailableTrainees = useMemo(() => {
+    if (!traineeSearch) return availableTrainees;
+    const q = traineeSearch.toLowerCase();
+    return availableTrainees.filter(
+      (t: any) => t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q)
+    );
+  }, [availableTrainees, traineeSearch]);
+
   const statusColors: Record<string, string> = {
     IN_PROGRESS: 'bg-green-500',
     COMPLETED: 'bg-blue-500',
     NOT_STARTED: 'bg-slate-400',
     TIMED_OUT: 'bg-red-500',
+    ASSIGNED: 'bg-amber-400',
   };
+
+  // Selected member info (could be from attempts or assigned-only)
+  const selectedAssignedMember = !selectedTraineeData && selectedTrainee
+    ? assignedOnlyMembers.find((m: { userId: string; userName: string; status: string }) => m.userId === selectedTrainee)
+    : null;
 
   return (
     <div className="h-[calc(100vh-7rem)] flex flex-col">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <div>
-          <h1 className="text-2xl font-bold">{session?.name || 'Session Monitor'}</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{session?.name || 'Session Monitor'}</h1>
           <p className="text-sm text-muted-foreground">{session?.scenario?.name}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={() => setAddTraineeDialogOpen(true)}>
+            <UserPlus className="mr-1 h-4 w-4" /> Add Trainee
+          </Button>
           {session?.status === 'ACTIVE' && (
             <>
               <Button size="sm" variant="outline" onClick={() => handleStatusChange('PAUSED')}>
@@ -308,12 +401,46 @@ export default function SessionMonitorPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex gap-4 overflow-hidden">
-        {/* Trainee List */}
-        <Card className="w-72 flex flex-col">
+      <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+        {/* Trainee List - horizontal chips on mobile, sidebar on desktop */}
+        <div className="md:hidden shrink-0">
+          <div className="flex gap-2 overflow-x-auto pb-2 px-1">
+            {traineeList.map((t) => (
+              <button
+                key={t.userId}
+                className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  selectedTrainee === t.userId ? 'bg-primary/10 border-primary/30 font-medium' : 'hover:bg-muted border-border'
+                }`}
+                onClick={() => setSelectedTrainee(t.userId)}
+              >
+                <div className={`w-2 h-2 rounded-full ${statusColors[t.status] || 'bg-slate-400'}`} />
+                <span className="truncate max-w-[120px]">{t.userName}</span>
+                <span className="text-xs text-muted-foreground">{t.currentScore}pts</span>
+              </button>
+            ))}
+            {assignedOnlyMembers.map((m) => (
+              <button
+                key={m.userId}
+                className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  selectedTrainee === m.userId ? 'bg-primary/10 border-primary/30 font-medium' : 'hover:bg-muted border-border'
+                }`}
+                onClick={() => setSelectedTrainee(m.userId)}
+              >
+                <div className={`w-2 h-2 rounded-full ${statusColors.ASSIGNED}`} />
+                <span className="truncate max-w-[120px]">{m.userName}</span>
+                <span className="text-xs text-muted-foreground">Assigned</span>
+              </button>
+            ))}
+            {traineeList.length === 0 && assignedOnlyMembers.length === 0 && (
+              <p className="text-sm text-muted-foreground py-2">No trainees yet</p>
+            )}
+          </div>
+        </div>
+
+        <Card className="w-72 hidden md:flex flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4" /> Trainees ({traineeList.length})
+              <Users className="h-4 w-4" /> Trainees ({traineeList.length + assignedOnlyMembers.length})
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
@@ -342,8 +469,28 @@ export default function SessionMonitorPage() {
                     )}
                   </button>
                 ))}
-                {traineeList.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">No trainees active</p>
+                {assignedOnlyMembers.length > 0 && traineeList.length > 0 && (
+                  <Separator className="my-2" />
+                )}
+                {assignedOnlyMembers.map((m) => (
+                  <button
+                    key={m.userId}
+                    className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
+                      selectedTrainee === m.userId ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted'
+                    }`}
+                    onClick={() => setSelectedTrainee(m.userId)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${statusColors.ASSIGNED}`} />
+                      <span className="font-medium truncate">{m.userName}</span>
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Assigned — not started
+                    </div>
+                  </button>
+                ))}
+                {traineeList.length === 0 && assignedOnlyMembers.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No trainees yet</p>
                 )}
               </div>
             </ScrollArea>
@@ -351,7 +498,7 @@ export default function SessionMonitorPage() {
         </Card>
 
         {/* Trainee Detail */}
-        <Card className="flex-1 flex flex-col">
+        <Card className="flex-1 flex flex-col min-h-0">
           {selectedTraineeData ? (
             <>
               <CardHeader className="pb-3">
@@ -377,45 +524,76 @@ export default function SessionMonitorPage() {
                 </div>
               </CardHeader>
               <Separator />
-              <CardContent className="flex-1 overflow-hidden pt-4">
-                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                  <Activity className="h-4 w-4" /> Live Activity Feed
-                  <span className="text-xs text-muted-foreground font-normal">
-                    ({selectedTraineeData.actions.length} actions)
-                  </span>
-                </h4>
-                <ScrollArea className="h-[calc(100%-2.5rem)]">
-                  <div className="space-y-1.5">
-                    {!selectedTraineeData.actionsLoaded ? (
-                      <p className="text-sm text-muted-foreground">Loading activity...</p>
-                    ) : selectedTraineeData.actions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No activity yet.</p>
-                    ) : (
-                      selectedTraineeData.actions.map((action, i) => {
-                        const config = ACTION_CONFIG[action.type];
-                        const Icon = config?.icon || Activity;
-                        return (
-                          <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50">
-                            <span className="text-xs text-muted-foreground font-mono w-16 shrink-0 mt-0.5">
-                              {action.time}
-                            </span>
-                            <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${config?.color || 'text-muted-foreground'}`} />
-                            <div className="min-w-0">
-                              <span className="font-medium text-xs">
-                                {config?.label || action.type.replace(/_/g, ' ')}
-                              </span>
-                              {action.detail && (
-                                <p className="text-xs text-muted-foreground truncate">{action.detail}</p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
+              <CardContent className="flex-1 overflow-hidden pt-0">
+                <Tabs defaultValue="activity" className="flex flex-col h-full">
+                  <TabsList className="w-full shrink-0 mt-2">
+                    <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>
+                    <TabsTrigger value="discussion" className="flex-1">Discussion</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="activity" className="flex-1 overflow-hidden mt-2">
+                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <Activity className="h-4 w-4" /> Live Activity Feed
+                      <span className="text-xs text-muted-foreground font-normal">
+                        ({selectedTraineeData.actions.length} actions)
+                      </span>
+                    </h4>
+                    <ScrollArea className="h-[calc(100%-2.5rem)]">
+                      <div className="space-y-1.5">
+                        {!selectedTraineeData.actionsLoaded ? (
+                          <p className="text-sm text-muted-foreground">Loading activity...</p>
+                        ) : selectedTraineeData.actions.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No activity yet.</p>
+                        ) : (
+                          selectedTraineeData.actions.map((action, i) => {
+                            const config = ACTION_CONFIG[action.type];
+                            const Icon = config?.icon || Activity;
+                            return (
+                              <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50">
+                                <span className="text-xs text-muted-foreground font-mono w-16 shrink-0 mt-0.5">
+                                  {action.time}
+                                </span>
+                                <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${config?.color || 'text-muted-foreground'}`} />
+                                <div className="min-w-0">
+                                  <span className="font-medium text-xs">
+                                    {config?.label || action.type.replace(/_/g, ' ')}
+                                  </span>
+                                  {action.detail && (
+                                    <p className="text-xs text-muted-foreground truncate">{action.detail}</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  <TabsContent value="discussion" className="flex-1 overflow-hidden mt-0">
+                    <DiscussionPanel sessionId={sessionId} />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </>
+          ) : selectedAssignedMember ? (
+            <CardContent className="flex-1 flex items-center justify-center">
+              <div className="text-center text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-2 opacity-40" />
+                <p className="font-medium text-foreground">{selectedAssignedMember.userName}</p>
+                <p className="text-sm mt-1">Assigned to this session but has not started yet.</p>
+                <Badge variant="outline" className="mt-2 border-amber-400 text-amber-600">Waiting to start</Badge>
+                {session?.status === 'ACTIVE' && (
+                  <Button
+                    size="sm"
+                    className="mt-4"
+                    disabled={startingForTrainee === selectedAssignedMember.userId}
+                    onClick={() => handleStartForTrainee(selectedAssignedMember.userId, selectedAssignedMember.userName)}
+                  >
+                    <Play className="mr-1 h-3 w-3" />
+                    {startingForTrainee === selectedAssignedMember.userId ? 'Starting...' : 'Start Scenario for Trainee'}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
           ) : (
             <CardContent className="flex-1 flex items-center justify-center">
               <div className="text-center text-muted-foreground">
@@ -477,6 +655,67 @@ export default function SessionMonitorPage() {
             <Button onClick={handleSendHint} disabled={!hintContent.trim()}>
               <Send className="mr-2 h-4 w-4" /> Send Hint
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Trainee Dialog */}
+      <Dialog open={addTraineeDialogOpen} onOpenChange={(open) => {
+        setAddTraineeDialogOpen(open);
+        if (!open) { setSelectedNewTrainees([]); setTraineeSearch(''); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Trainees to Session</DialogTitle>
+            <DialogDescription>
+              Select trainees to assign to this session. They will be able to start the scenario once the session is active.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Search by name or email..."
+            value={traineeSearch}
+            onChange={(e) => setTraineeSearch(e.target.value)}
+          />
+          <div className="max-h-60 overflow-y-auto space-y-1 border rounded-md p-2">
+            {filteredAvailableTrainees.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {allTrainees?.length === 0 ? 'No trainees exist yet' : 'All trainees are already in this session'}
+              </p>
+            ) : (
+              filteredAvailableTrainees.map((t: any) => (
+                <label key={t.id} className="flex items-center gap-3 text-sm cursor-pointer p-2 hover:bg-accent rounded">
+                  <Checkbox
+                    checked={selectedNewTrainees.includes(t.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) setSelectedNewTrainees(prev => [...prev, t.id]);
+                      else setSelectedNewTrainees(prev => prev.filter(id => id !== t.id));
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{t.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{t.email}</p>
+                  </div>
+                </label>
+              ))
+            )}
+          </div>
+          {selectedNewTrainees.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {selectedNewTrainees.length} trainee{selectedNewTrainees.length > 1 ? 's' : ''} selected
+            </p>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setAddTraineeDialogOpen(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => handleAddTrainees(false)} disabled={selectedNewTrainees.length === 0 || addMembers.isPending}>
+              <UserPlus className="mr-1 h-4 w-4" />
+              {addMembers.isPending ? 'Adding...' : 'Add Only'}
+            </Button>
+            {session?.status === 'ACTIVE' && (
+              <Button onClick={() => handleAddTrainees(true)} disabled={selectedNewTrainees.length === 0 || addMembers.isPending}>
+                <Play className="mr-1 h-4 w-4" />
+                {addMembers.isPending ? 'Starting...' : `Add & Start (${selectedNewTrainees.length})`}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

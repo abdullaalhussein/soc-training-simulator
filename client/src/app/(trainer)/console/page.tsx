@@ -40,16 +40,21 @@ export default function TrainerConsole() {
   const [newSession, setNewSession] = useState({ name: '', scenarioId: '', timeLimit: '' });
   const [selectedTrainees, setSelectedTrainees] = useState<string[]>([]);
 
-  const handleCreate = async () => {
+  const handleCreate = async (launch = false) => {
     if (!newSession.name || !newSession.scenarioId) return;
     try {
-      await createSession.mutateAsync({
+      const session = await createSession.mutateAsync({
         name: newSession.name,
         scenarioId: newSession.scenarioId,
         timeLimit: newSession.timeLimit ? parseInt(newSession.timeLimit) : undefined,
         memberIds: selectedTrainees,
       });
-      toast({ title: 'Session created successfully' });
+      if (launch) {
+        await updateStatus.mutateAsync({ id: session.id, status: 'ACTIVE' });
+        toast({ title: 'Session created and launched' });
+      } else {
+        toast({ title: 'Session created successfully' });
+      }
       setDialogOpen(false);
       setNewSession({ name: '', scenarioId: '', timeLimit: '' });
       setSelectedTrainees([]);
@@ -141,10 +146,14 @@ export default function TrainerConsole() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={createSession.isPending}>
-                {createSession.isPending ? 'Creating...' : 'Create'}
+              <Button variant="secondary" onClick={() => handleCreate(false)} disabled={createSession.isPending || updateStatus.isPending}>
+                {createSession.isPending ? 'Creating...' : 'Create as Draft'}
+              </Button>
+              <Button onClick={() => handleCreate(true)} disabled={createSession.isPending || updateStatus.isPending}>
+                <Play className="mr-1 h-4 w-4" />
+                {createSession.isPending || updateStatus.isPending ? 'Launching...' : 'Create & Launch'}
               </Button>
             </DialogFooter>
           </DialogContent>

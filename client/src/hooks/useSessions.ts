@@ -53,6 +53,9 @@ export function useAddSessionMembers() {
       const { data } = await api.post(`/sessions/${sessionId}/members`, { userIds });
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
   });
 }

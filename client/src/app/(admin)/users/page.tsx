@@ -105,15 +105,15 @@ export default function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">User Management</h1>
           <p className="text-muted-foreground mt-1">Manage all platform users</p>
         </div>
         <Button onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Add User</Button>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <Input
           placeholder="Search by name or email..."
           value={search}
@@ -137,10 +137,10 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead className="hidden md:table-cell">Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Last Login</TableHead>
+                <TableHead className="hidden lg:table-cell">Last Login</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -153,14 +153,14 @@ export default function UsersPage() {
                 users?.map((user: any) => (
                   <TableRow key={user.id}>
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
+                    <TableCell className="hidden md:table-cell">{user.email}</TableCell>
                     <TableCell><Badge variant={roleBadgeVariant[user.role]}>{user.role}</Badge></TableCell>
                     <TableCell>
                       <Badge variant={user.isActive ? 'outline' : 'destructive'}>
                         {user.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden lg:table-cell">
                       {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
                     </TableCell>
                     <TableCell className="text-right">
