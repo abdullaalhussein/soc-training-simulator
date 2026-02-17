@@ -55,6 +55,7 @@ enum CheckpointType {
   SHORT_ANSWER
   EVIDENCE_SELECTION
   INCIDENT_REPORT
+  YARA_RULE
 }
 
 enum ActionType {

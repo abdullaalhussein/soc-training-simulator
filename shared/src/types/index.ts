@@ -46,6 +46,7 @@ export enum CheckpointType {
   SHORT_ANSWER = 'SHORT_ANSWER',
   EVIDENCE_SELECTION = 'EVIDENCE_SELECTION',
   INCIDENT_REPORT = 'INCIDENT_REPORT',
+  YARA_RULE = 'YARA_RULE',
 }
 
 export enum ActionType {
