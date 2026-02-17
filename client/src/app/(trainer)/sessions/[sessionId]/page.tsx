@@ -1,7 +1,7 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { useSession, useUpdateSessionStatus, useAddSessionMembers } from '@/hooks/useSessions';
+import { useParams, useRouter } from 'next/navigation';
+import { useSession, useUpdateSessionStatus, useAddSessionMembers, useDeleteSession } from '@/hooks/useSessions';
 import { useUsers } from '@/hooks/useUsers';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import { DiscussionPanel } from '@/components/DiscussionPanel';
 import {
   Play, Pause, Square, Send, Eye, Users, Activity, MessageSquare,
   Search, FileText, Lightbulb, CheckCircle2, ArrowRight, Bookmark,
-  Clock, X, AlertTriangle, UserPlus,
+  Clock, X, AlertTriangle, UserPlus, Trash2,
 } from 'lucide-react';
 
 interface ActionEntry {
@@ -92,10 +92,12 @@ function formatActionDetail(actionType: string, details: any): string {
 }
 
 export default function SessionMonitorPage() {
+  const router = useRouter();
   const { sessionId } = useParams<{ sessionId: string }>();
   const { data: session, refetch } = useSession(sessionId);
   const updateStatus = useUpdateSessionStatus();
   const addMembers = useAddSessionMembers();
+  const deleteSession = useDeleteSession();
   const { data: allTrainees } = useUsers({ role: 'TRAINEE' });
 
   const [trainees, setTrainees] = useState<Map<string, TraineeState>>(new Map());
@@ -217,6 +219,16 @@ export default function SessionMonitorPage() {
       toast({ title: `Session ${status.toLowerCase()}` });
     } catch {
       toast({ title: 'Failed', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    try {
+      await deleteSession.mutateAsync(sessionId);
+      toast({ title: 'Session deleted' });
+      router.push('/console');
+    } catch {
+      toast({ title: 'Failed to delete session', variant: 'destructive' });
     }
   };
 
@@ -393,6 +405,11 @@ export default function SessionMonitorPage() {
           {session?.status === 'DRAFT' && (
             <Button size="sm" onClick={() => handleStatusChange('ACTIVE')}>
               <Play className="mr-1 h-4 w-4" /> Launch
+            </Button>
+          )}
+          {(session?.status === 'COMPLETED' || session?.status === 'DRAFT') && (
+            <Button size="sm" variant="destructive" onClick={handleDeleteSession} disabled={deleteSession.isPending}>
+              <Trash2 className="mr-1 h-4 w-4" /> {deleteSession.isPending ? 'Deleting...' : 'Delete'}
             </Button>
           )}
           <Badge variant="outline" className="text-sm">

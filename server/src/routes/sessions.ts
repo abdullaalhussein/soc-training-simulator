@@ -17,7 +17,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.createdById = req.user!.userId;
     } else if (req.user!.role === 'TRAINEE') {
       where.members = { some: { userId: req.user!.userId } };
-      where.status = { in: ['ACTIVE', 'COMPLETED'] };
+      where.status = 'ACTIVE';
     }
     if (req.query.status) where.status = req.query.status;
 
@@ -138,6 +138,23 @@ router.post('/:id/members', requireRole('ADMIN', 'TRAINER'), async (req: Request
       skipDuplicates: true,
     });
     res.status(201).json({ count: created.count });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete a session (only COMPLETED or DRAFT sessions)
+router.delete('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('DELETE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sessionId = req.params.id as string;
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) throw new AppError('Session not found', 404);
+    if (!['COMPLETED', 'DRAFT'].includes(session.status)) {
+      throw new AppError('Only completed or draft sessions can be deleted', 400);
+    }
+
+    await prisma.session.delete({ where: { id: sessionId } });
+    res.json({ message: 'Session deleted' });
   } catch (error) {
     next(error);
   }
