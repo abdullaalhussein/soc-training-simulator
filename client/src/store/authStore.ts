@@ -55,10 +55,15 @@ export const useAuthStore = create<AuthState>()(
  * Uses useSyncExternalStore to ensure hydration status and store state are read
  * in the same synchronous render cycle, avoiding race conditions.
  */
+const subscribe = (onStoreChange: () => void) => {
+  if (useAuthStore.persist?.onFinishHydration) {
+    return useAuthStore.persist.onFinishHydration(onStoreChange);
+  }
+  return () => {};
+};
+const getSnapshot = () => useAuthStore.persist?.hasHydrated?.() ?? false;
+const getServerSnapshot = () => false;
+
 export function useAuthHydrated() {
-  return useSyncExternalStore(
-    useAuthStore.persist.onFinishHydration,
-    useAuthStore.persist.hasHydrated,
-    () => false
-  );
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
