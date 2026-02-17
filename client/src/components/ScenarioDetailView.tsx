@@ -7,6 +7,7 @@ import { MitreAttackBadge } from '@/components/MitreAttackBadge';
 import {
   Layers, CheckSquare, Lightbulb, FileText,
   Clock, AlertTriangle, CheckCircle2, HelpCircle,
+  ScrollText, Shield, Tag, Monitor, Globe, User,
 } from 'lucide-react';
 
 const difficultyColors: Record<string, string> = {
@@ -24,6 +25,36 @@ const checkpointTypeLabels: Record<string, string> = {
   EVIDENCE_SELECTION: 'Evidence Selection',
   INCIDENT_REPORT: 'Incident Report',
 };
+
+const severityColors: Record<string, string> = {
+  CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  HIGH: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  MEDIUM: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  LOW: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  INFO: 'bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-400',
+};
+
+const logTypeLabels: Record<string, string> = {
+  WINDOWS_EVENT: 'Windows Event',
+  SYSMON: 'Sysmon',
+  EDR_ALERT: 'EDR Alert',
+  NETWORK_FLOW: 'Network Flow',
+  SIEM_ALERT: 'SIEM Alert',
+  FIREWALL: 'Firewall',
+  PROXY: 'Proxy',
+  DNS: 'DNS',
+  EMAIL_GATEWAY: 'Email Gateway',
+  AUTH_LOG: 'Auth Log',
+};
+
+function formatTimestamp(ts: string) {
+  const d = new Date(ts);
+  return d.toLocaleString('en-US', {
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+}
 
 interface ScenarioDetailViewProps {
   scenario: any;
@@ -164,6 +195,86 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                             </div>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Logs for this stage */}
+                  {stage.logs?.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <ScrollText className="h-4 w-4 text-purple-500" /> Log Entries ({stage.logs.length})
+                      </h4>
+                      <div className="ml-6 border rounded-lg overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="bg-muted/70 text-muted-foreground">
+                              <th className="px-3 py-2 text-left font-semibold w-[140px]">Timestamp</th>
+                              <th className="px-3 py-2 text-left font-semibold w-[100px]">Type</th>
+                              <th className="px-3 py-2 text-left font-semibold w-[70px]">Severity</th>
+                              <th className="px-3 py-2 text-left font-semibold">Summary</th>
+                              <th className="px-3 py-2 text-left font-semibold w-[120px]">Host / IPs</th>
+                              <th className="px-3 py-2 text-center font-semibold w-[70px]">Evidence</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {stage.logs.map((log: any, li: number) => (
+                              <tr
+                                key={log.id}
+                                className={`${
+                                  log.isEvidence
+                                    ? 'bg-amber-50 dark:bg-amber-900/10'
+                                    : li % 2 === 0 ? 'bg-background' : 'bg-muted/30'
+                                }`}
+                              >
+                                <td className="px-3 py-2 font-mono whitespace-nowrap">
+                                  {formatTimestamp(log.timestamp)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {logTypeLabels[log.logType] || log.logType}
+                                  </Badge>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${severityColors[log.severity] || severityColors.INFO}`}>
+                                    {log.severity}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-sm">{log.summary}</td>
+                                <td className="px-3 py-2 space-y-0.5">
+                                  {log.hostname && (
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <Monitor className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{log.hostname}</span>
+                                    </div>
+                                  )}
+                                  {log.sourceIp && (
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <Globe className="h-3 w-3 shrink-0" />
+                                      <span>{log.sourceIp}{log.destIp ? ` → ${log.destIp}` : ''}</span>
+                                    </div>
+                                  )}
+                                  {log.username && (
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                      <User className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{log.username}</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  {log.isEvidence && (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <Tag className="h-3.5 w-3.5 text-amber-600" />
+                                      {log.evidenceTag && (
+                                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">{log.evidenceTag}</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
