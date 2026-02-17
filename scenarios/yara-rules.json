@@ -215,7 +215,7 @@
             "samples": [
               {
                 "name": "dropper.exe",
-                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABERUFEQkVFRkFCAAAAAAAAAAAAAABQSEFOVE9NUEFZTE9BRAAAAAAAAAAAAHsiaG9zdCI6IjIwMy4wLjExMy40MiIsInBvcnQiOjg0NDN9",
+                "content": "TVqQAAMAAAAEAAAA//8AALgAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAADerb7vobIAAAAAAAAAAAAAUEhBTlRPTVBBWUxPQUQAAAAAAAAAAAB7Imhvc3QiOiIyMDMuMC4xMTMuNDIiLCJwb3J0Ijo4NDQzfQ==",
                 "shouldMatch": true,
                 "description": "PE dropper with MZ header and DEADBEEF payload marker followed by 2-byte XOR key.",
                 "previewStrings": ["PHANTOMPAYLOAD"],
