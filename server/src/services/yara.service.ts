@@ -43,13 +43,15 @@ export class YaraService {
     const id = crypto.randomUUID();
     const tmpDir = path.join('/tmp', `yara-${id}`);
 
+    console.log(`[YARA testRule] id=${id}, rule length=${ruleText.length}, samples=${samples.length}`);
+    console.log(`[YARA testRule] Rule preview: ${ruleText.substring(0, 200)}`);
+
     try {
       await fs.mkdir(tmpDir, { recursive: true });
 
-      // Write rule file
+      // Write rule file (caller is responsible for sanitizing)
       const rulePath = path.join(tmpDir, 'rule.yar');
-      const sanitized = YaraService.sanitizeRule(ruleText);
-      await fs.writeFile(rulePath, sanitized, 'utf-8');
+      await fs.writeFile(rulePath, ruleText, 'utf-8');
 
       // Compile check — run against an empty file to validate syntax
       const emptyPath = path.join(tmpDir, '__empty');
@@ -61,6 +63,7 @@ export class YaraService {
         // Compile errors go to stderr; a clean no-match has empty stderr.
         const stderr = (compileErr.stderr || '').trim();
         if (stderr) {
+          console.log(`[YARA testRule] Compile error: ${stderr}`);
           return {
             compiled: false,
             compileError: stderr,
@@ -93,17 +96,21 @@ export class YaraService {
         }
 
         const didMatch = matchedRules.length > 0;
+        const correct = didMatch === sample.shouldMatch;
+        console.log(`[YARA testRule] Sample "${sample.name}": shouldMatch=${sample.shouldMatch}, didMatch=${didMatch}, correct=${correct}`);
         sampleResults.push({
           name: sample.name,
           shouldMatch: sample.shouldMatch,
           didMatch,
-          correct: didMatch === sample.shouldMatch,
+          correct,
           matchedRules,
         });
       }
 
       const correctCount = sampleResults.filter(r => r.correct).length;
       const accuracy = samples.length > 0 ? correctCount / samples.length : 0;
+
+      console.log(`[YARA testRule] Final: correctCount=${correctCount}/${samples.length}, accuracy=${accuracy}`);
 
       return {
         compiled: true,

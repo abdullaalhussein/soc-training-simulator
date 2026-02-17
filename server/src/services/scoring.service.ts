@@ -65,12 +65,24 @@ export class ScoringService {
 
       case 'YARA_RULE': {
         const { YaraService } = await import('./yara.service');
-        const correctData = typeof correctAnswer === 'object' ? correctAnswer : {};
+
+        // correctAnswer might be a JSON string (Prisma Json field edge case)
+        let correctData = correctAnswer;
+        if (typeof correctData === 'string') {
+          try { correctData = JSON.parse(correctData); } catch { correctData = {}; }
+        }
+        if (typeof correctData !== 'object' || correctData === null) correctData = {};
         const samples = (correctData as any).samples || [];
+
+        console.log(`[YARA Scoring] Checkpoint ${checkpoint.id}: ${samples.length} samples, answer length: ${String(answer).length}`);
+
         const sanitizedRule = YaraService.sanitizeRule(String(answer));
         const result = await YaraService.testRule(sanitizedRule, samples);
 
+        console.log(`[YARA Scoring] Result: compiled=${result.compiled}, accuracy=${result.accuracy}, error=${result.compileError || 'none'}`);
+
         if (!result.compiled) {
+          console.log(`[YARA Scoring] Compile failed: ${result.compileError}`);
           return { isCorrect: false, pointsAwarded: 0 };
         }
 
