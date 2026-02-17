@@ -43,7 +43,14 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
       include: {
-        scenario: true,
+        scenario: {
+          include: {
+            stages: {
+              include: { hints: { orderBy: { sortOrder: 'asc' } } },
+              orderBy: { stageNumber: 'asc' },
+            },
+          },
+        },
         createdBy: { select: { id: true, name: true } },
         members: { include: { user: { select: { id: true, name: true, email: true } } } },
         attempts: {

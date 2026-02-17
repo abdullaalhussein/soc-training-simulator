@@ -8,30 +8,74 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useCreateScenario } from '@/hooks/useScenarios';
+import { useCreateScenario, useUpdateScenario } from '@/hooks/useScenarios';
 import { toast } from '@/components/ui/toaster';
 import { Plus, Trash2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { MitreAttackPicker } from '@/components/admin/MitreAttackPicker';
 
 interface ScenarioWizardProps {
   onComplete: () => void;
+  scenario?: any; // existing scenario for edit mode
 }
 
 const steps = ['Basic Info', 'Stages', 'Checkpoints', 'Review'];
 
-export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
+export function ScenarioWizard({ onComplete, scenario: existingScenario }: ScenarioWizardProps) {
+  const isEditing = !!existingScenario;
   const [step, setStep] = useState(0);
   const createScenario = useCreateScenario();
+  const updateScenario = useUpdateScenario();
 
-  const [basicInfo, setBasicInfo] = useState({
-    name: '', description: '', category: '', difficulty: 'BEGINNER',
-    mitreAttackIds: '', briefing: '', estimatedMinutes: 45,
+  const [basicInfo, setBasicInfo] = useState(() => {
+    if (existingScenario) {
+      return {
+        name: existingScenario.name || '',
+        description: existingScenario.description || '',
+        category: existingScenario.category || '',
+        difficulty: existingScenario.difficulty || 'BEGINNER',
+        briefing: existingScenario.briefing || '',
+        estimatedMinutes: existingScenario.estimatedMinutes || 45,
+      };
+    }
+    return {
+      name: '', description: '', category: '', difficulty: 'BEGINNER',
+      briefing: '', estimatedMinutes: 45,
+    };
   });
 
-  const [stages, setStages] = useState<any[]>([
-    { stageNumber: 1, title: '', description: '', unlockCondition: 'AFTER_PREVIOUS', logs: [], hints: [] },
-  ]);
+  const [mitreAttackIds, setMitreAttackIds] = useState<string[]>(
+    existingScenario?.mitreAttackIds || []
+  );
 
-  const [checkpoints, setCheckpoints] = useState<any[]>([]);
+  const [stages, setStages] = useState<any[]>(() => {
+    if (existingScenario?.stages?.length) {
+      return existingScenario.stages.map((s: any) => ({
+        stageNumber: s.stageNumber,
+        title: s.title || '',
+        description: s.description || '',
+        unlockCondition: s.unlockCondition || 'AFTER_PREVIOUS',
+        logs: s.logs || [],
+        hints: s.hints || [],
+      }));
+    }
+    return [{ stageNumber: 1, title: '', description: '', unlockCondition: 'AFTER_PREVIOUS', logs: [], hints: [] }];
+  });
+
+  const [checkpoints, setCheckpoints] = useState<any[]>(() => {
+    if (existingScenario?.checkpoints?.length) {
+      return existingScenario.checkpoints.map((c: any) => ({
+        stageNumber: c.stageNumber,
+        checkpointType: c.checkpointType,
+        question: c.question || '',
+        options: c.options || ['', '', '', ''],
+        correctAnswer: c.correctAnswer || '',
+        points: c.points || 10,
+        category: c.category || 'accuracy',
+        explanation: c.explanation || '',
+      }));
+    }
+    return [];
+  });
 
   const addStage = () => {
     setStages([...stages, {
@@ -49,6 +93,7 @@ export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
     setCheckpoints([...checkpoints, {
       stageNumber: 1, checkpointType: 'MULTIPLE_CHOICE', question: '',
       options: ['', '', '', ''], correctAnswer: '', points: 10, category: 'accuracy',
+      explanation: '',
     }]);
   };
 
@@ -57,27 +102,34 @@ export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
   };
 
   const handleSubmit = async () => {
+    const payload = {
+      ...basicInfo,
+      mitreAttackIds,
+      stages: stages.map(s => ({
+        stageNumber: s.stageNumber,
+        title: s.title,
+        description: s.description,
+        unlockCondition: s.unlockCondition,
+        hints: s.hints,
+        logs: s.logs,
+      })),
+      checkpoints: checkpoints.map(c => ({
+        ...c,
+        options: c.checkpointType === 'SHORT_ANSWER' || c.checkpointType === 'INCIDENT_REPORT'
+          ? undefined : c.options?.filter((o: string) => o),
+      })),
+    };
     try {
-      await createScenario.mutateAsync({
-        ...basicInfo,
-        mitreAttackIds: basicInfo.mitreAttackIds.split(',').map(s => s.trim()).filter(Boolean),
-        stages: stages.map(s => ({
-          stageNumber: s.stageNumber,
-          title: s.title,
-          description: s.description,
-          unlockCondition: s.unlockCondition,
-          hints: s.hints,
-        })),
-        checkpoints: checkpoints.map(c => ({
-          ...c,
-          options: c.checkpointType === 'SHORT_ANSWER' || c.checkpointType === 'INCIDENT_REPORT'
-            ? undefined : c.options?.filter((o: string) => o),
-        })),
-      });
-      toast({ title: 'Scenario created successfully' });
+      if (isEditing) {
+        await updateScenario.mutateAsync({ id: existingScenario.id, ...payload });
+        toast({ title: 'Scenario updated successfully' });
+      } else {
+        await createScenario.mutateAsync(payload);
+        toast({ title: 'Scenario created successfully' });
+      }
       onComplete();
     } catch {
-      toast({ title: 'Failed to create scenario', variant: 'destructive' });
+      toast({ title: isEditing ? 'Failed to update scenario' : 'Failed to create scenario', variant: 'destructive' });
     }
   };
 
@@ -126,8 +178,8 @@ export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
             </div>
           </div>
           <div className="space-y-2">
-            <Label>MITRE ATT&CK IDs (comma-separated)</Label>
-            <Input value={basicInfo.mitreAttackIds} onChange={(e) => setBasicInfo({ ...basicInfo, mitreAttackIds: e.target.value })} placeholder="T1566.001, T1059.001" />
+            <Label>MITRE ATT&CK Techniques</Label>
+            <MitreAttackPicker value={mitreAttackIds} onChange={setMitreAttackIds} />
           </div>
           <div className="space-y-2">
             <Label>Description</Label>
@@ -276,6 +328,14 @@ export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
                     setCheckpoints(updated);
                   }} placeholder="Enter correct answer" />
                 </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Explanation (shown to trainer as answer guide)</Label>
+                  <Textarea value={cp.explanation || ''} onChange={(e) => {
+                    const updated = [...checkpoints];
+                    updated[i].explanation = e.target.value;
+                    setCheckpoints(updated);
+                  }} rows={2} placeholder="Explain why this is the correct answer..." />
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -327,8 +387,10 @@ export function ScenarioWizard({ onComplete }: ScenarioWizardProps) {
             Next <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit} disabled={createScenario.isPending}>
-            {createScenario.isPending ? 'Creating...' : 'Create Scenario'}
+          <Button onClick={handleSubmit} disabled={createScenario.isPending || updateScenario.isPending}>
+            {isEditing
+              ? (updateScenario.isPending ? 'Saving...' : 'Save Changes')
+              : (createScenario.isPending ? 'Creating...' : 'Create Scenario')}
           </Button>
         )}
       </div>
