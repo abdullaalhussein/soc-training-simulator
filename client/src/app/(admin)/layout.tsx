@@ -5,9 +5,9 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useRequireAuth(['ADMIN']);
+  const { isAuthenticated, isLoading } = useRequireAuth(['ADMIN']);
 
-  if (!isAuthenticated) return null;
+  if (isLoading || !isAuthenticated) return null;
 
   return (
     <div className="flex h-screen">
