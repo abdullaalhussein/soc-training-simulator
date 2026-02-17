@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/toaster';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Info, ArrowRight } from 'lucide-react';
 import { YaraRuleEditor } from './YaraRuleEditor';
 
 interface CheckpointModalProps {
@@ -49,10 +49,14 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
       setResults(prev => ({ ...prev, [cp.id]: data }));
       onAnswered(cp.id);
 
-      if (currentIndex < stableCheckpoints.length - 1) {
-        setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
-      } else {
-        setTimeout(() => onComplete(), 2000);
+      // If correct answer is included (beginner wrong answer), don't auto-advance
+      const hasCorrectAnswer = data.correctAnswer !== undefined;
+      if (!hasCorrectAnswer) {
+        if (currentIndex < stableCheckpoints.length - 1) {
+          setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
+        } else {
+          setTimeout(() => onComplete(), 2000);
+        }
       }
     } catch {
       toast({ title: 'Failed to submit answer', variant: 'destructive' });
@@ -61,7 +65,48 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
     }
   };
 
+  const handleManualAdvance = () => {
+    if (currentIndex < stableCheckpoints.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      onComplete();
+    }
+  };
+
   const result = results[cp.id];
+  const hasCorrectAnswer = result?.correctAnswer !== undefined;
+
+  const formatCorrectAnswer = () => {
+    if (!result?.correctAnswer) return null;
+    const type = result.checkpointType || cp.checkpointType;
+    const correct = result.correctAnswer;
+
+    switch (type) {
+      case 'TRUE_FALSE':
+        return `Correct answer: ${correct === true || correct === 'true' ? 'True' : 'False'}`;
+      case 'MULTIPLE_CHOICE':
+      case 'RECOMMENDED_ACTION':
+      case 'SEVERITY_CLASSIFICATION':
+        return `Correct answer: ${correct}`;
+      case 'SHORT_ANSWER':
+        if (Array.isArray(correct)) return `Expected keywords: ${correct.join(', ')}`;
+        if (typeof correct === 'object' && correct.keywords) return `Expected keywords: ${correct.keywords.join(', ')}`;
+        return `Expected answer: ${correct}`;
+      case 'EVIDENCE_SELECTION':
+        if (Array.isArray(correct)) return `Correct evidence: ${correct.join(', ')}`;
+        return `Correct evidence: ${correct}`;
+      case 'INCIDENT_REPORT': {
+        const parts: string[] = [];
+        if (correct.keywords) parts.push(`Key points: ${correct.keywords.join(', ')}`);
+        if (correct.minRecommendations) parts.push(`Min recommendations: ${correct.minRecommendations}`);
+        return parts.join('; ') || null;
+      }
+      case 'YARA_RULE':
+        return null; // Too complex to display
+      default:
+        return typeof correct === 'string' ? `Correct answer: ${correct}` : null;
+    }
+  };
 
   const renderQuestion = () => {
     switch (cp.checkpointType) {
@@ -216,13 +261,29 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           <p className="text-sm font-medium">{cp.question}</p>
 
           {result ? (
-            <div className={`flex items-center gap-2 p-3 rounded-md ${result.isCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
-              {result.isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-              <div>
-                <p className="font-medium">{result.isCorrect ? 'Correct!' : 'Incorrect'}</p>
-                <p className="text-xs">Points awarded: {result.pointsAwarded}/{cp.points}</p>
+            <>
+              <div className={`flex items-center gap-2 p-3 rounded-md ${result.isCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                {result.isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                <div>
+                  <p className="font-medium">{result.isCorrect ? 'Correct!' : 'Incorrect'}</p>
+                  <p className="text-xs">Points awarded: {result.pointsAwarded}/{cp.points}</p>
+                </div>
               </div>
-            </div>
+              {hasCorrectAnswer && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Info className="h-4 w-4 shrink-0" />
+                    <p className="text-sm font-medium">Learning Feedback</p>
+                  </div>
+                  {formatCorrectAnswer() && (
+                    <p className="text-sm">{formatCorrectAnswer()}</p>
+                  )}
+                  {result.explanation && (
+                    <p className="text-sm mt-1">{result.explanation}</p>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             renderQuestion()
           )}
@@ -231,6 +292,15 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           {!result && (
             <Button onClick={handleSubmitAnswer} disabled={submitting}>
               {submitting ? 'Submitting...' : 'Submit Answer'}
+            </Button>
+          )}
+          {result && hasCorrectAnswer && (
+            <Button onClick={handleManualAdvance}>
+              {currentIndex < stableCheckpoints.length - 1 ? (
+                <>Continue <ArrowRight className="ml-1 h-4 w-4" /></>
+              ) : (
+                'Finish'
+              )}
             </Button>
           )}
         </DialogFooter>
