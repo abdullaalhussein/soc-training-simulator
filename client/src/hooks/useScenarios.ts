@@ -45,3 +45,25 @@ export function useUpdateScenario() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scenarios'] }),
   });
 }
+
+export function useDeleteScenario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.delete(`/scenarios/${id}`);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scenarios'] }),
+  });
+}
+
+export function useImportScenario() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: any) => {
+      const { data } = await api.post('/scenarios/import', body);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scenarios'] }),
+  });
+}

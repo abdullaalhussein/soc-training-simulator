@@ -69,7 +69,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
   const trackAction = useCallback(async (actionType: string, details?: any) => {
     try {
       await api.post(`/attempts/${attemptId}/actions`, { actionType, details });
-      // Emit to trainer via socket
+      // Emit to trainer via socket — include details for rich activity feed
       const socket = getTraineeSocket();
       socket.emit('progress-update', {
         attemptId,
@@ -77,6 +77,7 @@ export function ScenarioPlayer({ attemptId }: ScenarioPlayerProps) {
         userId: attempt?.userId,
         currentStage: attempt?.currentStage,
         lastAction: actionType,
+        details,
         currentScore: attempt?.totalScore,
         elapsedMinutes: Math.floor(elapsedSeconds / 60),
       });
