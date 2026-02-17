@@ -46,6 +46,17 @@ export function useUpdateSessionStatus() {
   });
 }
 
+export function useDeleteSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.delete(`/sessions/${id}`);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+  });
+}
+
 export function useAddSessionMembers() {
   const queryClient = useQueryClient();
   return useMutation({

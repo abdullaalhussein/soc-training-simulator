@@ -1,6 +1,6 @@
 'use client';
 
-import { useSessions, useCreateSession, useUpdateSessionStatus } from '@/hooks/useSessions';
+import { useSessions, useCreateSession, useUpdateSessionStatus, useDeleteSession } from '@/hooks/useSessions';
 import { useScenarios } from '@/hooks/useScenarios';
 import { useUsers } from '@/hooks/useUsers';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/select';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { Plus, Users, Monitor, Play, Pause, Square } from 'lucide-react';
+import { Plus, Users, Monitor, Play, Pause, Square, Trash2 } from 'lucide-react';
 import { toast } from '@/components/ui/toaster';
 
 const statusColors: Record<string, string> = {
@@ -35,6 +35,7 @@ export default function TrainerConsole() {
   const { data: trainees } = useUsers({ role: 'TRAINEE' });
   const createSession = useCreateSession();
   const updateStatus = useUpdateSessionStatus();
+  const deleteSession = useDeleteSession();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSession, setNewSession] = useState({ name: '', scenarioId: '', timeLimit: '' });
@@ -72,7 +73,17 @@ export default function TrainerConsole() {
     }
   };
 
+  const handleDelete = async (sessionId: string) => {
+    try {
+      await deleteSession.mutateAsync(sessionId);
+      toast({ title: 'Session deleted' });
+    } catch {
+      toast({ title: 'Failed to delete session', variant: 'destructive' });
+    }
+  };
+
   const activeSessions = sessions?.filter((s: any) => s.status === 'ACTIVE') || [];
+  const nonCompletedSessions = sessions?.filter((s: any) => s.status !== 'COMPLETED') || [];
 
   return (
     <div className="space-y-6">
@@ -219,7 +230,7 @@ export default function TrainerConsole() {
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
           </div>
-        ) : sessions?.length === 0 ? (
+        ) : nonCompletedSessions.length === 0 ? (
           <Card>
             <CardContent className="pt-6 text-center text-muted-foreground">
               No sessions created yet. Click "Create Session" to get started.
@@ -227,7 +238,7 @@ export default function TrainerConsole() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sessions?.map((session: any) => (
+            {nonCompletedSessions.map((session: any) => (
               <Card key={session.id}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -243,9 +254,14 @@ export default function TrainerConsole() {
                   </div>
                   <div className="flex gap-2">
                     {session.status === 'DRAFT' && (
-                      <Button size="sm" onClick={() => handleStatusChange(session.id, 'ACTIVE')}>
-                        <Play className="mr-1 h-3 w-3" /> Launch
-                      </Button>
+                      <>
+                        <Button size="sm" onClick={() => handleStatusChange(session.id, 'ACTIVE')}>
+                          <Play className="mr-1 h-3 w-3" /> Launch
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(session.id)}>
+                          <Trash2 className="mr-1 h-3 w-3" /> Delete
+                        </Button>
+                      </>
                     )}
                     {session.status === 'PAUSED' && (
                       <Button size="sm" onClick={() => handleStatusChange(session.id, 'ACTIVE')}>
