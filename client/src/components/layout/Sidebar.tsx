@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useMobile } from '@/hooks/useMobile';
 
 const navItems = {
   TRAINEE: [
@@ -28,14 +30,71 @@ const navItems = {
   ],
 };
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
+}
+
+export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
   const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useMobile();
 
   if (!user) return null;
 
   const items = navItems[user.role] || [];
+
+  const navContent = (
+    <>
+      <nav className="flex-1 p-2 space-y-1">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => onMobileOpenChange?.(false)}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              {(isMobile || !collapsed) && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="border-t p-3">
+        {(isMobile || !collapsed) && (
+          <div className="text-xs text-muted-foreground">
+            <p className="font-medium text-foreground truncate">{user.name}</p>
+            <p className="truncate">{user.email}</p>
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <SheetContent side="left" className="w-64 p-0 flex flex-col">
+          <SheetHeader className="px-4 py-3 border-b">
+            <SheetTitle className="flex items-center gap-2 text-sm">
+              <Shield className="h-5 w-5 text-primary" />
+              SOC Simulator
+            </SheetTitle>
+          </SheetHeader>
+          {navContent}
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   return (
     <aside
@@ -58,35 +117,7 @@ export function Sidebar() {
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
       </div>
-      <nav className="flex-1 p-2 space-y-1">
-        {items.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )}
-            >
-              <Icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="border-t p-3">
-        {!collapsed && (
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground truncate">{user.name}</p>
-            <p className="truncate">{user.email}</p>
-          </div>
-        )}
-      </div>
+      {navContent}
     </aside>
   );
 }

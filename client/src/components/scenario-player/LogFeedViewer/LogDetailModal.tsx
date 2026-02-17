@@ -15,7 +15,7 @@ interface LogDetailModalProps {
 export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalProps) {
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Log Detail
@@ -25,7 +25,7 @@ export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalPr
         </DialogHeader>
         <div className="space-y-3 overflow-y-auto flex-1 min-h-0">
           <p className="text-sm">{log.summary}</p>
-          <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             {log.hostname && <div><span className="font-medium">Hostname:</span> {log.hostname}</div>}
             {log.username && <div><span className="font-medium">Username:</span> {log.username}</div>}
             {log.processName && <div><span className="font-medium">Process:</span> {log.processName}</div>}

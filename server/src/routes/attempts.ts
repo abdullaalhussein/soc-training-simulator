@@ -9,10 +9,14 @@ const prisma = new PrismaClient();
 
 router.use(authenticate);
 
-// Start an attempt
+// Start an attempt (trainers can pass userId to start on behalf of a trainee)
 router.post('/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { sessionId } = req.body;
+    const { sessionId, userId: targetUserId } = req.body;
+
+    // Trainers/admins can start for a specific trainee; trainees start for themselves
+    const isTrainerOrAdmin = ['ADMIN', 'TRAINER'].includes(req.user!.role);
+    const userId = (isTrainerOrAdmin && targetUserId) ? targetUserId : req.user!.userId;
 
     const session = await prisma.session.findUnique({
       where: { id: sessionId },
@@ -21,12 +25,19 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
     if (!session) throw new AppError('Session not found', 404);
     if (session.status !== 'ACTIVE') throw new AppError('Session is not active', 400);
 
-    const isMember = session.members.some(m => m.userId === req.user!.userId);
-    if (!isMember && req.user!.role === 'TRAINEE') throw new AppError('Not assigned to this session', 403);
+    const isMember = session.members.some(m => m.userId === userId);
+    if (!isMember && !isTrainerOrAdmin) throw new AppError('Not assigned to this session', 403);
+
+    // Auto-add trainee as member if trainer is starting for them and they aren't a member yet
+    if (!isMember && isTrainerOrAdmin && targetUserId) {
+      await prisma.sessionMember.create({
+        data: { sessionId, userId: targetUserId },
+      }).catch(() => { /* already exists */ });
+    }
 
     // Check for existing attempt
     const existing = await prisma.attempt.findUnique({
-      where: { sessionId_userId: { sessionId, userId: req.user!.userId } },
+      where: { sessionId_userId: { sessionId, userId } },
     });
     if (existing) {
       return res.json(existing);
@@ -35,7 +46,7 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
     const attempt = await prisma.attempt.create({
       data: {
         sessionId,
-        userId: req.user!.userId,
+        userId,
         status: 'IN_PROGRESS',
         startedAt: new Date(),
         currentStage: 1,
@@ -55,7 +66,7 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
     });
 
     await prisma.sessionMember.updateMany({
-      where: { sessionId, userId: req.user!.userId },
+      where: { sessionId, userId },
       data: { status: 'STARTED' },
     });
 

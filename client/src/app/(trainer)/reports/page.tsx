@@ -41,9 +41,9 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Reports & Analytics</h1>
           <p className="text-muted-foreground mt-1">View session results and trainee performance</p>
         </div>
         {selectedSession && (
@@ -124,13 +124,13 @@ export default function ReportsPage() {
                     <TableRow>
                       <TableHead className="w-12">Rank</TableHead>
                       <TableHead>Trainee</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Accuracy</TableHead>
-                      <TableHead className="text-right">Investigation</TableHead>
-                      <TableHead className="text-right">Evidence</TableHead>
-                      <TableHead className="text-right">Response</TableHead>
-                      <TableHead className="text-right">Report</TableHead>
-                      <TableHead className="text-right">Penalty</TableHead>
+                      <TableHead className="hidden sm:table-cell">Status</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Accuracy</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Investigation</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Evidence</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Response</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Report</TableHead>
+                      <TableHead className="text-right hidden lg:table-cell">Penalty</TableHead>
                       <TableHead className="text-right font-bold">Total</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -146,13 +146,13 @@ export default function ReportsPage() {
                             <p className="text-xs text-muted-foreground">{entry.email}</p>
                           </div>
                         </TableCell>
-                        <TableCell><Badge variant="outline">{entry.status}</Badge></TableCell>
-                        <TableCell className="text-right">{entry.accuracyScore}</TableCell>
-                        <TableCell className="text-right">{entry.investigationScore}</TableCell>
-                        <TableCell className="text-right">{entry.evidenceScore}</TableCell>
-                        <TableCell className="text-right">{entry.responseScore}</TableCell>
-                        <TableCell className="text-right">{entry.reportScore}</TableCell>
-                        <TableCell className="text-right text-destructive">-{entry.hintPenalty}</TableCell>
+                        <TableCell className="hidden sm:table-cell"><Badge variant="outline">{entry.status}</Badge></TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{entry.accuracyScore}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{entry.investigationScore}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{entry.evidenceScore}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{entry.responseScore}</TableCell>
+                        <TableCell className="text-right hidden lg:table-cell">{entry.reportScore}</TableCell>
+                        <TableCell className="text-right text-destructive hidden lg:table-cell">-{entry.hintPenalty}</TableCell>
                         <TableCell className="text-right font-bold text-lg">{entry.totalScore}</TableCell>
                       </TableRow>
                     ))}

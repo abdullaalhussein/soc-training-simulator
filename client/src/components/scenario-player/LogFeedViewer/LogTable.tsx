@@ -51,7 +51,7 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
-        <Table className="w-full table-fixed">
+        <Table className="w-full md:table-fixed min-w-[600px]">
           <colgroup>
             <col style={{ width: '60px' }} />
             <col style={{ width: '76px' }} />

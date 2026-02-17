@@ -23,31 +23,35 @@ export function PlayerHeader({ scenarioName, currentStage, totalStages, stageTit
 
   return (
     <div className="border-b bg-card">
-      <div className="h-14 flex items-center justify-between px-4">
-        <div className="flex items-center gap-4">
-          <h1 className="font-semibold text-sm">{scenarioName}</h1>
+      <div className="min-h-[3.5rem] flex flex-wrap items-center justify-between px-4 py-2 gap-2">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
+          <h1 className="font-semibold text-sm truncate">{scenarioName}</h1>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="font-semibold">Stage {currentStage}/{totalStages}</Badge>
-            <span className="text-xs text-muted-foreground hidden sm:inline">— {stageTitle}</span>
+            <Badge variant="secondary" className="font-semibold text-xs">Stage {currentStage}/{totalStages}</Badge>
+            <span className="text-xs text-muted-foreground hidden lg:inline">— {stageTitle}</span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-1 text-xs md:text-sm">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="font-mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Trophy className="h-4 w-4 text-yellow-500" />
-            <span className="font-semibold">{score} pts</span>
+          <div className="flex items-center gap-1 text-xs md:text-sm">
+            <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+            <span className="font-semibold">{score}</span>
           </div>
           {unansweredCount > 0 && (
-            <Button size="sm" variant="default" className="bg-orange-500 hover:bg-orange-600 animate-pulse" onClick={onOpenCheckpoints}>
-              <CheckCircle className="mr-1 h-4 w-4" /> {unansweredCount} Question{unansweredCount > 1 ? 's' : ''} Pending
+            <Button size="sm" variant="default" className="bg-orange-500 hover:bg-orange-600 animate-pulse text-xs" onClick={onOpenCheckpoints}>
+              <CheckCircle className="mr-1 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{unansweredCount} Pending</span>
+              <span className="sm:hidden">{unansweredCount}</span>
             </Button>
           )}
           {currentStage >= totalStages && unansweredCount === 0 && (
-            <Button size="sm" onClick={onComplete}>
-              <CheckCircle className="mr-1 h-4 w-4" /> Submit Investigation
+            <Button size="sm" onClick={onComplete} className="text-xs">
+              <CheckCircle className="mr-1 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Submit Investigation</span>
+              <span className="sm:hidden">Submit</span>
             </Button>
           )}
         </div>

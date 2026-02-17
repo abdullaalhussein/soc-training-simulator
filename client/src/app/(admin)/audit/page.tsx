@@ -27,7 +27,7 @@ export default function AuditPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Audit Log</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">Audit Log</h1>
         <p className="text-muted-foreground mt-1">Track all system activities</p>
       </div>
 
@@ -48,8 +48,8 @@ export default function AuditPage() {
                 <TableHead>Timestamp</TableHead>
                 <TableHead>User</TableHead>
                 <TableHead>Action</TableHead>
-                <TableHead>Resource</TableHead>
-                <TableHead>Details</TableHead>
+                <TableHead className="hidden sm:table-cell">Resource</TableHead>
+                <TableHead className="hidden md:table-cell">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -58,8 +58,8 @@ export default function AuditPage() {
                   <TableCell className="text-sm">{new Date(log.createdAt).toLocaleString()}</TableCell>
                   <TableCell className="text-sm">{log.user?.name || 'System'}</TableCell>
                   <TableCell><Badge variant="outline">{log.action}</Badge></TableCell>
-                  <TableCell className="text-sm">{log.resource}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                  <TableCell className="text-sm hidden sm:table-cell">{log.resource}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-xs truncate hidden md:table-cell">
                     {log.details ? JSON.stringify(log.details).slice(0, 80) : '-'}
                   </TableCell>
                 </TableRow>

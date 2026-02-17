@@ -85,9 +85,9 @@ export default function ScenariosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Scenario Management</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Scenario Management</h1>
           <p className="text-muted-foreground mt-1">Create and manage training scenarios</p>
         </div>
         <div className="flex items-center gap-2">
@@ -194,7 +194,7 @@ export default function ScenariosPage() {
 
       {/* Create Scenario Dialog */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Scenario</DialogTitle>
           </DialogHeader>
@@ -204,7 +204,7 @@ export default function ScenariosPage() {
 
       {/* Edit Scenario Dialog */}
       <Dialog open={!!editingScenario} onOpenChange={(open) => { if (!open) setEditingScenario(null); }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Scenario</DialogTitle>
           </DialogHeader>

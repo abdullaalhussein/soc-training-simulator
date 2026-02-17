@@ -204,7 +204,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className={`${cp.checkpointType === 'YARA_RULE' ? 'max-w-2xl' : 'max-w-lg'} max-h-[80vh] flex flex-col`}>
+      <DialogContent className={`max-w-[95vw] ${cp.checkpointType === 'YARA_RULE' ? 'sm:max-w-2xl' : 'sm:max-w-lg'} max-h-[80vh] flex flex-col`}>
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             Checkpoint Question

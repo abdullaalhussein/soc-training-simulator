@@ -13,12 +13,12 @@ interface LogFilterPanelProps {
 
 export function LogFilterPanel({ filters, filterOptions, onFilter }: LogFilterPanelProps) {
   const filterConfigs = [
-    { key: 'logType', label: 'Log Type', options: filterOptions?.logTypes || [] },
-    { key: 'hostname', label: 'Hostname', options: filterOptions?.hostnames || [] },
-    { key: 'username', label: 'Username', options: filterOptions?.usernames || [] },
-    { key: 'processName', label: 'Process', options: filterOptions?.processNames || [] },
-    { key: 'sourceIp', label: 'Source IP', options: filterOptions?.sourceIps || [] },
-    { key: 'destIp', label: 'Dest IP', options: filterOptions?.destIps || [] },
+    { key: 'logType', label: 'Log Type', options: filterOptions?.logTypes || [], primary: true },
+    { key: 'hostname', label: 'Hostname', options: filterOptions?.hostnames || [], primary: true },
+    { key: 'username', label: 'Username', options: filterOptions?.usernames || [], primary: false },
+    { key: 'processName', label: 'Process', options: filterOptions?.processNames || [], primary: false },
+    { key: 'sourceIp', label: 'Source IP', options: filterOptions?.sourceIps || [], primary: false },
+    { key: 'destIp', label: 'Dest IP', options: filterOptions?.destIps || [], primary: false },
   ];
 
   const activeFilters = Object.entries(filters).filter(([_, v]) => v);
@@ -32,7 +32,7 @@ export function LogFilterPanel({ filters, filterOptions, onFilter }: LogFilterPa
             value={filters[fc.key] || ''}
             onValueChange={(v) => onFilter(fc.key, v === '__all__' ? '' : v)}
           >
-            <SelectTrigger className="h-8 text-xs w-auto min-w-[100px]">
+            <SelectTrigger className={`h-8 text-xs w-auto min-w-[100px] ${!fc.primary ? 'hidden md:flex' : ''}`}>
               <SelectValue placeholder={fc.label} />
             </SelectTrigger>
             <SelectContent>

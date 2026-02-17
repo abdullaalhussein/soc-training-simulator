@@ -103,13 +103,13 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
               <MitreAttackBadge key={id} id={id} showName />
             ))}
           </div>
-          <CardTitle className="text-2xl mt-2">{scenario.name}</CardTitle>
+          <CardTitle className="text-xl md:text-2xl mt-2">{scenario.name}</CardTitle>
           <p className="text-muted-foreground">{scenario.category}</p>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm">{scenario.description}</p>
 
-          <div className="flex gap-6 text-sm text-muted-foreground">
+          <div className="flex flex-wrap gap-4 md:gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               <span>{scenario.estimatedMinutes} min estimated</span>
@@ -224,16 +224,16 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                       <h4 className="text-sm font-semibold flex items-center gap-2">
                         <ScrollText className="h-4 w-4 text-purple-500" /> Log Entries ({stage.logs.length})
                       </h4>
-                      <div className="ml-6 border rounded-lg overflow-hidden">
-                        <table className="w-full text-xs">
+                      <div className="ml-6 border rounded-lg overflow-x-auto">
+                        <table className="w-full text-xs min-w-[700px]">
                           <thead>
                             <tr className="bg-muted/70 text-muted-foreground">
                               <th className="px-3 py-2 text-left font-semibold w-[140px]">Timestamp</th>
                               <th className="px-3 py-2 text-left font-semibold w-[100px]">Type</th>
                               <th className="px-3 py-2 text-left font-semibold w-[70px]">Severity</th>
                               <th className="px-3 py-2 text-left font-semibold">Summary</th>
-                              <th className="px-3 py-2 text-left font-semibold w-[120px]">Host / IPs</th>
-                              <th className="px-3 py-2 text-center font-semibold w-[70px]">Evidence</th>
+                              <th className="px-3 py-2 text-left font-semibold w-[120px] hidden md:table-cell">Host / IPs</th>
+                              <th className="px-3 py-2 text-center font-semibold w-[70px] hidden sm:table-cell">Evidence</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y">
@@ -260,7 +260,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                                   </span>
                                 </td>
                                 <td className="px-3 py-2 text-sm">{log.summary}</td>
-                                <td className="px-3 py-2 space-y-0.5">
+                                <td className="px-3 py-2 space-y-0.5 hidden md:table-cell">
                                   {log.hostname && (
                                     <div className="flex items-center gap-1 text-muted-foreground">
                                       <Monitor className="h-3 w-3 shrink-0" />
@@ -280,7 +280,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                                     </div>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-center">
+                                <td className="px-3 py-2 text-center hidden sm:table-cell">
                                   {log.isEvidence && (
                                     <div className="flex flex-col items-center gap-0.5">
                                       <Tag className="h-3.5 w-3.5 text-amber-600" />
