@@ -39,6 +39,11 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<any>(null);
   const [form, setForm] = useState({ email: '', password: '', name: '', role: 'TRAINEE' as string });
 
+  const [pwDialogOpen, setPwDialogOpen] = useState(false);
+  const [pwUserId, setPwUserId] = useState<string>('');
+  const [pwUserName, setPwUserName] = useState<string>('');
+  const [newPassword, setNewPassword] = useState('');
+
   const handleSave = async () => {
     try {
       if (editUser) {
@@ -65,12 +70,24 @@ export default function UsersPage() {
     }
   };
 
-  const handleResetPw = async (id: string) => {
+  const openResetPw = (user: any) => {
+    setPwUserId(user.id);
+    setPwUserName(user.name);
+    setNewPassword('');
+    setPwDialogOpen(true);
+  };
+
+  const handleResetPw = async () => {
+    if (newPassword.length < 8) {
+      toast({ title: 'Password must be at least 8 characters', variant: 'destructive' });
+      return;
+    }
     try {
-      await resetPassword.mutateAsync({ id, password: 'Password123!' });
-      toast({ title: 'Password reset to default' });
+      await resetPassword.mutateAsync({ id: pwUserId, password: newPassword });
+      toast({ title: 'Password changed successfully' });
+      setPwDialogOpen(false);
     } catch {
-      toast({ title: 'Failed', variant: 'destructive' });
+      toast({ title: 'Failed to change password', variant: 'destructive' });
     }
   };
 
@@ -151,7 +168,7 @@ export default function UsersPage() {
                         <Button size="sm" variant="ghost" onClick={() => openEdit(user)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleResetPw(user.id)}>
+                        <Button size="sm" variant="ghost" onClick={() => openResetPw(user)} title="Change password">
                           <KeyRound className="h-4 w-4" />
                         </Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeactivate(user.id)}>
@@ -205,6 +222,33 @@ export default function UsersPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave}>{editUser ? 'Update' : 'Create'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={pwDialogOpen} onOpenChange={setPwDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>Set a new password for {pwUserName}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>New Password</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min 8 characters"
+                onKeyDown={(e) => e.key === 'Enter' && handleResetPw()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPwDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleResetPw} disabled={resetPassword.isPending}>
+              {resetPassword.isPending ? 'Changing...' : 'Change Password'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
