@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'SOC Training Simulator',
   description: 'A multi-role Security Operations Center training platform with realistic simulated logs for hands-on cybersecurity education.',
+  icons: {
+    icon: '/favicon.svg',
+  },
   openGraph: {
     title: 'SOC Training Simulator',
     description: 'A multi-role Security Operations Center training platform with realistic simulated logs for hands-on cybersecurity education.',
