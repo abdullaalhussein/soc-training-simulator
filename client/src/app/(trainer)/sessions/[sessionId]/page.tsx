@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useSession, useUpdateSessionStatus, useAddSessionMembers, useDeleteSession } from '@/hooks/useSessions';
+import { useSession, useUpdateSessionStatus, useAddSessionMembers, useDeleteSession, useRetakeAttempt } from '@/hooks/useSessions';
 import { useUsers } from '@/hooks/useUsers';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import { DiscussionPanel } from '@/components/DiscussionPanel';
 import {
   Play, Pause, Square, Send, Eye, Users, Activity, MessageSquare,
   Search, FileText, Lightbulb, CheckCircle2, ArrowRight, Bookmark,
-  Clock, X, AlertTriangle, UserPlus, Trash2,
+  Clock, X, AlertTriangle, UserPlus, Trash2, RotateCcw,
 } from 'lucide-react';
 
 interface ActionEntry {
@@ -98,6 +98,7 @@ export default function SessionMonitorPage() {
   const updateStatus = useUpdateSessionStatus();
   const addMembers = useAddSessionMembers();
   const deleteSession = useDeleteSession();
+  const retakeAttempt = useRetakeAttempt();
   const { data: allTrainees } = useUsers({ role: 'TRAINEE' });
 
   const [trainees, setTrainees] = useState<Map<string, TraineeState>>(new Map());
@@ -111,6 +112,8 @@ export default function SessionMonitorPage() {
   const [startingForTrainee, setStartingForTrainee] = useState<string | null>(null);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [retakeDialogOpen, setRetakeDialogOpen] = useState(false);
+  const [retakeTargetTrainee, setRetakeTargetTrainee] = useState<TraineeState | null>(null);
 
   // Auto-refresh session data every 10 seconds as fallback for socket
   useEffect(() => {
@@ -379,6 +382,7 @@ export default function SessionMonitorPage() {
     NOT_STARTED: 'bg-slate-400',
     TIMED_OUT: 'bg-red-500',
     ASSIGNED: 'bg-amber-400',
+    RETAKEN: 'bg-orange-400',
   };
 
   // Selected member info (could be from attempts or assigned-only)
@@ -540,6 +544,19 @@ export default function SessionMonitorPage() {
                     <Button size="sm" variant="outline" onClick={() => setHintDialogOpen(true)}>
                       <MessageSquare className="mr-1 h-3 w-3" /> Send Hint
                     </Button>
+                    {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && session?.status === 'ACTIVE' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                        onClick={() => {
+                          setRetakeTargetTrainee(selectedTraineeData);
+                          setRetakeDialogOpen(true);
+                        }}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" /> Retake
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-3 text-sm flex-wrap">
@@ -748,6 +765,50 @@ export default function SessionMonitorPage() {
                 {addMembers.isPending ? 'Starting...' : `Add & Start (${selectedNewTrainees.length})`}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Retake Confirmation Dialog */}
+      <Dialog open={retakeDialogOpen} onOpenChange={(open) => {
+        setRetakeDialogOpen(open);
+        if (!open) setRetakeTargetTrainee(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-orange-500" />
+              Allow Retake
+            </DialogTitle>
+            <DialogDescription>
+              This will mark <strong>{retakeTargetTrainee?.userName}</strong>&apos;s current attempt
+              (score: {retakeTargetTrainee?.currentScore} pts) as retaken and create a fresh attempt.
+              The old attempt will be preserved as history.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRetakeDialogOpen(false); setRetakeTargetTrainee(null); }}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={retakeAttempt.isPending}
+              onClick={async () => {
+                if (!retakeTargetTrainee) return;
+                try {
+                  await retakeAttempt.mutateAsync(retakeTargetTrainee.attemptId);
+                  toast({ title: `Retake started for ${retakeTargetTrainee.userName}` });
+                  setRetakeDialogOpen(false);
+                  setRetakeTargetTrainee(null);
+                  refetch();
+                } catch {
+                  toast({ title: 'Failed to start retake', variant: 'destructive' });
+                }
+              }}
+            >
+              <RotateCcw className="mr-2 h-4 w-4" />
+              {retakeAttempt.isPending ? 'Starting...' : 'Confirm Retake'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

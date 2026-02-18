@@ -25,6 +25,7 @@ enum AttemptStatus {
   IN_PROGRESS
   COMPLETED
   TIMED_OUT
+  RETAKEN
 }
 
 enum LogType {
@@ -249,6 +250,8 @@ model Attempt {
   userId           String
   currentStage     Int           @default(1)
   status           AttemptStatus @default(NOT_STARTED)
+  attemptNumber    Int           @default(1)
+  retakeOfId       String?
   accuracyScore    Float         @default(0)
   investigationScore Float       @default(0)
   evidenceScore    Float         @default(0)
@@ -263,13 +266,16 @@ model Attempt {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  session Session              @relation(fields: [sessionId], references: [id])
-  user    User                 @relation(fields: [userId], references: [id])
-  answers Answer[]
-  actions InvestigationAction[]
-  notes   TrainerNote[]
+  session  Session              @relation(fields: [sessionId], references: [id])
+  user     User                 @relation(fields: [userId], references: [id])
+  retakeOf Attempt?             @relation("AttemptRetakes", fields: [retakeOfId], references: [id])
+  retakes  Attempt[]            @relation("AttemptRetakes")
+  answers  Answer[]
+  actions  InvestigationAction[]
+  notes    TrainerNote[]
 
-  @@unique([sessionId, userId])
+  @@unique([sessionId, userId, attemptNumber])
+  @@index([sessionId, userId])
   @@index([sessionId])
   @@index([userId])
   @@index([status])

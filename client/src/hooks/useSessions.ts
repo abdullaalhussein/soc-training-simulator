@@ -70,3 +70,17 @@ export function useAddSessionMembers() {
     },
   });
 }
+
+export function useRetakeAttempt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (attemptId: string) => {
+      const { data } = await api.post(`/attempts/${attemptId}/retake`);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
+  });
+}

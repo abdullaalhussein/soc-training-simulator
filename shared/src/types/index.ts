@@ -16,6 +16,7 @@ export enum AttemptStatus {
   IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
   TIMED_OUT = 'TIMED_OUT',
+  RETAKEN = 'RETAKEN',
 }
 
 export enum LogType {

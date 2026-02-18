@@ -33,6 +33,7 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
       include: {
         scenario: true,
         attempts: {
+          where: { status: { not: 'RETAKEN' } },
           include: { user: { select: { name: true, email: true } } },
           orderBy: { totalScore: 'desc' },
         },
@@ -67,7 +68,7 @@ router.get('/session/:id/leaderboard', async (req: Request, res: Response, next:
   try {
     const sessionId = req.params.id as string;
     const attempts = await prisma.attempt.findMany({
-      where: { sessionId },
+      where: { sessionId, status: { not: 'RETAKEN' } },
       include: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { totalScore: 'desc' },
     });
@@ -100,7 +101,7 @@ router.get('/session/:id/csv', async (req: Request, res: Response, next: NextFun
   try {
     const sessionId = req.params.id as string;
     const attempts = await prisma.attempt.findMany({
-      where: { sessionId },
+      where: { sessionId, status: { not: 'RETAKEN' } },
       include: { user: { select: { name: true, email: true } } },
       orderBy: { totalScore: 'desc' },
     });

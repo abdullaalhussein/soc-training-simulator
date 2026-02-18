@@ -197,7 +197,12 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     return (
       <div className="min-h-screen bg-background p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-6">
-          <h1 className="text-2xl md:text-3xl font-bold">Investigation Complete</h1>
+          <div className="text-center space-y-2">
+            <h1 className="text-2xl md:text-3xl font-bold">Thanks for Your Efforts!</h1>
+            <p className="text-muted-foreground">
+              Great work completing this investigation. Here&apos;s a summary of your performance.
+            </p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-card border rounded-lg p-4 text-center">
               <p className="text-3xl font-bold text-primary">{attempt.totalScore}</p>
@@ -238,6 +243,11 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
               ))}
             </div>
           )}
+          <div className="text-center pt-4">
+            <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );

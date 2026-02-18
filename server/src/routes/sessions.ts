@@ -54,6 +54,7 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         createdBy: { select: { id: true, name: true } },
         members: { include: { user: { select: { id: true, name: true, email: true } } } },
         attempts: {
+          where: { status: { not: 'RETAKEN' } },
           include: { user: { select: { id: true, name: true, email: true } } },
           orderBy: { totalScore: 'desc' },
         },

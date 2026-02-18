@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
+import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { ScoringService } from '../services/scoring.service';
 
@@ -35,13 +36,20 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
       }).catch(() => { /* already exists */ });
     }
 
-    // Check for existing attempt
-    const existing = await prisma.attempt.findUnique({
-      where: { sessionId_userId: { sessionId, userId } },
+    // Check for existing active attempt (not RETAKEN)
+    const existing = await prisma.attempt.findFirst({
+      where: { sessionId, userId, status: { notIn: ['RETAKEN'] } },
     });
     if (existing) {
       return res.json(existing);
     }
+
+    // Compute next attemptNumber
+    const lastAttempt = await prisma.attempt.findFirst({
+      where: { sessionId, userId },
+      orderBy: { attemptNumber: 'desc' },
+    });
+    const attemptNumber = lastAttempt ? lastAttempt.attemptNumber + 1 : 1;
 
     const attempt = await prisma.attempt.create({
       data: {
@@ -50,6 +58,7 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
         status: 'IN_PROGRESS',
         startedAt: new Date(),
         currentStage: 1,
+        attemptNumber,
       },
       include: {
         session: {
@@ -338,6 +347,73 @@ router.get('/:id/results', async (req: Request, res: Response, next: NextFunctio
     }
 
     res.json(attempt);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Retake attempt (trainer/admin only)
+router.post('/:id/retake', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.id as string;
+
+    const oldAttempt = await prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { session: true },
+    });
+    if (!oldAttempt) throw new AppError('Attempt not found', 404);
+    if (!['COMPLETED', 'TIMED_OUT'].includes(oldAttempt.status)) {
+      throw new AppError('Only completed or timed-out attempts can be retaken', 400);
+    }
+    if (oldAttempt.session.status !== 'ACTIVE') {
+      throw new AppError('Session must be active to allow retakes', 400);
+    }
+
+    // Ensure no active attempt already exists for this user in this session
+    const activeAttempt = await prisma.attempt.findFirst({
+      where: {
+        sessionId: oldAttempt.sessionId,
+        userId: oldAttempt.userId,
+        status: { in: ['NOT_STARTED', 'IN_PROGRESS'] },
+      },
+    });
+    if (activeAttempt) {
+      throw new AppError('Trainee already has an active attempt', 400);
+    }
+
+    const newAttempt = await prisma.$transaction(async (tx) => {
+      // Mark old attempt as RETAKEN
+      await tx.attempt.update({
+        where: { id: attemptId },
+        data: { status: 'RETAKEN' },
+      });
+
+      // Create new attempt
+      const created = await tx.attempt.create({
+        data: {
+          sessionId: oldAttempt.sessionId,
+          userId: oldAttempt.userId,
+          status: 'IN_PROGRESS',
+          startedAt: new Date(),
+          currentStage: 1,
+          attemptNumber: oldAttempt.attemptNumber + 1,
+          retakeOfId: oldAttempt.id,
+        },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+        },
+      });
+
+      // Reset session member status to STARTED
+      await tx.sessionMember.updateMany({
+        where: { sessionId: oldAttempt.sessionId, userId: oldAttempt.userId },
+        data: { status: 'STARTED' },
+      });
+
+      return created;
+    });
+
+    res.status(201).json(newAttempt);
   } catch (error) {
     next(error);
   }
