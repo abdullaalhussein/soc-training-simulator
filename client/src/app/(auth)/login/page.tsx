@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -94,6 +95,11 @@ export default function LoginPage() {
           </CardFooter>
         </form>
       </Card>
+      <p className="mt-4 text-center text-sm text-slate-500">
+        <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
+        <span className="mx-2">&middot;</span>
+        <Link href="/terms-of-service" className="hover:text-slate-300 transition-colors">Terms of Service</Link>
+      </p>
     </div>
   );
 }
