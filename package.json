@@ -1,6 +1,19 @@
 {
   "name": "soc-training-simulator",
   "version": "1.0.0",
+  "description": "Multi-role Security Operations Center training simulator with realistic simulated logs for hands-on cybersecurity education",
+  "keywords": [
+    "soc",
+    "cybersecurity",
+    "training",
+    "incident-response",
+    "security-operations",
+    "yara",
+    "siem",
+    "log-analysis"
+  ],
+  "author": "Abdullah Al Hussein",
+  "license": "MIT",
   "private": true,
   "workspaces": [
     "client",

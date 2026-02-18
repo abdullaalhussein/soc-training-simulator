@@ -7,7 +7,18 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'SOC Training Simulator',
-  description: 'Security Operations Center Training Platform',
+  description: 'A multi-role Security Operations Center training platform with realistic simulated logs for hands-on cybersecurity education.',
+  openGraph: {
+    title: 'SOC Training Simulator',
+    description: 'A multi-role Security Operations Center training platform with realistic simulated logs for hands-on cybersecurity education.',
+    type: 'website',
+    siteName: 'SOC Training Simulator',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SOC Training Simulator',
+    description: 'A multi-role Security Operations Center training platform with realistic simulated logs for hands-on cybersecurity education.',
+  },
 };
 
 export default function RootLayout({

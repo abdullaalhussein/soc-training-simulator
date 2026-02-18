@@ -39,6 +39,45 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 
 ---
 
+## Screenshots
+
+### Login
+<p align="center">
+  <img src="docs/screenshots/01-login.png" alt="Login Page" width="720" />
+</p>
+
+### Admin Panel — User Management
+<p align="center">
+  <img src="docs/screenshots/02-admin-users.png" alt="Admin User Management" width="720" />
+</p>
+
+### Admin Panel — Scenario Management
+<p align="center">
+  <img src="docs/screenshots/03-admin-scenarios.png" alt="Admin Scenario Management" width="720" />
+</p>
+
+### Trainer Console — Session Management
+<p align="center">
+  <img src="docs/screenshots/05-trainer-console.png" alt="Trainer Console" width="720" />
+</p>
+
+### Trainee Dashboard
+<p align="center">
+  <img src="docs/screenshots/07-trainee-dashboard.png" alt="Trainee Dashboard" width="720" />
+</p>
+
+### Pre-Investigation Lesson
+<p align="center">
+  <img src="docs/screenshots/08-trainee-lesson.png" alt="Pre-Investigation Lesson" width="720" />
+</p>
+
+### Investigation Workspace — Log Viewer, Evidence Basket & Briefing
+<p align="center">
+  <img src="docs/screenshots/09-trainee-investigation.png" alt="Investigation Workspace" width="720" />
+</p>
+
+---
+
 ## Tech Stack
 
 | Layer | Technologies |
@@ -308,4 +347,4 @@ Open [`docs/presentation.html`](docs/presentation.html) in a browser for the ful
 
 ## License
 
-This project is proprietary. All rights reserved.
+This project is licensed under the [MIT License](LICENSE).

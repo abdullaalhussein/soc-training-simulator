@@ -1,4 +1,5 @@
 import { PrismaClient, CheckpointType } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -74,15 +75,15 @@ export class ScoringService {
         if (typeof correctData !== 'object' || correctData === null) correctData = {};
         const samples = (correctData as any).samples || [];
 
-        console.log(`[YARA Scoring] Checkpoint ${checkpoint.id}: ${samples.length} samples, answer length: ${String(answer).length}`);
+        logger.debug(`[YARA Scoring] Checkpoint ${checkpoint.id}: ${samples.length} samples, answer length: ${String(answer).length}`);
 
         const sanitizedRule = YaraService.sanitizeRule(String(answer));
         const result = await YaraService.testRule(sanitizedRule, samples);
 
-        console.log(`[YARA Scoring] Result: compiled=${result.compiled}, accuracy=${result.accuracy}, error=${result.compileError || 'none'}`);
+        logger.debug(`[YARA Scoring] Result: compiled=${result.compiled}, accuracy=${result.accuracy}, error=${result.compileError || 'none'}`);
 
         if (!result.compiled) {
-          console.log(`[YARA Scoring] Compile failed: ${result.compileError}`);
+          logger.debug(`[YARA Scoring] Compile failed: ${result.compileError}`);
           return { isCorrect: false, pointsAwarded: 0 };
         }
 
