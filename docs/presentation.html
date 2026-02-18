@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOC Training Simulator — Architecture &amp; Implementation Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & Base ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #0a0e1a;
+  --bg-card:   #111827;
+  --bg-code:   #0d1117;
+  --border:    #1e293b;
+  --text:      #e2e8f0;
+  --text-dim:  #94a3b8;
+  --accent:    #38bdf8;
+  --accent2:   #06b6d4;
+  --green:     #34d399;
+  --yellow:    #fbbf24;
+  --red:       #f87171;
+  --purple:    #a78bfa;
+  --orange:    #fb923c;
+  --pink:      #f472b6;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --font-ar:   'Tajawal', 'Inter', sans-serif;
+}
+
+html, body {
+  height: 100%; width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Slide Container ──────────────────────────────── */
+.deck {
+  position: relative;
+  width: 100%; height: 100%;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 48px 64px;
+  opacity: 0;
+  transform: translateX(60px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+  overflow-y: auto;
+}
+.slide.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+.slide.prev {
+  opacity: 0;
+  transform: translateX(-60px);
+}
+
+/* ── Navigation ───────────────────────────────────── */
+.nav {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 100;
+  background: rgba(17,24,39,0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 20px;
+}
+.nav button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+.nav button:hover { background: rgba(56,189,248,0.1); border-color: var(--accent); }
+.nav button:disabled { opacity: 0.3; cursor: default; }
+.nav .counter {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-dim);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* ── Progress Bar ─────────────────────────────────── */
+.progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  transition: width 0.4s ease;
+  z-index: 100;
+}
+
+/* ── Typography ───────────────────────────────────── */
+h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; }
+h2 { font-size: 1.8rem; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+h3 { font-size: 1.2rem; font-weight: 600; line-height: 1.35; }
+
+.ar {
+  font-family: var(--font-ar);
+  direction: rtl;
+  text-align: right;
+}
+.ar-inline {
+  font-family: var(--font-ar);
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+
+.subtitle { color: var(--text-dim); font-size: 1.15rem; font-weight: 400; }
+.accent-text { color: var(--accent); }
+.green-text { color: var(--green); }
+.yellow-text { color: var(--yellow); }
+.red-text { color: var(--red); }
+.purple-text { color: var(--purple); }
+.orange-text { color: var(--orange); }
+.dim { color: var(--text-dim); }
+
+/* ── Layout Helpers ───────────────────────────────── */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-20 { gap: 20px; }
+.gap-24 { gap: 24px; }
+.gap-32 { gap: 32px; }
+.grow { flex: 1; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.text-center { text-align: center; }
+.w-full { width: 100%; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+/* ── Cards & Badges ───────────────────────────────── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+.card-sm {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid;
+}
+.badge-blue  { color: var(--accent);  border-color: rgba(56,189,248,0.3);  background: rgba(56,189,248,0.08); }
+.badge-green { color: var(--green);   border-color: rgba(52,211,153,0.3);  background: rgba(52,211,153,0.08); }
+.badge-purple{ color: var(--purple);  border-color: rgba(167,139,250,0.3); background: rgba(167,139,250,0.08); }
+.badge-yellow{ color: var(--yellow);  border-color: rgba(251,191,36,0.3);  background: rgba(251,191,36,0.08); }
+.badge-orange{ color: var(--orange);  border-color: rgba(251,146,60,0.3);  background: rgba(251,146,60,0.08); }
+.badge-red   { color: var(--red);     border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.08); }
+.badge-pink  { color: var(--pink);    border-color: rgba(244,114,182,0.3); background: rgba(244,114,182,0.08); }
+
+.tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+.tag-blue   { color: var(--accent); background: rgba(56,189,248,0.12); }
+.tag-green  { color: var(--green);  background: rgba(52,211,153,0.12); }
+.tag-purple { color: var(--purple); background: rgba(167,139,250,0.12); }
+.tag-yellow { color: var(--yellow); background: rgba(251,191,36,0.12); }
+
+/* ── Code Blocks ──────────────────────────────────── */
+code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--bg-code);
+  padding: 2px 7px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+.code-block {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.65;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--text-dim);
+}
+.code-block .kw { color: var(--purple); }
+.code-block .fn { color: #7dd3fc; }
+.code-block .str { color: var(--green); }
+.code-block .cm { color: #4b5563; }
+.code-block .num { color: var(--orange); }
+.code-block .op { color: var(--text-dim); }
+
+/* ── Diagrams ─────────────────────────────────────── */
+.arch-box {
+  border: 2px solid;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  position: relative;
+}
+.arch-box h3 { margin-bottom: 10px; }
+.arch-box .tech-list { font-size: 0.82rem; color: var(--text-dim); line-height: 1.7; }
+
+.arrow-down {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+}
+
+.flow-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 1.8rem;
+  padding: 0 8px;
+}
+
+/* ── Tables ────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+th, td {
+  padding: 8px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  background: rgba(56,189,248,0.06);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+td { color: var(--text-dim); }
+
+/* ── Tree View ────────────────────────────────────── */
+.tree {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1.8;
+  color: var(--text-dim);
+}
+.tree .dir { color: var(--accent); font-weight: 600; }
+.tree .file { color: var(--text-dim); }
+.tree .desc { color: #4b5563; font-style: italic; }
+
+/* ── Slide Header ─────────────────────────────────── */
+.slide-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.slide-header .num {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent);
+  background: rgba(56,189,248,0.1);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.slide-header h2 { flex: 1; }
+.slide-header .ar-title {
+  font-family: var(--font-ar);
+  font-size: 1.1rem;
+  color: var(--text-dim);
+  direction: rtl;
+}
+
+/* ── Middleware pipeline ──────────────────────────── */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.pipeline-step {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.pipeline-arrow {
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  padding: 0 4px;
+}
+
+/* ── Score Bar ────────────────────────────────────── */
+.score-bar {
+  display: flex;
+  height: 32px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.score-bar > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+/* ── Title slide specific ─────────────────────────── */
+.title-slide {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+.title-slide .logo {
+  width: 80px; height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(6,182,212,0.2));
+  border: 2px solid rgba(56,189,248,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+  margin-bottom: 24px;
+}
+.title-slide h1 {
+  background: linear-gradient(135deg, #e2e8f0, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.title-slide .ar-title {
+  font-family: var(--font-ar);
+  font-size: 1.6rem;
+  color: var(--accent2);
+  direction: rtl;
+  margin-top: 8px;
+}
+
+/* ── List styles ──────────────────────────────────── */
+ul.features { list-style: none; }
+ul.features li {
+  padding: 5px 0;
+  padding-left: 20px;
+  position: relative;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+ul.features li::before {
+  content: '▸';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── Links ────────────────────────────────────────── */
+a.file-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(56,189,248,0.4);
+  transition: border-color 0.2s, color 0.2s;
+}
+a.file-link:hover {
+  color: #7dd3fc;
+  border-bottom-color: var(--accent);
+}
+a.repo-link {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(56,189,248,0.4);
+  transition: border-color 0.2s, color 0.2s;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+a.repo-link:hover {
+  color: #7dd3fc;
+  border-bottom-color: var(--accent);
+}
+
+/* ── Responsive ───────────────────────────────────── */
+@media (max-width: 900px) {
+  .slide { padding: 32px 28px; }
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.4rem; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .grid-3 { grid-template-columns: 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .pipeline { gap: 4px; }
+}
+@media (max-width: 600px) {
+  .slide { padding: 20px 16px; }
+  h1 { font-size: 1.6rem; }
+  .nav { padding: 6px 12px; }
+  .grid-4 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 1 — TITLE
+     ════════════════════════════════════════════════════ -->
+<div class="deck" id="deck">
+
+<div class="slide title-slide active" data-slide="1">
+  <div class="logo">&#128737;</div>
+  <h1>SOC Training Simulator</h1>
+  <div class="ar-title">&#1605;&#1581;&#1575;&#1603;&#1610; &#1578;&#1583;&#1585;&#1610;&#1576; &#1605;&#1585;&#1603;&#1586; &#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1575;&#1604;&#1571;&#1605;&#1606;&#1610;&#1577;</div>
+  <p class="subtitle mt-16">Architecture &amp; Implementation Guide</p>
+  <p class="ar-title" style="font-size:1.1rem; color:var(--text-dim); margin-top:4px;">&#1583;&#1604;&#1610;&#1604; &#1575;&#1604;&#1576;&#1606;&#1610;&#1577; &#1608;&#1575;&#1604;&#1578;&#1606;&#1601;&#1610;&#1584;</p>
+  <div class="flex gap-12 mt-32" style="flex-wrap:wrap; justify-content:center;">
+    <span class="badge badge-blue">Next.js 15</span>
+    <span class="badge badge-green">Express 5</span>
+    <span class="badge badge-purple">PostgreSQL 16</span>
+    <span class="badge badge-yellow">Socket.io</span>
+    <span class="badge badge-orange">Prisma</span>
+    <span class="badge badge-pink">TypeScript</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 2 — PROJECT OVERVIEW
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="2">
+  <div class="slide-header">
+    <span class="num">02</span>
+    <h2>Project Overview</h2>
+    <span class="ar-title">&#1606;&#1592;&#1585;&#1577; &#1593;&#1575;&#1605;&#1577;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <div class="flex flex-col gap-20">
+      <div class="card">
+        <h3 class="accent-text mb-8">What</h3>
+        <p class="dim" style="font-size:0.9rem;">A multi-role SOC training platform that provides realistic simulated security logs for hands-on cybersecurity training — including YARA rule writing, log analysis, and incident response.</p>
+      </div>
+      <div class="card">
+        <h3 class="green-text mb-8">Who — Roles</h3>
+        <div class="flex gap-12 mt-8">
+          <span class="badge badge-red">Admin</span>
+          <span class="badge badge-yellow">Trainer</span>
+          <span class="badge badge-green">Trainee</span>
+        </div>
+        <ul class="features mt-12">
+          <li><strong>Admin</strong> — Manage users, scenarios, audit logs, and system settings</li>
+          <li><strong>Trainer</strong> — Create sessions, monitor trainees in real-time, adjust scores</li>
+          <li><strong>Trainee</strong> — Investigate scenarios, analyze logs, submit evidence &amp; reports</li>
+        </ul>
+      </div>
+    </div>
+    <div class="flex flex-col gap-20">
+      <div class="card">
+        <h3 class="yellow-text mb-8">Why</h3>
+        <ul class="features">
+          <li>Hands-on experience with real-world attack scenarios</li>
+          <li>Multi-stage investigation workflow</li>
+          <li>YARA rule writing and testing in a safe environment</li>
+          <li>Objective multi-dimensional scoring</li>
+          <li>Real-time monitoring and guided training</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="purple-text mb-8">Tech Stack</h3>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="badge badge-blue">Next.js 15</span>
+          <span class="badge badge-blue">React 19</span>
+          <span class="badge badge-green">Express 5</span>
+          <span class="badge badge-purple">PostgreSQL 16</span>
+          <span class="badge badge-yellow">Socket.io 4</span>
+          <span class="badge badge-orange">Prisma ORM</span>
+          <span class="badge badge-pink">TypeScript</span>
+          <span class="badge badge-blue">Tailwind CSS</span>
+          <span class="badge badge-green">Zustand</span>
+          <span class="badge badge-purple">TanStack Query</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 3 — SYSTEM ARCHITECTURE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="3">
+  <div class="slide-header">
+    <span class="num">03</span>
+    <h2>System Architecture</h2>
+    <span class="ar-title">&#1575;&#1604;&#1576;&#1606;&#1610;&#1577; &#1575;&#1604;&#1593;&#1575;&#1605;&#1577; &#1604;&#1604;&#1606;&#1592;&#1575;&#1605;</span>
+  </div>
+
+  <div class="flex gap-24 grow items-center" style="justify-content:center;">
+    <!-- CLIENT -->
+    <div class="arch-box" style="border-color:var(--accent); flex:1; max-width:280px;">
+      <h3 class="accent-text">Client</h3>
+      <div style="font-size:0.7rem; color:var(--text-dim); background:rgba(56,189,248,0.06); border-radius:6px; padding:2px 8px; display:inline-block; margin:6px 0;">Port 3000</div>
+      <div class="tech-list">
+        Next.js 15 &middot; React 19<br>
+        Zustand &middot; TanStack Query<br>
+        Tailwind CSS &middot; Radix UI<br>
+        Socket.io Client<br>
+        Recharts &middot; Axios
+      </div>
+    </div>
+
+    <!-- ARROWS -->
+    <div class="flex flex-col gap-8 items-center">
+      <div style="font-size:0.7rem; color:var(--text-dim); font-family:var(--font-mono);">REST API</div>
+      <div style="color:var(--accent); font-size:1.6rem;">&#10230;</div>
+      <div style="color:var(--accent); font-size:1.6rem;">&#10229;</div>
+      <div style="font-size:0.7rem; color:var(--yellow); font-family:var(--font-mono);">WebSocket</div>
+      <div style="color:var(--yellow); font-size:1.6rem;">&#8644;</div>
+    </div>
+
+    <!-- SERVER -->
+    <div class="arch-box" style="border-color:var(--green); flex:1; max-width:280px;">
+      <h3 class="green-text">Server</h3>
+      <div style="font-size:0.7rem; color:var(--text-dim); background:rgba(52,211,153,0.06); border-radius:6px; padding:2px 8px; display:inline-block; margin:6px 0;">Port 3001</div>
+      <div class="tech-list">
+        Express 5 &middot; Socket.io<br>
+        JWT Auth &middot; RBAC<br>
+        Prisma ORM &middot; Zod<br>
+        YARA Engine<br>
+        PDFKit &middot; Winston
+      </div>
+    </div>
+
+    <!-- ARROWS -->
+    <div class="flex flex-col gap-8 items-center">
+      <div style="font-size:0.7rem; color:var(--text-dim); font-family:var(--font-mono);">Prisma</div>
+      <div style="color:var(--purple); font-size:1.6rem;">&#10230;</div>
+      <div style="color:var(--purple); font-size:1.6rem;">&#10229;</div>
+      <div style="font-size:0.7rem; color:var(--text-dim); font-family:var(--font-mono);">SQL</div>
+    </div>
+
+    <!-- DATABASE -->
+    <div class="arch-box" style="border-color:var(--purple); flex:1; max-width:280px;">
+      <h3 class="purple-text">Database</h3>
+      <div style="font-size:0.7rem; color:var(--text-dim); background:rgba(167,139,250,0.06); border-radius:6px; padding:2px 8px; display:inline-block; margin:6px 0;">Port 5432</div>
+      <div class="tech-list">
+        PostgreSQL 16<br>
+        Prisma ORM<br>
+        13 Models &middot; 7 Enums<br>
+        Full-text search indexes
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-16" style="padding:12px 20px;">
+    <div class="flex gap-24" style="justify-content:center; font-size:0.82rem;">
+      <span><span class="accent-text">&#9679;</span> HTTP REST &mdash; CRUD, auth, reports</span>
+      <span><span class="yellow-text">&#9679;</span> WebSocket &mdash; real-time monitoring, hints, chat</span>
+      <span><span class="purple-text">&#9679;</span> Prisma &mdash; type-safe DB queries, migrations</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 4 — PROJECT STRUCTURE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="4">
+  <div class="slide-header">
+    <span class="num">04</span>
+    <h2>Project Structure</h2>
+    <span class="ar-title">&#1607;&#1610;&#1603;&#1604; &#1575;&#1604;&#1605;&#1588;&#1585;&#1608;&#1593;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <div>
+      <h3 class="accent-text mb-16">Monorepo &mdash; 4 Workspaces</h3>
+      <div class="code-block tree" style="font-size:0.78rem; line-height:1.9;">soc-training-simulator/
+&#9500;&#9472;&#9472; <span class="dir">client/</span>              <span class="desc"># Next.js 15 frontend</span>
+&#9474;   &#9500;&#9472;&#9472; src/app/
+&#9474;   &#9474;   &#9500;&#9472;&#9472; <span class="dir">(auth)/</span>        <span class="desc"># Login pages</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; <span class="dir">(admin)/</span>       <span class="desc"># Admin panel</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; <span class="dir">(trainer)/</span>     <span class="desc"># Trainer console</span>
+&#9474;   &#9474;   &#9492;&#9472;&#9472; <span class="dir">(trainee)/</span>     <span class="desc"># Investigation UI</span>
+&#9474;   &#9500;&#9472;&#9472; src/components/   <span class="desc"># Reusable UI components</span>
+&#9474;   &#9500;&#9472;&#9472; src/hooks/        <span class="desc"># Custom React hooks</span>
+&#9474;   &#9492;&#9472;&#9472; src/stores/       <span class="desc"># Zustand stores</span>
+&#9500;&#9472;&#9472; <span class="dir">server/</span>             <span class="desc"># Express 5 backend</span>
+&#9474;   &#9500;&#9472;&#9472; src/routes/       <span class="desc"># API route handlers</span>
+&#9474;   &#9500;&#9472;&#9472; src/middleware/    <span class="desc"># Auth, RBAC, audit</span>
+&#9474;   &#9500;&#9472;&#9472; src/services/     <span class="desc"># Business logic</span>
+&#9474;   &#9492;&#9472;&#9472; src/socket/       <span class="desc"># Socket.io handlers</span>
+&#9500;&#9472;&#9472; <span class="dir">shared/</span>             <span class="desc"># Shared types &amp; constants</span>
+&#9474;   &#9492;&#9472;&#9472; src/types/        <span class="desc"># Enums, interfaces</span>
+&#9500;&#9472;&#9472; <span class="dir">prisma/</span>             <span class="desc"># Database schema &amp; seeds</span>
+&#9474;   &#9500;&#9472;&#9472; schema.prisma     <span class="desc"># 13 models, 7 enums</span>
+&#9474;   &#9492;&#9472;&#9472; seed.ts           <span class="desc"># Demo data seeder</span>
+&#9492;&#9472;&#9472; docker-compose.yml  <span class="desc"># Local dev services</span></div>
+    </div>
+    <div class="flex flex-col gap-16">
+      <div class="card">
+        <h3 class="accent-text mb-8">client/</h3>
+        <p class="dim" style="font-size:0.85rem;">Next.js 15 App Router with role-based route groups, React 19, Tailwind CSS, Radix UI components, Zustand for auth state, TanStack Query for server state.</p>
+      </div>
+      <div class="card">
+        <h3 class="green-text mb-8">server/</h3>
+        <p class="dim" style="font-size:0.85rem;">Express 5 REST API with Socket.io for real-time events. JWT authentication, RBAC middleware, audit logging. Services for scoring, YARA compilation, PDF/CSV reports.</p>
+      </div>
+      <div class="card">
+        <h3 class="purple-text mb-8">shared/</h3>
+        <p class="dim" style="font-size:0.85rem;">TypeScript types, enums (Roles, LogTypes, CheckpointTypes, etc.), validation schemas (Zod), and application constants shared between client &amp; server.</p>
+      </div>
+      <div class="card">
+        <h3 class="yellow-text mb-8">prisma/</h3>
+        <p class="dim" style="font-size:0.85rem;">PostgreSQL schema definition with 13 data models, 7 enums, database seed scripts with demo scenarios and users.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 5 — DATABASE SCHEMA
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="5">
+  <div class="slide-header">
+    <span class="num">05</span>
+    <h2>Database Schema</h2>
+    <span class="ar-title">&#1605;&#1582;&#1591;&#1591; &#1602;&#1575;&#1593;&#1583;&#1577; &#1575;&#1604;&#1576;&#1610;&#1575;&#1606;&#1575;&#1578;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <!-- ER Diagram -->
+    <div class="flex flex-col gap-12">
+      <h3 class="dim" style="font-size:0.9rem;">Entity Relationships</h3>
+
+      <!-- Row 1: User-related -->
+      <div class="flex gap-12 items-center" style="flex-wrap:wrap;">
+        <div class="card-sm" style="border-left:3px solid var(--accent); min-width:120px;">
+          <div class="accent-text" style="font-weight:700; font-size:0.85rem;">User</div>
+          <div class="dim" style="font-size:0.72rem;">3 roles</div>
+        </div>
+        <span style="color:var(--text-dim);">&#10230;</span>
+        <div class="card-sm" style="border-left:3px solid var(--green); min-width:120px;">
+          <div class="green-text" style="font-weight:700; font-size:0.85rem;">Session</div>
+          <div class="dim" style="font-size:0.72rem;">DRAFT → ACTIVE → COMPLETED</div>
+        </div>
+        <span style="color:var(--text-dim);">&#10230;</span>
+        <div class="card-sm" style="border-left:3px solid var(--yellow); min-width:120px;">
+          <div class="yellow-text" style="font-weight:700; font-size:0.85rem;">Attempt</div>
+          <div class="dim" style="font-size:0.72rem;">5 score dimensions</div>
+        </div>
+        <span style="color:var(--text-dim);">&#10230;</span>
+        <div class="card-sm" style="border-left:3px solid var(--orange); min-width:120px;">
+          <div class="orange-text" style="font-weight:700; font-size:0.85rem;">Answer</div>
+          <div class="dim" style="font-size:0.72rem;">JSON answers</div>
+        </div>
+      </div>
+
+      <!-- Row 2: Scenario-related -->
+      <div class="flex gap-12 items-center" style="flex-wrap:wrap;">
+        <div class="card-sm" style="border-left:3px solid var(--purple); min-width:120px;">
+          <div class="purple-text" style="font-weight:700; font-size:0.85rem;">Scenario</div>
+          <div class="dim" style="font-size:0.72rem;">MITRE ATT&amp;CK tags</div>
+        </div>
+        <span style="color:var(--text-dim);">&#10230;</span>
+        <div class="card-sm" style="border-left:3px solid var(--pink); min-width:120px;">
+          <div class="pink-text" style="font-weight:700; font-size:0.85rem;">Stage</div>
+          <div class="dim" style="font-size:0.72rem;">Unlock conditions</div>
+        </div>
+        <span style="color:var(--text-dim);">&#10230;</span>
+        <div class="flex flex-col gap-8">
+          <div class="card-sm" style="border-left:3px solid var(--red); min-width:120px;">
+            <div class="red-text" style="font-weight:700; font-size:0.85rem;">SimulatedLog</div>
+            <div class="dim" style="font-size:0.72rem;">10 log types</div>
+          </div>
+          <div class="card-sm" style="border-left:3px solid var(--accent2); min-width:120px;">
+            <div style="color:var(--accent2); font-weight:700; font-size:0.85rem;">Hint</div>
+            <div class="dim" style="font-size:0.72rem;">Point penalties</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Supporting -->
+      <div class="flex gap-12" style="flex-wrap:wrap;">
+        <div class="card-sm" style="border-left:3px solid var(--green); min-width:120px;">
+          <div class="green-text" style="font-weight:700; font-size:0.85rem;">Checkpoint</div>
+          <div class="dim" style="font-size:0.72rem;">8 types</div>
+        </div>
+        <div class="card-sm" style="border-left:3px solid var(--text-dim); min-width:120px;">
+          <div style="font-weight:700; font-size:0.85rem;">InvestigationAction</div>
+          <div class="dim" style="font-size:0.72rem;">11 action types</div>
+        </div>
+        <div class="card-sm" style="border-left:3px solid var(--text-dim); min-width:120px;">
+          <div style="font-weight:700; font-size:0.85rem;">AuditLog</div>
+          <div class="dim" style="font-size:0.72rem;">All mutations</div>
+        </div>
+        <div class="card-sm" style="border-left:3px solid var(--text-dim); min-width:120px;">
+          <div style="font-weight:700; font-size:0.85rem;">SessionMessage</div>
+          <div class="dim" style="font-size:0.72rem;">Chat/discussion</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enums -->
+    <div class="flex flex-col gap-12">
+      <h3 class="dim" style="font-size:0.9rem;">Key Enums</h3>
+
+      <div class="card" style="padding:14px 18px;">
+        <div class="accent-text" style="font-weight:600; font-size:0.82rem; margin-bottom:6px;">Log Types (10)</div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="tag tag-blue">SIEM_ALERT</span>
+          <span class="tag tag-blue">EDR_ALERT</span>
+          <span class="tag tag-blue">SYSMON</span>
+          <span class="tag tag-blue">FIREWALL</span>
+          <span class="tag tag-blue">DNS</span>
+          <span class="tag tag-blue">NETWORK_FLOW</span>
+          <span class="tag tag-blue">PROXY</span>
+          <span class="tag tag-blue">WINDOWS_EVENT</span>
+          <span class="tag tag-blue">AUTH_LOG</span>
+          <span class="tag tag-blue">EMAIL_GATEWAY</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 18px;">
+        <div class="green-text" style="font-weight:600; font-size:0.82rem; margin-bottom:6px;">Checkpoint Types (8)</div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="tag tag-green">TRUE_FALSE</span>
+          <span class="tag tag-green">MULTIPLE_CHOICE</span>
+          <span class="tag tag-green">SEVERITY_CLASSIFICATION</span>
+          <span class="tag tag-green">RECOMMENDED_ACTION</span>
+          <span class="tag tag-green">SHORT_ANSWER</span>
+          <span class="tag tag-green">EVIDENCE_SELECTION</span>
+          <span class="tag tag-green">INCIDENT_REPORT</span>
+          <span class="tag tag-green">YARA_RULE</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 18px;">
+        <div class="purple-text" style="font-weight:600; font-size:0.82rem; margin-bottom:6px;">Unlock Conditions (4)</div>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="tag tag-purple">AFTER_PREVIOUS</span>
+          <span class="tag tag-purple">AFTER_CHECKPOINT</span>
+          <span class="tag tag-purple">AFTER_TIME_DELAY</span>
+          <span class="tag tag-purple">MANUAL</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 18px;">
+        <div class="yellow-text" style="font-weight:600; font-size:0.82rem; margin-bottom:6px;">Roles &amp; Statuses</div>
+        <div class="flex gap-16" style="flex-wrap:wrap; font-size:0.82rem;">
+          <div><span class="dim">Roles:</span> <span class="tag tag-yellow">ADMIN</span> <span class="tag tag-yellow">TRAINER</span> <span class="tag tag-yellow">TRAINEE</span></div>
+          <div><span class="dim">Difficulty:</span> <span class="tag tag-purple">BEGINNER</span> <span class="tag tag-purple">INTERMEDIATE</span> <span class="tag tag-purple">ADVANCED</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 6 — SERVER ARCHITECTURE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="6">
+  <div class="slide-header">
+    <span class="num">06</span>
+    <h2>Server Architecture</h2>
+    <span class="ar-title">&#1576;&#1606;&#1610;&#1577; &#1575;&#1604;&#1582;&#1575;&#1583;&#1605;</span>
+  </div>
+
+  <div class="flex flex-col gap-20 grow">
+    <!-- Middleware Pipeline -->
+    <div>
+      <h3 class="dim mb-8" style="font-size:0.85rem;">Middleware Pipeline</h3>
+      <div class="pipeline">
+        <span class="pipeline-step" style="background:rgba(248,113,113,0.1); color:var(--red);">helmet</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(251,191,36,0.1); color:var(--yellow);">CORS</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(56,189,248,0.1); color:var(--accent);">JSON</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(52,211,153,0.1); color:var(--green);">JWT Auth</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(167,139,250,0.1); color:var(--purple);">RBAC</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(251,146,60,0.1); color:var(--orange);">Audit Log</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(244,114,182,0.1); color:var(--pink);">Rate Limit</span>
+        <span class="pipeline-arrow">&#10230;</span>
+        <span class="pipeline-step" style="background:rgba(56,189,248,0.15); color:var(--accent); border:1px solid rgba(56,189,248,0.3);">Handler</span>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- API Routes -->
+      <div>
+        <h3 class="dim mb-8" style="font-size:0.85rem;">API Routes</h3>
+        <div class="table-wrap card" style="padding:0; overflow:hidden;">
+          <table>
+            <thead><tr><th>Endpoint</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>/api/auth/*</code></td><td>Login, refresh, profile</td></tr>
+              <tr><td><code>/api/users/*</code></td><td>User CRUD (Admin)</td></tr>
+              <tr><td><code>/api/scenarios/*</code></td><td>Scenario management &amp; import</td></tr>
+              <tr><td><code>/api/sessions/*</code></td><td>Session lifecycle &amp; members</td></tr>
+              <tr><td><code>/api/attempts/*</code></td><td>Start, answer, complete, score</td></tr>
+              <tr><td><code>/api/logs/*</code></td><td>Filtered log retrieval (rate-limited)</td></tr>
+              <tr><td><code>/api/reports/*</code></td><td>PDF, CSV, leaderboard</td></tr>
+              <tr><td><code>/api/yara/test</code></td><td>YARA rule compilation &amp; testing</td></tr>
+              <tr><td style="border-bottom:none;"><code>/api/sessions/:id/messages</code></td><td style="border-bottom:none;">Session discussion</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Services & Socket -->
+      <div class="flex flex-col gap-16">
+        <div>
+          <h3 class="dim mb-8" style="font-size:0.85rem;">Core Services</h3>
+          <div class="flex flex-col gap-8">
+            <div class="card-sm"><span class="green-text" style="font-weight:600;">ScoringService</span> <span class="dim" style="font-size:0.8rem;">— 5-dimension grading, F1 scoring, YARA evaluation</span></div>
+            <div class="card-sm"><span class="accent-text" style="font-weight:600;">AuthService</span> <span class="dim" style="font-size:0.8rem;">— JWT tokens (access + refresh), bcrypt hashing</span></div>
+            <div class="card-sm"><span class="purple-text" style="font-weight:600;">YARAService</span> <span class="dim" style="font-size:0.8rem;">— Rule sanitization, compilation, sample testing</span></div>
+            <div class="card-sm"><span class="orange-text" style="font-weight:600;">ReportService</span> <span class="dim" style="font-size:0.8rem;">— PDFKit reports, CSV export, leaderboards</span></div>
+          </div>
+        </div>
+        <div>
+          <h3 class="dim mb-8" style="font-size:0.85rem;">Socket.io Namespaces</h3>
+          <div class="flex gap-12">
+            <div class="card-sm" style="flex:1; border-left:3px solid var(--yellow);">
+              <div class="yellow-text" style="font-weight:600; font-size:0.85rem;">/trainer</div>
+              <div class="dim" style="font-size:0.78rem; margin-top:4px;">Send hints, pause/resume, broadcast alerts, monitor progress</div>
+            </div>
+            <div class="card-sm" style="flex:1; border-left:3px solid var(--green);">
+              <div class="green-text" style="font-weight:600; font-size:0.85rem;">/trainee</div>
+              <div class="dim" style="font-size:0.78rem; margin-top:4px;">Receive hints, progress updates, join sessions, chat</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 7 — CLIENT ARCHITECTURE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="7">
+  <div class="slide-header">
+    <span class="num">07</span>
+    <h2>Client Architecture</h2>
+    <span class="ar-title">&#1576;&#1606;&#1610;&#1577; &#1575;&#1604;&#1593;&#1605;&#1610;&#1604;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <div class="flex flex-col gap-16">
+      <div>
+        <h3 class="accent-text mb-8">Next.js App Router</h3>
+        <p class="dim" style="font-size:0.85rem;">Role-based route groups with layout protection</p>
+      </div>
+      <div class="code-block tree" style="font-size:0.78rem; line-height:1.9;">app/
+&#9500;&#9472;&#9472; <span class="dir">(auth)/</span>
+&#9474;   &#9492;&#9472;&#9472; login/           <span class="desc"># Public login page</span>
+&#9500;&#9472;&#9472; <span class="dir">(admin)/</span>
+&#9474;   &#9500;&#9472;&#9472; scenarios/       <span class="desc"># Scenario CRUD</span>
+&#9474;   &#9500;&#9472;&#9472; users/           <span class="desc"># User management</span>
+&#9474;   &#9500;&#9472;&#9472; audit/           <span class="desc"># Audit log viewer</span>
+&#9474;   &#9492;&#9472;&#9472; settings/        <span class="desc"># System settings</span>
+&#9500;&#9472;&#9472; <span class="dir">(trainer)/</span>
+&#9474;   &#9500;&#9472;&#9472; console/         <span class="desc"># Dashboard</span>
+&#9474;   &#9500;&#9472;&#9472; sessions/[id]/   <span class="desc"># Live monitoring</span>
+&#9474;   &#9500;&#9472;&#9472; scenario-guide/  <span class="desc"># Scenario reference</span>
+&#9474;   &#9492;&#9472;&#9472; reports/         <span class="desc"># Analytics</span>
+&#9492;&#9472;&#9472; <span class="dir">(trainee)/</span>
+    &#9500;&#9472;&#9472; dashboard/       <span class="desc"># My sessions</span>
+    &#9492;&#9472;&#9472; scenario/[id]/   <span class="desc"># Investigation UI</span></div>
+    </div>
+
+    <div class="flex flex-col gap-16">
+      <div class="card">
+        <h3 class="green-text mb-8">State Management</h3>
+        <div class="flex flex-col gap-12">
+          <div>
+            <div class="flex gap-8 items-center mb-8">
+              <span class="badge badge-green">Zustand</span>
+              <span class="dim" style="font-size:0.8rem;">Client-side state</span>
+            </div>
+            <p class="dim" style="font-size:0.82rem;">Auth store: user profile, tokens, login/logout, role checks. Persisted to localStorage for session continuity.</p>
+          </div>
+          <div>
+            <div class="flex gap-8 items-center mb-8">
+              <span class="badge badge-purple">TanStack Query</span>
+              <span class="dim" style="font-size:0.8rem;">Server state</span>
+            </div>
+            <p class="dim" style="font-size:0.82rem;">Automatic caching, background re-fetching, optimistic updates. Custom hooks for scenarios, sessions, attempts, logs.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="yellow-text mb-8">UI Layer</h3>
+        <div class="flex gap-8 mb-12" style="flex-wrap:wrap;">
+          <span class="badge badge-blue">Tailwind CSS</span>
+          <span class="badge badge-purple">Radix UI</span>
+          <span class="badge badge-orange">Lucide Icons</span>
+          <span class="badge badge-green">Recharts</span>
+        </div>
+        <p class="dim" style="font-size:0.82rem;">Shadcn/Radix primitives for accessible, composable components. Tailwind for utility-first styling. Recharts for score visualizations and analytics dashboards.</p>
+      </div>
+
+      <div class="card">
+        <h3 class="orange-text mb-8">Trainee Investigation UI</h3>
+        <div class="flex gap-8" style="flex-wrap:wrap;">
+          <span class="tag tag-blue">Log Viewer</span>
+          <span class="tag tag-green">Evidence Basket</span>
+          <span class="tag tag-yellow">Timeline Builder</span>
+          <span class="tag tag-purple">Checkpoints</span>
+          <span class="tag tag-blue">Progress Tracker</span>
+        </div>
+        <p class="dim mt-8" style="font-size:0.82rem;">Multi-tab investigation workspace with search, filtering, evidence tagging, and checkpoint submission.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 8 — KEY FEATURES
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="8">
+  <div class="slide-header">
+    <span class="num">08</span>
+    <h2>Key Features</h2>
+    <span class="ar-title">&#1575;&#1604;&#1605;&#1610;&#1586;&#1575;&#1578; &#1575;&#1604;&#1585;&#1574;&#1610;&#1587;&#1610;&#1577;</span>
+  </div>
+
+  <div class="grid-2 grow" style="gap:16px;">
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#128270;</span>
+        <h3>Multi-Stage Investigation</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Scenarios with progressive stages, unlock conditions, and guided investigation workflows that mirror real-world SOC analysis.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#128202;</span>
+        <h3>10 Realistic Log Types</h3>
+      </div>
+      <div class="flex gap-8 mt-8" style="flex-wrap:wrap;">
+        <span class="tag tag-blue">SIEM</span>
+        <span class="tag tag-blue">EDR</span>
+        <span class="tag tag-blue">Sysmon</span>
+        <span class="tag tag-blue">Firewall</span>
+        <span class="tag tag-blue">DNS</span>
+        <span class="tag tag-blue">Network</span>
+        <span class="tag tag-blue">Proxy</span>
+        <span class="tag tag-blue">Windows</span>
+        <span class="tag tag-blue">Auth</span>
+        <span class="tag tag-blue">Email</span>
+      </div>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#129516;</span>
+        <h3>YARA Rule Writing &amp; Testing</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Write YARA rules in-browser with real-time compilation against sample data. Accuracy-based scoring with detailed match results.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#9889;</span>
+        <h3>Real-Time Monitoring</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Socket.io-powered live progress tracking. Trainers see trainee actions in real-time, send hints, pause/resume sessions.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#127942;</span>
+        <h3>5-Dimension Scoring</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Accuracy (35%) + Investigation (20%) + Evidence (20%) + Response (15%) + Report (10%) with hint penalties and trainer adjustments.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#128196;</span>
+        <h3>PDF &amp; CSV Reports</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Generate detailed PDF reports per attempt with score breakdowns, or export session-wide CSV results for analysis.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#128230;</span>
+        <h3>Scenario Import/Export</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Full JSON import/export of scenarios with stages, logs, checkpoints, and hints. Share scenarios between instances.</p>
+    </div>
+
+    <div class="card flex flex-col gap-8">
+      <div class="flex gap-8 items-center">
+        <span style="font-size:1.3rem;">&#128172;</span>
+        <h3>Live Discussion Panel</h3>
+      </div>
+      <p class="dim" style="font-size:0.85rem;">Real-time session chat between trainers and trainees. Broadcast alerts and contextual hint delivery during investigations.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 9 — SCORING SYSTEM
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="9">
+  <div class="slide-header">
+    <span class="num">09</span>
+    <h2>Scoring System</h2>
+    <span class="ar-title">&#1606;&#1592;&#1575;&#1605; &#1575;&#1604;&#1578;&#1602;&#1610;&#1610;&#1605;</span>
+  </div>
+
+  <div class="flex flex-col gap-20 grow">
+    <!-- Visual Score Bar -->
+    <div>
+      <h3 class="dim mb-12" style="font-size:0.85rem;">Score Weights — Total: 100 points</h3>
+      <div class="score-bar">
+        <div style="width:35%; background:rgba(56,189,248,0.25); color:var(--accent);">Accuracy 35%</div>
+        <div style="width:20%; background:rgba(52,211,153,0.25); color:var(--green);">Investigation 20%</div>
+        <div style="width:20%; background:rgba(167,139,250,0.25); color:var(--purple);">Evidence 20%</div>
+        <div style="width:15%; background:rgba(251,191,36,0.25); color:var(--yellow);">Response 15%</div>
+        <div style="width:10%; background:rgba(251,146,60,0.25); color:var(--orange);">Report 10%</div>
+      </div>
+    </div>
+
+    <!-- Breakdown -->
+    <div class="grid-3" style="gap:16px;">
+      <div class="card" style="border-top:3px solid var(--accent);">
+        <h3 class="accent-text" style="font-size:0.95rem;">Accuracy — 35%</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;">Checkpoint answers: True/False, Multiple Choice, Severity Classification. Full or zero points per answer based on correctness.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--green);">
+        <h3 class="green-text" style="font-size:0.95rem;">Investigation — 20%</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;">Search query diversity (5 pts), filter usage (5 pts), log analysis depth (5 pts), timeline/process building (5 pts).</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--purple);">
+        <h3 class="purple-text" style="font-size:0.95rem;">Evidence — 20%</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;">F1 score of selected evidence vs correct evidence. Precision &times; Recall balanced. Correct if F1 &ge; 0.8.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--yellow);">
+        <h3 class="yellow-text" style="font-size:0.95rem;">Response — 15%</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;">Recommended action checkpoints. Evaluates incident response decisions and containment/remediation choices.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--orange);">
+        <h3 class="orange-text" style="font-size:0.95rem;">Report — 10%</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;">Incident report quality: keyword coverage (50%) + recommendation count (50%). Correct if total &ge; 0.6.</p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--red);">
+        <h3 class="red-text" style="font-size:0.95rem;">Adjustments</h3>
+        <p class="dim mt-8" style="font-size:0.82rem;"><strong>Hint penalty:</strong> -5 pts per hint used.<br><strong>Trainer adjustment:</strong> Manual bonus/deduction with notes.</p>
+        <div class="code-block mt-8" style="font-size:0.75rem; padding:10px 14px;"><span class="fn">total</span> = <span class="fn">accuracy</span> + <span class="fn">investigation</span> + <span class="fn">evidence</span>
+     + <span class="fn">response</span> + <span class="fn">report</span>
+     - <span class="fn">hintPenalty</span> + <span class="fn">trainerAdj</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 10 — REAL-TIME FEATURES
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="10">
+  <div class="slide-header">
+    <span class="num">10</span>
+    <h2>Real-Time Features</h2>
+    <span class="ar-title">&#1575;&#1604;&#1605;&#1610;&#1586;&#1575;&#1578; &#1575;&#1604;&#1601;&#1608;&#1585;&#1610;&#1577;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <!-- Socket Architecture -->
+    <div class="flex flex-col gap-16">
+      <h3 class="accent-text">Socket.io Architecture</h3>
+
+      <div class="flex flex-col gap-12">
+        <!-- Trainer NS -->
+        <div class="arch-box" style="border-color:var(--yellow); text-align:left; padding:16px 20px;">
+          <h3 class="yellow-text" style="font-size:0.95rem;">Namespace: /trainer</h3>
+          <div class="dim mt-8" style="font-size:0.82rem; line-height:1.8;">
+            <code>join-session</code> &mdash; Join monitoring room<br>
+            <code>send-hint</code> &mdash; Send hint to specific trainee<br>
+            <code>send-session-alert</code> &mdash; Broadcast to all trainees<br>
+            <code>pause-session</code> / <code>resume-session</code><br>
+            <code>send-session-message</code> &mdash; Discussion chat
+          </div>
+        </div>
+
+        <!-- Arrow between namespaces -->
+        <div class="flex items-center justify-center gap-12">
+          <span style="color:var(--yellow);">&#9650; Trainer</span>
+          <span style="color:var(--text-dim); font-size:1.4rem;">&#8644;</span>
+          <span style="color:var(--green);">Trainee &#9660;</span>
+        </div>
+
+        <!-- Trainee NS -->
+        <div class="arch-box" style="border-color:var(--green); text-align:left; padding:16px 20px;">
+          <h3 class="green-text" style="font-size:0.95rem;">Namespace: /trainee</h3>
+          <div class="dim mt-8" style="font-size:0.82rem; line-height:1.8;">
+            <code>join-attempt</code> &mdash; Join attempt room<br>
+            <code>join-session</code> &mdash; Join session room<br>
+            <code>progress-update</code> &mdash; Send progress to trainers<br>
+            <code>send-session-message</code> &mdash; Discussion chat
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Event Flows -->
+    <div class="flex flex-col gap-16">
+      <h3 class="purple-text">Event Flows</h3>
+
+      <div class="card" style="border-left:3px solid var(--accent);">
+        <h3 style="font-size:0.9rem;">Hint Delivery</h3>
+        <div class="dim mt-8" style="font-size:0.82rem;">
+          Trainer <code>send-hint</code> &#10230; Server validates &#10230; <code>hint-sent</code> to trainee attempt room &#10230; UI displays hint notification
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--green);">
+        <h3 style="font-size:0.9rem;">Live Progress Monitoring</h3>
+        <div class="dim mt-8" style="font-size:0.82rem;">
+          Trainee actions &#10230; <code>progress-update</code> &#10230; Server forwards to trainer session room &#10230; Real-time dashboard update
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--purple);">
+        <h3 style="font-size:0.9rem;">Session Discussion</h3>
+        <div class="dim mt-8" style="font-size:0.82rem;">
+          User <code>send-session-message</code> &#10230; Persisted to DB &#10230; Broadcast to both namespaces in session room
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--yellow);">
+        <h3 style="font-size:0.9rem;">Session Control</h3>
+        <div class="dim mt-8" style="font-size:0.82rem;">
+          Trainer <code>pause-session</code> &#10230; DB status update &#10230; <code>session-paused</code> to all trainees &#10230; UI blocks investigation
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--red);">
+        <h3 style="font-size:0.9rem;">Broadcast Alerts</h3>
+        <div class="dim mt-8" style="font-size:0.82rem;">
+          Trainer <code>send-session-alert</code> &#10230; All trainees in session receive notification overlay
+        </div>
+      </div>
+
+      <div class="card" style="padding:12px 16px;">
+        <h3 class="dim" style="font-size:0.82rem;">Room Structure</h3>
+        <div class="flex gap-12 mt-8" style="flex-wrap:wrap;">
+          <code>session:{sessionId}</code>
+          <code>attempt:{attemptId}</code>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 11 — SERVER REQUIREMENTS
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="11">
+  <div class="slide-header">
+    <span class="num">11</span>
+    <h2>Server Requirements</h2>
+    <span class="ar-title">&#1605;&#1578;&#1591;&#1604;&#1576;&#1575;&#1578; &#1575;&#1604;&#1582;&#1575;&#1583;&#1605;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-left:3px solid var(--green);">
+        <h3 class="green-text mb-8">Runtime</h3>
+        <div class="flex flex-col gap-8">
+          <div class="flex gap-12 items-center">
+            <span class="badge badge-green">Node.js 20+</span>
+            <span class="dim" style="font-size:0.82rem;">Alpine Linux in Docker</span>
+          </div>
+          <p class="dim" style="font-size:0.82rem;">TypeScript compiled to JavaScript. Uses tsx for development with watch mode.</p>
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--purple);">
+        <h3 class="purple-text mb-8">Database</h3>
+        <div class="flex gap-12 items-center">
+          <span class="badge badge-purple">PostgreSQL 16</span>
+          <span class="dim" style="font-size:0.82rem;">via Prisma ORM</span>
+        </div>
+        <p class="dim mt-8" style="font-size:0.82rem;">13 models, 7 enums, full-text search indexes. Auto-migration on container startup.</p>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--orange);">
+        <h3 class="orange-text mb-8">System Packages</h3>
+        <div class="flex gap-12 items-center">
+          <span class="badge badge-orange">YARA 4.5+</span>
+          <span class="dim" style="font-size:0.82rem;">For rule compilation &amp; testing</span>
+        </div>
+        <p class="dim mt-8" style="font-size:0.82rem;">Installed in server Docker image via Alpine packages. Required for YARA_RULE checkpoint type evaluation.</p>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--accent);">
+        <h3 class="accent-text mb-8">Minimum Specs</h3>
+        <div class="table-wrap">
+          <table>
+            <tr><td style="font-weight:600; color:var(--text);">CPU</td><td>1 vCPU</td></tr>
+            <tr><td style="font-weight:600; color:var(--text);">RAM (server)</td><td>512 MB</td></tr>
+            <tr><td style="font-weight:600; color:var(--text);">RAM (client)</td><td>512 MB</td></tr>
+            <tr><td style="font-weight:600; color:var(--text); border-bottom:none;">Storage</td><td style="border-bottom:none;">1 GB (+ DB)</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-left:3px solid var(--yellow);">
+        <h3 class="yellow-text mb-8">Ports</h3>
+        <div class="flex flex-col gap-8">
+          <div class="flex gap-12 items-center">
+            <code>3000</code><span class="dim" style="font-size:0.82rem;">Client (Next.js)</span>
+          </div>
+          <div class="flex gap-12 items-center">
+            <code>3001</code><span class="dim" style="font-size:0.82rem;">Server (Express + Socket.io)</span>
+          </div>
+          <div class="flex gap-12 items-center">
+            <code>5432</code><span class="dim" style="font-size:0.82rem;">PostgreSQL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="border-left:3px solid var(--red);">
+        <h3 class="red-text mb-8">Environment Variables <span style="font-size:0.72rem; font-weight:400;">(<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/.env.example" target="_blank">.env.example</a>)</span></h3>
+        <div class="code-block" style="font-size:0.75rem; line-height:1.7; padding:14px 18px;"><span class="cm"># Database</span>
+<span class="kw">DATABASE_URL</span>=<span class="str">"postgresql://user:pass@host:5432/db"</span>
+
+<span class="cm"># Authentication</span>
+<span class="kw">JWT_SECRET</span>=<span class="str">"your-secret-key"</span>
+<span class="kw">JWT_REFRESH_SECRET</span>=<span class="str">"your-refresh-secret"</span>
+<span class="kw">JWT_EXPIRES_IN</span>=<span class="str">"24h"</span>
+<span class="kw">JWT_REFRESH_EXPIRES_IN</span>=<span class="str">"7d"</span>
+
+<span class="cm"># Server</span>
+<span class="kw">SERVER_PORT</span>=<span class="num">3001</span>
+<span class="kw">NODE_ENV</span>=<span class="str">"production"</span>
+<span class="kw">CORS_ORIGIN</span>=<span class="str">"https://your-client.railway.app"</span>
+
+<span class="cm"># Client (build-time)</span>
+<span class="kw">NEXT_PUBLIC_API_URL</span>=<span class="str">"https://your-server.railway.app"</span>
+<span class="kw">NEXT_PUBLIC_WS_URL</span>=<span class="str">"https://your-server.railway.app"</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 12 — DEPLOYMENT GUIDE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="12">
+  <div class="slide-header">
+    <span class="num">12</span>
+    <h2>Deployment Guide</h2>
+    <span class="ar-title">&#1583;&#1604;&#1610;&#1604; &#1575;&#1604;&#1606;&#1588;&#1585;</span>
+  </div>
+
+  <div class="grid-2 grow">
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-top:3px solid var(--accent);">
+        <h3 class="accent-text mb-12">Docker Multi-Stage Builds</h3>
+
+        <div class="flex flex-col gap-12">
+          <div>
+            <div class="flex gap-8 items-center mb-8">
+              <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/server/Dockerfile" target="_blank"><span class="badge badge-green">Server Dockerfile</span></a>
+            </div>
+            <div class="code-block" style="font-size:0.72rem; line-height:1.6; padding:10px 14px;"><span class="cm"># Stage 1: Build</span>
+<span class="kw">FROM</span> node:20-alpine <span class="kw">AS</span> build
+<span class="kw">RUN</span> npm ci && npx tsc
+
+<span class="cm"># Stage 2: Production</span>
+<span class="kw">FROM</span> node:20-alpine
+<span class="kw">RUN</span> apk add --no-cache yara
+<span class="kw">COPY</span> --from=build dist/ prisma/
+<span class="kw">RUN</span> npx prisma db push --skip-generate
+<span class="kw">CMD</span> [<span class="str">"node"</span>, <span class="str">"dist/index.js"</span>]</div>
+          </div>
+
+          <div>
+            <div class="flex gap-8 items-center mb-8">
+              <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/client/Dockerfile" target="_blank"><span class="badge badge-blue">Client Dockerfile</span></a>
+            </div>
+            <div class="code-block" style="font-size:0.72rem; line-height:1.6; padding:10px 14px;"><span class="cm"># Stage 1: Build</span>
+<span class="kw">FROM</span> node:20-alpine <span class="kw">AS</span> build
+<span class="kw">ARG</span> NEXT_PUBLIC_API_URL NEXT_PUBLIC_WS_URL
+<span class="kw">RUN</span> npm run build
+
+<span class="cm"># Stage 2: Production</span>
+<span class="kw">FROM</span> node:20-alpine
+<span class="kw">COPY</span> --from=build .next/standalone/
+<span class="kw">CMD</span> [<span class="str">"node"</span>, <span class="str">"client/server.js"</span>]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-top:3px solid var(--purple);">
+        <h3 class="purple-text mb-12">Railway.app Deployment</h3>
+        <p class="dim mb-12" style="font-size:0.85rem;">3 services on Railway:</p>
+        <div class="flex flex-col gap-8">
+          <div class="card-sm" style="border-left:3px solid var(--purple);">
+            <span class="purple-text" style="font-weight:600;">PostgreSQL</span>
+            <span class="dim" style="font-size:0.78rem;"> &mdash; Railway plugin, auto-provisions DATABASE_URL</span>
+          </div>
+          <div class="card-sm" style="border-left:3px solid var(--green);">
+            <span class="green-text" style="font-weight:600;">Server</span>
+            <span class="dim" style="font-size:0.78rem;"> &mdash; Express 5 + Socket.io, uses <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/server/Dockerfile" target="_blank">server/Dockerfile</a></span>
+          </div>
+          <div class="card-sm" style="border-left:3px solid var(--accent);">
+            <span class="accent-text" style="font-weight:600;">Client</span>
+            <span class="dim" style="font-size:0.78rem;"> &mdash; Next.js standalone, uses <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/client/Dockerfile" target="_blank">client/Dockerfile</a></span>
+          </div>
+        </div>
+        <p class="dim mt-12" style="font-size:0.78rem;">CORS auto-allows <code>*.railway.app</code> domains. Railway assigns ports automatically.</p>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--yellow);">
+        <h3 class="yellow-text mb-12">Local Development</h3>
+        <div class="code-block" style="font-size:0.75rem; line-height:1.7; padding:12px 16px;"><span class="cm"># Start PostgreSQL + pgAdmin (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/docker-compose.yml" target="_blank">docker-compose.yml</a>)</span>
+<span class="kw">$</span> docker-compose up -d
+
+<span class="cm"># Services running:</span>
+<span class="cm">#   PostgreSQL → localhost:5433</span>
+<span class="cm">#   pgAdmin   → localhost:5050</span>
+
+<span class="cm"># Start dev servers (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/package.json" target="_blank">package.json</a>)</span>
+<span class="kw">$</span> npm run dev
+<span class="cm">#   Client → localhost:3000</span>
+<span class="cm">#   Server → localhost:3001</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 13 — IMPLEMENTATION GUIDE
+     ════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="13">
+  <div class="slide-header">
+    <span class="num">13</span>
+    <h2>Implementation Guide</h2>
+    <span class="ar-title">&#1583;&#1604;&#1610;&#1604; &#1575;&#1604;&#1578;&#1606;&#1601;&#1610;&#1584;</span>
+  </div>
+
+  <div class="grid-2 grow" style="gap:20px;">
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-top:3px solid var(--green);">
+        <h3 class="green-text mb-12">Local Setup</h3>
+        <div class="code-block" style="font-size:0.75rem; line-height:1.75; padding:14px 18px;"><span class="cm"># 1. Clone &amp; install</span>
+<span class="kw">$</span> git clone <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator.git" target="_blank">https://github.com/abdullaalhussein/soc-training-simulator.git</a>
+<span class="kw">$</span> cd soc-training-simulator
+<span class="kw">$</span> npm install
+
+<span class="cm"># 2. Copy env &amp; start database (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/docker-compose.yml" target="_blank">docker-compose.yml</a>)</span>
+<span class="kw">$</span> cp .env.example .env
+<span class="kw">$</span> docker-compose up -d
+
+<span class="cm"># 3. Push schema (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/prisma/schema.prisma" target="_blank">prisma/schema.prisma</a>) &amp; seed (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/prisma/seed.ts" target="_blank">prisma/seed.ts</a>)</span>
+<span class="kw">$</span> npm run db:push
+<span class="kw">$</span> npm run db:seed
+
+<span class="cm"># 4. Start development (<a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/package.json" target="_blank">package.json</a> scripts)</span>
+<span class="kw">$</span> npm run dev
+<span class="cm">#   Client → localhost:3000  Server → localhost:3001</span></div>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--accent);">
+        <h3 class="accent-text mb-12">Adding a New Scenario</h3>
+        <ul class="features" style="font-size:0.82rem;">
+          <li><strong>Option A:</strong> Use Admin UI &mdash; navigate to <code>/scenarios</code> and use the form</li>
+          <li><strong>Option B:</strong> JSON import &mdash; POST to <code>/api/scenarios/import</code> <br>
+            <span class="dim" style="font-size:0.78rem;">Route handler: <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/server/src/routes/scenarios.ts" target="_blank">server/src/routes/scenarios.ts</a></span>
+          </li>
+          <li>JSON format: name, difficulty, category, MITRE ATT&amp;CK IDs, briefing, <code>stages[]</code> with nested <code>logs[]</code> &amp; <code>hints[]</code>, top-level <code>checkpoints[]</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-16">
+      <div class="card" style="border-top:3px solid var(--purple);">
+        <h3 class="purple-text mb-12">Adding a New Checkpoint Type</h3>
+        <div class="flex flex-col gap-8">
+          <div class="card-sm">
+            <span class="tag tag-purple">1</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add enum to <code>CheckpointType</code> in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/prisma/schema.prisma" target="_blank">prisma/schema.prisma</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-purple">2</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add grading logic in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/server/src/services/scoring.service.ts" target="_blank">server/src/services/scoring.service.ts</a> <code>gradeAnswer()</code></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-purple">3</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add scoring category in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/server/src/services/scoring.service.ts" target="_blank">scoring.service.ts</a> <code>recalculateScores()</code></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-purple">4</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Update shared enum in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/shared/src/types/index.ts" target="_blank">shared/src/types/index.ts</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-purple">5</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Create client component in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/tree/main/client/src/components/scenario-player" target="_blank">client/src/components/scenario-player/</a></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="border-top:3px solid var(--orange);">
+        <h3 class="orange-text mb-12">Adding a New Log Type</h3>
+        <div class="flex flex-col gap-8">
+          <div class="card-sm">
+            <span class="tag tag-yellow">1</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add enum to <code>LogType</code> in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/prisma/schema.prisma" target="_blank">prisma/schema.prisma</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-yellow">2</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Update shared enum in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/shared/src/types/index.ts" target="_blank">shared/src/types/index.ts</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-yellow">3</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add display component in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/tree/main/client/src/components/scenario-player/LogFeedViewer" target="_blank">client/src/components/scenario-player/LogFeedViewer/</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-yellow">4</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Add sample data in <a class="file-link" href="https://github.com/abdullaalhussein/soc-training-simulator/blob/main/prisma/seed.ts" target="_blank">prisma/seed.ts</a></span>
+          </div>
+          <div class="card-sm">
+            <span class="tag tag-yellow">5</span>
+            <span class="dim" style="font-size:0.82rem; margin-left:8px;">Run <code>npm run db:push</code> and <code>npm run db:seed</code></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 14 — THANK YOU
+     ════════════════════════════════════════════════════ -->
+<div class="slide title-slide" data-slide="14">
+  <div class="logo" style="margin-bottom:32px;">&#128737;</div>
+  <h1 style="font-size:2.4rem;">Thank You</h1>
+  <div class="ar-title" style="font-size:1.8rem; margin-top:8px;">&#1588;&#1603;&#1585;&#1575;&#1611;</div>
+
+  <p class="subtitle mt-24">SOC Training Simulator</p>
+  <p class="dim" style="font-size:0.9rem; margin-top:4px;">
+    <span class="ar-inline">&#1605;&#1581;&#1575;&#1603;&#1610; &#1578;&#1583;&#1585;&#1610;&#1576; &#1605;&#1585;&#1603;&#1586; &#1575;&#1604;&#1593;&#1605;&#1604;&#1610;&#1575;&#1578; &#1575;&#1604;&#1571;&#1605;&#1606;&#1610;&#1577;</span>
+  </p>
+
+  <div class="mt-24" style="padding:12px 24px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; display:inline-block;">
+    <span class="dim" style="font-size:0.85rem;">Repository: </span>
+    <a class="repo-link" href="https://github.com/abdullaalhussein/soc-training-simulator" target="_blank">github.com/abdullaalhussein/soc-training-simulator</a>
+  </div>
+
+  <div class="flex gap-12 mt-24" style="flex-wrap:wrap; justify-content:center;">
+    <span class="badge badge-blue">Next.js 15</span>
+    <span class="badge badge-blue">React 19</span>
+    <span class="badge badge-green">Express 5</span>
+    <span class="badge badge-purple">PostgreSQL 16</span>
+    <span class="badge badge-yellow">Socket.io</span>
+    <span class="badge badge-orange">Prisma ORM</span>
+    <span class="badge badge-pink">TypeScript</span>
+    <span class="badge badge-blue">Tailwind CSS</span>
+    <span class="badge badge-green">Zustand</span>
+    <span class="badge badge-purple">TanStack Query</span>
+    <span class="badge badge-red">YARA</span>
+    <span class="badge badge-orange">Docker</span>
+  </div>
+
+  <div class="mt-24" style="font-size:0.85rem;">
+    <span class="dim">Architecture &amp; Implementation Guide</span>
+    <span class="dim"> &middot; </span>
+    <span class="ar-inline dim">&#1583;&#1604;&#1610;&#1604; &#1575;&#1604;&#1576;&#1606;&#1610;&#1577; &#1608;&#1575;&#1604;&#1578;&#1606;&#1601;&#1610;&#1584;</span>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- ── Navigation Controls ─────────────────────────── -->
+<nav class="nav">
+  <button id="btnPrev" onclick="navigate(-1)" title="Previous (Left Arrow)">&#8592;</button>
+  <span class="counter" id="counter">1 / 14</span>
+  <button id="btnNext" onclick="navigate(1)" title="Next (Right Arrow)">&#8594;</button>
+</nav>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(index) {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'prev');
+      if (i === index) s.classList.add('active');
+      else if (i < index) s.classList.add('prev');
+    });
+    document.getElementById('counter').textContent = (index + 1) + ' / ' + total;
+    document.getElementById('btnPrev').disabled = index === 0;
+    document.getElementById('btnNext').disabled = index === total - 1;
+    document.getElementById('progressBar').style.width = ((index + 1) / total * 100) + '%';
+  }
+
+  window.navigate = function(dir) {
+    const next = current + dir;
+    if (next < 0 || next >= total) return;
+    current = next;
+    show(current);
+  };
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault();
+      navigate(1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigate(-1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      current = 0;
+      show(current);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      current = total - 1;
+      show(current);
+    }
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', function(e) {
+    touchStartX = e.changedTouches[0].screenX;
+  });
+  document.addEventListener('touchend', function(e) {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) navigate(diff > 0 ? 1 : -1);
+  });
+
+  show(0);
+})();
+</script>
+</body>
+</html>
