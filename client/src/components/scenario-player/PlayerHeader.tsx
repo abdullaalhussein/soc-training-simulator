@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Trophy, CheckCircle } from 'lucide-react';
+import { Clock, Trophy, CheckCircle, ArrowRight } from 'lucide-react';
 
 interface PlayerHeaderProps {
   scenarioName: string;
@@ -14,9 +14,10 @@ interface PlayerHeaderProps {
   unansweredCount: number;
   onComplete: () => void;
   onOpenCheckpoints: () => void;
+  onAdvanceStage: () => void;
 }
 
-export function PlayerHeader({ scenarioName, currentStage, totalStages, stageTitle, elapsedSeconds, score, unansweredCount, onComplete, onOpenCheckpoints }: PlayerHeaderProps) {
+export function PlayerHeader({ scenarioName, currentStage, totalStages, stageTitle, elapsedSeconds, score, unansweredCount, onComplete, onOpenCheckpoints, onAdvanceStage }: PlayerHeaderProps) {
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const progress = ((currentStage - 1) / totalStages) * 100;
@@ -45,6 +46,13 @@ export function PlayerHeader({ scenarioName, currentStage, totalStages, stageTit
               <CheckCircle className="mr-1 h-3.5 w-3.5" />
               <span className="hidden sm:inline">{unansweredCount} Pending</span>
               <span className="sm:hidden">{unansweredCount}</span>
+            </Button>
+          )}
+          {unansweredCount === 0 && currentStage < totalStages && (
+            <Button size="sm" onClick={onAdvanceStage} className="text-xs bg-green-600 hover:bg-green-700">
+              <ArrowRight className="mr-1 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Next Stage</span>
+              <span className="sm:hidden">Next</span>
             </Button>
           )}
           {currentStage >= totalStages && unansweredCount === 0 && (

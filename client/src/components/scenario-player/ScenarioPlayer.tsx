@@ -151,6 +151,15 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     } catch { /* may be last stage or still has unanswered checkpoints */ }
   };
 
+  const handleAdvanceStage = async () => {
+    try {
+      await api.post(`/attempts/${attemptId}/advance-stage`);
+      queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
+    } catch (err) {
+      console.error('Failed to advance stage:', err);
+    }
+  };
+
   const handleComplete = async () => {
     try {
       await api.post(`/attempts/${attemptId}/complete`);
@@ -258,6 +267,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     onRemoveEvidence: removeEvidence,
     onRemoveTimeline: removeTimelineEntry,
     onStageComplete: handleStageComplete,
+    onAdvanceStage: handleAdvanceStage,
     hasUnansweredCheckpoints: unansweredCheckpoints.length > 0,
     unansweredCount: unansweredCheckpoints.length,
     currentStage: attempt.currentStage,
@@ -275,6 +285,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     unansweredCount: unansweredCheckpoints.length,
     onComplete: handleComplete,
     onOpenCheckpoints: handleStageComplete,
+    onAdvanceStage: handleAdvanceStage,
   };
 
   const checkpointModal = showCheckpoint && unansweredCheckpoints.length > 0 && (

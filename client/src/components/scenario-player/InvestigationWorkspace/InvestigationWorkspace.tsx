@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TimelineBuilder } from './TimelineBuilder';
 import { EvidenceBasket } from './EvidenceBasket';
-import { Clock, Package, ArrowRight, AlertCircle } from 'lucide-react';
+import { Clock, Package, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface InvestigationWorkspaceProps {
   evidence: any[];
@@ -14,6 +14,7 @@ interface InvestigationWorkspaceProps {
   onRemoveEvidence: (logId: string) => void;
   onRemoveTimeline: (entryId: string) => void;
   onStageComplete: () => void;
+  onAdvanceStage: () => void;
   hasUnansweredCheckpoints: boolean;
   unansweredCount: number;
   currentStage: number;
@@ -23,7 +24,7 @@ interface InvestigationWorkspaceProps {
 
 export function InvestigationWorkspace({
   evidence, timelineEntries, onRemoveEvidence, onRemoveTimeline,
-  onStageComplete, hasUnansweredCheckpoints, unansweredCount, currentStage, totalStages, stageTitle,
+  onStageComplete, onAdvanceStage, hasUnansweredCheckpoints, unansweredCount, currentStage, totalStages, stageTitle,
 }: InvestigationWorkspaceProps) {
   return (
     <div className="flex flex-col h-full">
@@ -78,6 +79,17 @@ export function InvestigationWorkspace({
           </div>
           <Button className="w-full bg-orange-500 hover:bg-orange-600" onClick={onStageComplete}>
             <ArrowRight className="mr-2 h-4 w-4" /> Answer Checkpoint Questions
+          </Button>
+        </div>
+      )}
+      {!hasUnansweredCheckpoints && currentStage < totalStages && (
+        <div className="p-3 border-t bg-green-50">
+          <div className="flex items-center gap-2 mb-2 text-xs text-green-700">
+            <CheckCircle className="h-3.5 w-3.5" />
+            <span>All checkpoints completed for this stage</span>
+          </div>
+          <Button className="w-full bg-green-600 hover:bg-green-700" onClick={onAdvanceStage}>
+            <ArrowRight className="mr-2 h-4 w-4" /> Continue to Next Stage
           </Button>
         </div>
       )}
