@@ -142,9 +142,16 @@ export function initializeSocket(io: SocketIOServer) {
       }
     });
 
-    socket.on('send-hint', (data: { attemptId: string; content: string }) => {
+    socket.on('send-hint', async (data: { attemptId: string; content: string }) => {
       // Input validation
       if (!isNonEmptyString(data?.attemptId) || !isNonEmptyString(data?.content)) return;
+
+      // Authorization: verify trainer owns the session this attempt belongs to
+      const attempt = await prisma.attempt.findUnique({
+        where: { id: data.attemptId },
+        include: { session: true },
+      });
+      if (!attempt || (socket.data.user.role !== 'ADMIN' && attempt.session.createdById !== socket.data.user.userId)) return;
 
       // Forward hint to the specific trainee
       traineeNsp.to(`attempt:${data.attemptId}`).emit('hint-sent', {
@@ -154,9 +161,13 @@ export function initializeSocket(io: SocketIOServer) {
       logger.info(`Trainer sent hint to attempt:${data.attemptId}`);
     });
 
-    socket.on('send-session-alert', (data: { sessionId: string; message: string }) => {
+    socket.on('send-session-alert', async (data: { sessionId: string; message: string }) => {
       // Input validation
       if (!isNonEmptyString(data?.sessionId) || !isNonEmptyString(data?.message)) return;
+
+      // Authorization: verify trainer owns the session
+      const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
+      if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
 
       const room = `session:${data.sessionId}`;
       traineeNsp.to(room).emit('session-alert', {
@@ -167,20 +178,28 @@ export function initializeSocket(io: SocketIOServer) {
       logger.info(`Trainer broadcast alert to session:${data.sessionId}`);
     });
 
-    socket.on('pause-session', (sessionId: string) => {
+    socket.on('pause-session', async (data: { sessionId: string }) => {
       // Input validation
-      if (!isNonEmptyString(sessionId)) return;
+      if (!isNonEmptyString(data?.sessionId)) return;
 
-      traineeNsp.to(`session:${sessionId}`).emit('session-paused', { sessionId });
-      logger.info(`Session ${sessionId} paused by trainer`);
+      // Authorization: verify trainer owns the session
+      const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
+      if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
+
+      traineeNsp.to(`session:${data.sessionId}`).emit('session-paused', { sessionId: data.sessionId });
+      logger.info(`Session ${data.sessionId} paused by trainer`);
     });
 
-    socket.on('resume-session', (sessionId: string) => {
+    socket.on('resume-session', async (data: { sessionId: string }) => {
       // Input validation
-      if (!isNonEmptyString(sessionId)) return;
+      if (!isNonEmptyString(data?.sessionId)) return;
 
-      traineeNsp.to(`session:${sessionId}`).emit('session-resumed', { sessionId });
-      logger.info(`Session ${sessionId} resumed by trainer`);
+      // Authorization: verify trainer owns the session
+      const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
+      if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
+
+      traineeNsp.to(`session:${data.sessionId}`).emit('session-resumed', { sessionId: data.sessionId });
+      logger.info(`Session ${data.sessionId} resumed by trainer`);
     });
 
     handleSessionMessage(socket);
@@ -247,13 +266,17 @@ export function initializeSocket(io: SocketIOServer) {
     });
 
     socket.on('progress-update', (data: any) => {
-      // Forward progress to all trainers watching this session
-      if (data.sessionId) {
-        trainerNsp.to(`session:${data.sessionId}`).emit('progress-update', {
-          ...data,
-          userName: socket.data.user.email,
-        });
-      }
+      if (!data?.sessionId || typeof data.sessionId !== 'string') return;
+      const sanitized = {
+        sessionId: data.sessionId,
+        attemptId: typeof data.attemptId === 'string' ? data.attemptId : undefined,
+        currentStage: typeof data.currentStage === 'number' ? data.currentStage : undefined,
+        evidenceCount: typeof data.evidenceCount === 'number' ? data.evidenceCount : undefined,
+        checkpointsCompleted: typeof data.checkpointsCompleted === 'number' ? data.checkpointsCompleted : undefined,
+        timeElapsed: typeof data.timeElapsed === 'number' ? data.timeElapsed : undefined,
+        userName: socket.data.user.email,
+      };
+      trainerNsp.to(`session:${data.sessionId}`).emit('progress-update', sanitized);
     });
 
     handleSessionMessage(socket);

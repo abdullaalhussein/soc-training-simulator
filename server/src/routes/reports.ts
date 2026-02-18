@@ -14,6 +14,14 @@ router.use(authenticate, requireRole('ADMIN', 'TRAINER'));
 router.get('/attempt/:id/pdf', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: { session: true },
+    });
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (req.user!.role !== 'ADMIN' && attempt.session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
     const pdf = await PdfReportService.generateAttemptReport(attemptId);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=report-${attemptId}.pdf`);
@@ -40,6 +48,9 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
       },
     });
     if (!session) throw new AppError('Session not found', 404);
+    if (req.user!.role !== 'ADMIN' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
 
     const completed = session.attempts.filter((a: any) => a.status === 'COMPLETED');
     const avgScore = completed.length > 0
@@ -66,6 +77,11 @@ router.get('/session/:id/summary', async (req: Request, res: Response, next: Nex
 router.get('/session/:id/leaderboard', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) throw new AppError('Session not found', 404);
+    if (req.user!.role !== 'ADMIN' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
     const attempts = await prisma.attempt.findMany({
       where: { sessionId, status: { not: 'RETAKEN' } },
       include: { user: { select: { id: true, name: true, email: true } } },
@@ -99,6 +115,11 @@ router.get('/session/:id/leaderboard', async (req: Request, res: Response, next:
 router.get('/session/:id/csv', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session) throw new AppError('Session not found', 404);
+    if (req.user!.role !== 'ADMIN' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
     const attempts = await prisma.attempt.findMany({
       where: { sessionId, status: { not: 'RETAKEN' } },
       include: { user: { select: { name: true, email: true } } },

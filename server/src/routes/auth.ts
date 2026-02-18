@@ -81,6 +81,23 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
   }
 });
 
+const logoutSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token required'),
+});
+
+router.post('/logout', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { refreshToken } = logoutSchema.parse(req.body);
+    await AuthService.logout(refreshToken);
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError('Refresh token required', 400));
+    }
+    next(error);
+  }
+});
+
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await AuthService.getMe(req.user!.userId);

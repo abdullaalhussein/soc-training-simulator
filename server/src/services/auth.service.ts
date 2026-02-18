@@ -78,6 +78,15 @@ export class AuthService {
     const token = this.generateToken(payload);
     const refreshToken = this.generateRefreshToken(payload);
 
+    // Store refresh token in DB for revocation support
+    await prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
     return {
       token,
       refreshToken,
@@ -91,6 +100,15 @@ export class AuthService {
   }
 
   static async refresh(refreshToken: string) {
+    // Verify the token exists in DB (not revoked)
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken },
+    });
+    if (!storedToken) {
+      throw new AppError('Invalid refresh token', 401);
+    }
+
+    // Verify JWT signature and expiry
     const payload = this.verifyRefreshToken(refreshToken);
 
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
@@ -104,10 +122,35 @@ export class AuthService {
       role: user.role,
     };
 
+    const newToken = this.generateToken(newPayload);
+    const newRefreshToken = this.generateRefreshToken(newPayload);
+
+    // Token rotation: delete old token and store new one
+    await prisma.refreshToken.delete({ where: { token: refreshToken } });
+    await prisma.refreshToken.create({
+      data: {
+        token: newRefreshToken,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+
     return {
-      token: this.generateToken(newPayload),
-      refreshToken: this.generateRefreshToken(newPayload),
+      token: newToken,
+      refreshToken: newRefreshToken,
     };
+  }
+
+  static async logout(refreshToken: string) {
+    await prisma.refreshToken.deleteMany({
+      where: { token: refreshToken },
+    });
+  }
+
+  static async logoutAll(userId: string) {
+    await prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
   }
 
   static async getMe(userId: string) {

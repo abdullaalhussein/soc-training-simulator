@@ -315,7 +315,7 @@ router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction
     if (!attempt) throw new AppError('Attempt not found', 404);
     if (attempt.userId !== req.user!.userId) throw new AppError('Access denied', 403);
 
-    const { hintId } = req.body;
+    const { hintId } = z.object({ hintId: z.string().min(1, 'hintId is required') }).parse(req.body);
     const hint = await prisma.hint.findUnique({ where: { id: hintId } });
     if (!hint) throw new AppError('Hint not found', 404);
 

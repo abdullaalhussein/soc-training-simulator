@@ -9,8 +9,9 @@ COPY server/package.json ./server/
 COPY prisma/package.json ./prisma/
 COPY client/package.json ./client/
 
-# Copy prisma schema BEFORE npm ci (postinstall runs prisma generate)
+# Copy prisma schema and migrations BEFORE npm ci (postinstall runs prisma generate)
 COPY prisma/schema.prisma ./prisma/
+COPY prisma/migrations/ ./prisma/migrations/
 
 # Install all dependencies (postinstall will run prisma generate)
 RUN npm ci
@@ -53,4 +54,4 @@ WORKDIR /app/server
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "npx prisma db push --schema=../prisma/schema.prisma --skip-generate && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=../prisma/schema.prisma && node dist/index.js"]

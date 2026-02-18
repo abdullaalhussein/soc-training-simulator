@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { disconnectAll } from '@/lib/socket';
+import { api } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -24,7 +25,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       refreshToken: null,
@@ -34,6 +35,11 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, refreshToken, isAuthenticated: true });
       },
       logout: () => {
+        const { refreshToken } = get();
+        // Best-effort server-side token revocation
+        if (refreshToken) {
+          try { api.post('/auth/logout', { refreshToken }); } catch {}
+        }
         disconnectAll();
         localStorage.removeItem('token');
         set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
