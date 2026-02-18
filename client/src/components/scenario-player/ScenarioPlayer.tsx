@@ -28,6 +28,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const [showCheckpoint, setShowCheckpoint] = useState(false);
   const [evidence, setEvidence] = useState<any[]>([]);
   const [timelineEntries, setTimelineEntries] = useState<any[]>([]);
+  const [stateRestored, setStateRestored] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [trainerHints, setTrainerHints] = useState<string[]>([]);
   const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<string>>(new Set());
@@ -45,6 +46,18 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
       return data;
     },
   });
+
+  // Restore saved evidence and timeline from server
+  useEffect(() => {
+    if (!attempt || stateRestored) return;
+    if (attempt.savedEvidence?.length > 0) {
+      setEvidence(attempt.savedEvidence);
+    }
+    if (attempt.savedTimeline?.length > 0) {
+      setTimelineEntries(attempt.savedTimeline);
+    }
+    setStateRestored(true);
+  }, [attempt, stateRestored]);
 
   // Timer
   useEffect(() => {

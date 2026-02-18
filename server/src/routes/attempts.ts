@@ -107,7 +107,53 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       throw new AppError('Access denied', 403);
     }
 
-    res.json(attempt);
+    // Reconstruct saved evidence and timeline from investigation actions
+    const allActions = await prisma.investigationAction.findMany({
+      where: {
+        attemptId,
+        actionType: { in: ['EVIDENCE_ADDED', 'EVIDENCE_REMOVED', 'TIMELINE_ENTRY_ADDED', 'TIMELINE_ENTRY_REMOVED'] },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Reconstruct evidence: track net set of logIds
+    const evidenceLogIds = new Set<string>();
+    for (const action of allActions) {
+      const details = action.details as any;
+      if (action.actionType === 'EVIDENCE_ADDED' && details?.logId) {
+        evidenceLogIds.add(details.logId);
+      } else if (action.actionType === 'EVIDENCE_REMOVED' && details?.logId) {
+        evidenceLogIds.delete(details.logId);
+      }
+    }
+
+    // Fetch full log objects for saved evidence
+    let savedEvidence: any[] = [];
+    if (evidenceLogIds.size > 0) {
+      savedEvidence = await prisma.simulatedLog.findMany({
+        where: { id: { in: [...evidenceLogIds] } },
+      });
+    }
+
+    // Reconstruct timeline: replay add/remove actions
+    const timelineMap = new Map<string, any>();
+    for (const action of allActions) {
+      const details = action.details as any;
+      if (action.actionType === 'TIMELINE_ENTRY_ADDED') {
+        const entryId = details?.id || action.createdAt.getTime().toString();
+        timelineMap.set(entryId, {
+          id: entryId,
+          logId: details?.logId,
+          summary: details?.summary,
+          timestamp: details?.timestamp,
+        });
+      } else if (action.actionType === 'TIMELINE_ENTRY_REMOVED' && details?.entryId) {
+        timelineMap.delete(details.entryId);
+      }
+    }
+    const savedTimeline = [...timelineMap.values()];
+
+    res.json({ ...attempt, savedEvidence, savedTimeline });
   } catch (error) {
     next(error);
   }
