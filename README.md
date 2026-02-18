@@ -11,8 +11,6 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-**[Live Demo](https://client-production-4081.up.railway.app)**
-
 ---
 
 ## Overview
