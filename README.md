@@ -255,7 +255,7 @@ Deploy 3 services on [Railway](https://railway.app):
 2. **Server** — Uses `server/Dockerfile`, set JWT secrets & CORS origin
 3. **Client** — Uses `client/Dockerfile`, set `NEXT_PUBLIC_API_URL` & `NEXT_PUBLIC_WS_URL` as build args
 
-CORS auto-allows `*.railway.app` domains.
+**Important:** `JWT_SECRET` and `JWT_REFRESH_SECRET` are required — the server will not start without them. Set `CORS_ORIGIN` to your client's Railway URL (e.g. `https://your-client.up.railway.app`).
 
 ### CI/CD
 

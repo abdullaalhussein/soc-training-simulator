@@ -3,6 +3,19 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const SENSITIVE_FIELDS = ['password', 'token', 'refreshToken', 'secret', 'authorization'];
+
+function sanitizeBody(body: any): any {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = { ...body };
+  for (const key of Object.keys(sanitized)) {
+    if (SENSITIVE_FIELDS.includes(key.toLowerCase())) {
+      sanitized[key] = '[REDACTED]';
+    }
+  }
+  return sanitized;
+}
+
 export const auditLog = (action: string, resource: string) => {
   return async (req: Request, _res: Response, next: NextFunction) => {
     try {
@@ -15,7 +28,7 @@ export const auditLog = (action: string, resource: string) => {
           action,
           resource,
           resourceId,
-          details: { method: req.method, path: req.path, body: req.method !== 'GET' ? req.body : undefined },
+          details: { method: req.method, path: req.path, body: req.method !== 'GET' ? sanitizeBody(req.body) : undefined },
           ipAddress: req.ip || req.socket.remoteAddress,
         },
       });

@@ -381,8 +381,9 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'SCENARIO'), asyn
 router.post('/:id/stages', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scenarioId = req.params.id as string;
+    const { stageNumber, title, description, unlockCondition, unlockDelay } = req.body;
     const stage = await prisma.scenarioStage.create({
-      data: { scenarioId, ...req.body },
+      data: { scenarioId, stageNumber, title, description, unlockCondition, unlockDelay },
     });
     res.status(201).json(stage);
   } catch (error) {
@@ -424,8 +425,9 @@ router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async 
 router.post('/:id/checkpoints', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scenarioId = req.params.id as string;
+    const { stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder } = req.body;
     const checkpoint = await prisma.checkpoint.create({
-      data: { scenarioId, ...req.body },
+      data: { scenarioId, stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder },
     });
     res.status(201).json(checkpoint);
   } catch (error) {

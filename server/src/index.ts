@@ -24,7 +24,7 @@ const io = new SocketIOServer(httpServer, {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
       const allowedOrigins = env.CORS_ORIGIN.split(',').map(o => o.trim());
-      if (allowedOrigins.includes(origin) || origin.endsWith('.railway.app')) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
       callback(new Error('Not allowed by CORS'));
@@ -35,7 +35,17 @@ const io = new SocketIOServer(httpServer, {
 });
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));

@@ -59,15 +59,23 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
     if (destIp) where.destIp = { contains: destIp as string };
     if (timeFrom || timeTo) {
       where.timestamp = {};
-      if (timeFrom) where.timestamp.gte = new Date(timeFrom as string);
-      if (timeTo) where.timestamp.lte = new Date(timeTo as string);
+      if (timeFrom) {
+        const d = new Date(timeFrom as string);
+        if (!isNaN(d.getTime())) where.timestamp.gte = d;
+      }
+      if (timeTo) {
+        const d = new Date(timeTo as string);
+        if (!isNaN(d.getTime())) where.timestamp.lte = d;
+      }
     }
     if (search) {
       where.summary = { contains: search as string, mode: 'insensitive' };
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
-    const take = Math.min(parseInt(pageSize as string), 200);
+    const pageNum = Math.max(1, parseInt(page as string) || 1);
+    const size = Math.max(1, Math.min(parseInt(pageSize as string) || 50, 200));
+    const skip = (pageNum - 1) * size;
+    const take = size;
 
     const [logs, total] = await Promise.all([
       prisma.simulatedLog.findMany({
@@ -109,6 +117,9 @@ router.get('/attempt/:attemptId/filters', async (req: Request, res: Response, ne
     });
 
     if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.userId !== req.user!.userId && !['ADMIN', 'TRAINER'].includes(req.user!.role)) {
+      throw new AppError('Access denied', 403);
+    }
 
     const unlockedStageIds = attempt.session.scenario.stages
       .filter((s: { stageNumber: number }) => s.stageNumber <= attempt.currentStage)

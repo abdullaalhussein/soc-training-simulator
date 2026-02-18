@@ -3,15 +3,23 @@ import { AuthService } from '../services/auth.service';
 import { authenticate } from '../middleware/auth';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // 15 attempts per window
+  message: { error: { message: 'Too many login attempts, please try again later' } },
+  keyGenerator: (req) => req.ip || 'unknown',
+});
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
 
-router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
     const result = await AuthService.login(email, password);
@@ -24,7 +32,7 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
-router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/refresh', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) {

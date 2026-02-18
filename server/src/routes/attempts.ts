@@ -164,6 +164,12 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
 router.post('/:id/actions', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.userId !== req.user!.userId && !['ADMIN', 'TRAINER'].includes(req.user!.role)) {
+      throw new AppError('Access denied', 403);
+    }
+
     const { actionType, details } = req.body;
     const action = await prisma.investigationAction.create({
       data: { attemptId, actionType, details },
@@ -178,6 +184,10 @@ router.post('/:id/actions', async (req: Request, res: Response, next: NextFuncti
 router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.userId !== req.user!.userId) throw new AppError('Access denied', 403);
+
     const { hintId } = req.body;
     const hint = await prisma.hint.findUnique({ where: { id: hintId } });
     if (!hint) throw new AppError('Hint not found', 404);
@@ -211,6 +221,9 @@ router.post('/:id/advance-stage', async (req: Request, res: Response, next: Next
       include: { session: { include: { scenario: { include: { stages: true } } } } },
     });
     if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.userId !== req.user!.userId && !['ADMIN', 'TRAINER'].includes(req.user!.role)) {
+      throw new AppError('Access denied', 403);
+    }
 
     const totalStages = attempt.session.scenario.stages.length;
     if (attempt.currentStage >= totalStages) {

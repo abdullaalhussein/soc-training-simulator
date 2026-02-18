@@ -97,9 +97,10 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SESSION'),
 router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
+    const { name, timeLimit } = req.body;
     const session = await prisma.session.update({
       where: { id: sessionId },
-      data: req.body,
+      data: { name, timeLimit },
     });
     res.json(session);
   } catch (error) {

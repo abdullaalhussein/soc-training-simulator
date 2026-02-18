@@ -36,6 +36,10 @@ COPY --from=base /app/client/.next/standalone/ ./
 COPY --from=base /app/client/.next/static ./client/.next/static
 COPY --from=base /app/client/public ./client/public
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 EXPOSE 3000
 
 ENV PORT=3000

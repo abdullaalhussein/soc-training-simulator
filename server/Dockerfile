@@ -45,6 +45,10 @@ COPY --from=base /app/server/dist/ ./server/dist/
 COPY prisma/seed.ts ./prisma/
 COPY prisma/seed-data/ ./prisma/seed-data/
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 WORKDIR /app/server
 
 EXPOSE 3001

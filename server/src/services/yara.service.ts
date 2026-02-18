@@ -32,8 +32,10 @@ export class YaraService {
    * Sanitize user-provided YARA rule text by stripping dangerous directives.
    */
   static sanitizeRule(ruleText: string): string {
-    // Remove include directives to prevent filesystem access
-    return ruleText.replace(/^\s*include\s+"[^"]*"\s*$/gm, '// include removed for security');
+    // Remove include and import directives to prevent filesystem access
+    let sanitized = ruleText.replace(/^\s*include\s+"[^"]*"\s*$/gm, '// include removed for security');
+    sanitized = sanitized.replace(/^\s*import\s+"[^"]*"\s*$/gm, '// import removed for security');
+    return sanitized;
   }
 
   /**
@@ -78,7 +80,8 @@ export class YaraService {
       const sampleResults: SampleResult[] = [];
 
       for (const sample of samples) {
-        const samplePath = path.join(tmpDir, sample.name);
+        const safeName = path.basename(sample.name);
+        const samplePath = path.join(tmpDir, safeName);
         const content = Buffer.from(sample.content, 'base64');
         await fs.writeFile(samplePath, content);
 
