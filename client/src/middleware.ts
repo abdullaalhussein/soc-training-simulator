@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes
-  if (pathname === '/login' || pathname === '/') {
+  if (pathname === '/login' || pathname === '/' || pathname === '/privacy-policy' || pathname === '/terms-of-service') {
     return NextResponse.next();
   }
 
