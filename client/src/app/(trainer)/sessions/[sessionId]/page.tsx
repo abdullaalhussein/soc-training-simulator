@@ -538,27 +538,7 @@ export default function SessionMonitorPage() {
           {selectedTraineeData ? (
             <>
               <CardHeader className="pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-lg">{selectedTraineeData.userName}</CardTitle>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setHintDialogOpen(true)}>
-                      <MessageSquare className="mr-1 h-3 w-3" /> Send Hint
-                    </Button>
-                    {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && ['ACTIVE', 'PAUSED'].includes(session?.status) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-400 text-orange-700 hover:bg-orange-50"
-                        onClick={() => {
-                          setRetakeTargetTrainee(selectedTraineeData);
-                          setRetakeDialogOpen(true);
-                        }}
-                      >
-                        <RotateCcw className="mr-1 h-3 w-3" /> Retake
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                <CardTitle className="text-lg">{selectedTraineeData.userName}</CardTitle>
                 <div className="flex gap-3 text-sm flex-wrap">
                   <Badge variant="outline">Stage {selectedTraineeData.currentStage}/{selectedTraineeData.totalStages}</Badge>
                   <Badge variant="outline">{selectedTraineeData.currentScore} points</Badge>
@@ -570,6 +550,24 @@ export default function SessionMonitorPage() {
                   >
                     {selectedTraineeData.status.replace(/_/g, ' ')}
                   </Badge>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" variant="outline" onClick={() => setHintDialogOpen(true)}>
+                    <MessageSquare className="mr-1 h-3 w-3" /> Send Hint
+                  </Button>
+                  {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                      onClick={() => {
+                        setRetakeTargetTrainee(selectedTraineeData);
+                        setRetakeDialogOpen(true);
+                      }}
+                    >
+                      <RotateCcw className="mr-1 h-3 w-3" /> Retake
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <Separator />
