@@ -1,10 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticate);
 
@@ -52,6 +51,9 @@ router.post('/:sessionId/messages', async (req: Request, res: Response, next: Ne
 
     if (!content || typeof content !== 'string' || !content.trim()) {
       throw new AppError('Message content is required', 400);
+    }
+    if (content.length > 5000) {
+      throw new AppError('Message too long', 400);
     }
 
     await assertSessionAccess(sessionId, req.user!.userId);

@@ -1,13 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { stringify } from 'csv-stringify/sync';
 import { PdfReportService } from '../services/pdf-report.service';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticate, requireRole('ADMIN', 'TRAINER'));
 

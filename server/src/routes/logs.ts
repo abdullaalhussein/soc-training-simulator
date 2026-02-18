@@ -1,11 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import rateLimit from 'express-rate-limit';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 const logRateLimit = rateLimit({
   windowMs: 60 * 1000,
@@ -87,8 +86,13 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
       prisma.simulatedLog.count({ where }),
     ]);
 
+    // Strip sensitive fields for trainee users
+    const sanitizedLogs = req.user!.role === 'TRAINEE'
+      ? logs.map(({ isEvidence, evidenceTag, ...log }: any) => log)
+      : logs;
+
     res.json({
-      logs,
+      logs: sanitizedLogs,
       pagination: {
         page: parseInt(page as string),
         pageSize: take,

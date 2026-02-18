@@ -34,9 +34,20 @@ export default function ReportsPage() {
     enabled: !!selectedSession,
   });
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!selectedSession) return;
-    window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/reports/session/${selectedSession}/csv`, '_blank');
+    try {
+      const { data } = await api.get(`/reports/session/${selectedSession}/csv`, { responseType: 'blob' });
+      const blob = new Blob([data], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `session-${selectedSession}-results.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+    }
   };
 
   return (

@@ -1,21 +1,33 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import { YaraService } from '../services/yara.service';
+import prisma from '../lib/prisma';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticate);
 
+const yaraRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  message: { error: { message: 'Too many YARA requests, please try again later' } },
+  keyGenerator: (req) => req.user?.userId || req.ip || 'unknown',
+});
+
 // Test a YARA rule against checkpoint samples
-router.post('/test', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/test', yaraRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { checkpointId, ruleText } = req.body;
 
     if (!checkpointId || !ruleText) {
       throw new AppError('checkpointId and ruleText are required', 400);
+    }
+
+    // Validate rule text size
+    if (typeof ruleText !== 'string' || ruleText.length > 50000) {
+      throw new AppError('Rule text must be a string of at most 50000 characters', 400);
     }
 
     const checkpoint = await prisma.checkpoint.findUnique({ where: { id: checkpointId } });
@@ -29,6 +41,20 @@ router.post('/test', async (req: Request, res: Response, next: NextFunction) => 
 
     if (samples.length === 0) {
       throw new AppError('No samples configured for this checkpoint', 400);
+    }
+
+    // Validate sample limits
+    if (samples.length > 10) {
+      throw new AppError('Too many samples (max 10)', 400);
+    }
+    const MAX_SAMPLE_SIZE = 1 * 1024 * 1024; // 1MB
+    for (const sample of samples) {
+      if (sample.content) {
+        const decoded = Buffer.from(sample.content, 'base64');
+        if (decoded.length > MAX_SAMPLE_SIZE) {
+          throw new AppError(`Sample "${sample.name}" exceeds 1MB size limit`, 400);
+        }
+      }
     }
 
     const sanitized = YaraService.sanitizeRule(ruleText);

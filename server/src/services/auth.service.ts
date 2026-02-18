@@ -1,10 +1,8 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env';
 import { AppError } from '../middleware/errorHandler';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 export interface TokenPayload {
   userId: string;
@@ -23,19 +21,21 @@ export class AuthService {
 
   static generateToken(payload: TokenPayload): string {
     return jwt.sign(payload, env.JWT_SECRET, {
+      algorithm: 'HS256' as const,
       expiresIn: env.JWT_EXPIRES_IN,
     } as jwt.SignOptions);
   }
 
   static generateRefreshToken(payload: TokenPayload): string {
     return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
+      algorithm: 'HS256' as const,
       expiresIn: env.JWT_REFRESH_EXPIRES_IN,
     } as jwt.SignOptions);
   }
 
   static verifyToken(token: string): TokenPayload {
     try {
-      return jwt.verify(token, env.JWT_SECRET) as TokenPayload;
+      return jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
     } catch {
       throw new AppError('Invalid or expired token', 401);
     }
@@ -43,7 +43,7 @@ export class AuthService {
 
   static verifyRefreshToken(token: string): TokenPayload {
     try {
-      return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
+      return jwt.verify(token, env.JWT_REFRESH_SECRET, { algorithms: ['HS256'] }) as TokenPayload;
     } catch {
       throw new AppError('Invalid or expired refresh token', 401);
     }

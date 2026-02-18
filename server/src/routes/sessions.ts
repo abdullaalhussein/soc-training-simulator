@@ -1,12 +1,33 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AppError } from '../middleware/errorHandler';
+import prisma from '../lib/prisma';
+
+// Zod validation schemas
+const createSessionSchema = z.object({
+  name: z.string().min(1).max(200),
+  scenarioId: z.string(),
+  timeLimit: z.number().positive().optional(),
+  memberIds: z.array(z.string()).optional(),
+});
+
+const updateSessionSchema = z.object({
+  name: z.string().max(200).optional(),
+  timeLimit: z.number().positive().optional(),
+});
+
+const updateStatusSchema = z.object({
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED']),
+});
+
+const addMembersSchema = z.object({
+  userIds: z.array(z.string()).min(1),
+});
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.use(authenticate);
 
@@ -19,7 +40,9 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       where.members = { some: { userId: req.user!.userId } };
       where.status = 'ACTIVE';
     }
-    if (req.query.status) where.status = req.query.status;
+    if (req.query.status && req.user!.role !== 'TRAINEE') {
+      where.status = req.query.status;
+    }
 
     const sessions = await prisma.session.findMany({
       where,
@@ -61,6 +84,16 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       },
     });
     if (!session) throw new AppError('Session not found', 404);
+
+    // Authorization check
+    const role = req.user!.role;
+    if (role === 'TRAINER' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    } else if (role === 'TRAINEE') {
+      const isMember = session.members.some((m: any) => m.userId === req.user!.userId);
+      if (!isMember) throw new AppError('Access denied', 403);
+    }
+
     res.json(session);
   } catch (error) {
     next(error);
@@ -69,7 +102,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 
 router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, scenarioId, timeLimit, memberIds } = req.body;
+    const parsed = createSessionSchema.parse(req.body);
+    const { name, scenarioId, timeLimit, memberIds } = parsed;
 
     const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId } });
     if (!scenario) throw new AppError('Scenario not found', 404);
@@ -98,7 +132,15 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SESSION'),
 router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
-    const { name, timeLimit } = req.body;
+    const parsed = updateSessionSchema.parse(req.body);
+    const { name, timeLimit } = parsed;
+
+    const existing = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new AppError('Session not found', 404);
+    if (req.user!.role === 'TRAINER' && existing.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
     const session = await prisma.session.update({
       where: { id: sessionId },
       data: { name, timeLimit },
@@ -112,7 +154,15 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SESSION'
 router.put('/:id/status', requireRole('ADMIN', 'TRAINER'), auditLog('STATUS_CHANGE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
-    const { status } = req.body;
+    const parsed = updateStatusSchema.parse(req.body);
+    const { status } = parsed;
+
+    const existing = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new AppError('Session not found', 404);
+    if (req.user!.role === 'TRAINER' && existing.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
     const data: any = { status };
 
     if (status === 'ACTIVE') data.startedAt = new Date();
@@ -131,7 +181,15 @@ router.put('/:id/status', requireRole('ADMIN', 'TRAINER'), auditLog('STATUS_CHAN
 router.post('/:id/members', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
-    const { userIds } = req.body;
+    const parsed = addMembersSchema.parse(req.body);
+    const { userIds } = parsed;
+
+    const existing = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new AppError('Session not found', 404);
+    if (req.user!.role === 'TRAINER' && existing.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
     const created = await prisma.sessionMember.createMany({
       data: userIds.map((userId: string) => ({
         sessionId,
@@ -151,6 +209,9 @@ router.delete('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('DELETE', 'SESSI
     const sessionId = req.params.id as string;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) throw new AppError('Session not found', 404);
+    if (req.user!.role === 'TRAINER' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
     if (!['COMPLETED', 'DRAFT'].includes(session.status)) {
       throw new AppError('Only completed or draft sessions can be deleted', 400);
     }
@@ -180,6 +241,13 @@ router.delete('/:id/members/:userId', requireRole('ADMIN', 'TRAINER'), async (re
   try {
     const sessionId = req.params.id as string;
     const userId = req.params.userId as string;
+
+    const existing = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!existing) throw new AppError('Session not found', 404);
+    if (req.user!.role === 'TRAINER' && existing.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
     await prisma.sessionMember.deleteMany({
       where: { sessionId, userId },
     });

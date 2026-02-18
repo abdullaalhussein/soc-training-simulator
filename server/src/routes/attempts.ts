@@ -1,19 +1,40 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { ScoringService } from '../services/scoring.service';
+import prisma from '../lib/prisma';
+import { ActionType } from '@prisma/client';
+import { z } from 'zod';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+const startAttemptSchema = z.object({
+  sessionId: z.string().min(1, 'sessionId is required'),
+  userId: z.string().optional(),
+});
+
+const submitAnswerSchema = z.object({
+  checkpointId: z.string().min(1, 'checkpointId is required'),
+  answer: z.any().refine((val) => val !== undefined && val !== null, { message: 'answer is required' }),
+});
+
+const trackActionSchema = z.object({
+  actionType: z.nativeEnum(ActionType, { errorMap: () => ({ message: 'Invalid actionType' }) }),
+  details: z.any().optional().refine(
+    (val) => val === undefined || val === null || JSON.stringify(val).length <= 100000,
+    { message: 'details too large (max 100KB)' }
+  ),
+});
 
 router.use(authenticate);
 
 // Start an attempt (trainers can pass userId to start on behalf of a trainee)
 router.post('/start', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { sessionId, userId: targetUserId } = req.body;
+    const parsed = startAttemptSchema.parse(req.body);
+    const sessionId = parsed.sessionId;
+    const targetUserId = parsed.userId;
 
     // Trainers/admins can start for a specific trainee; trainees start for themselves
     const isTrainerOrAdmin = ['ADMIN', 'TRAINER'].includes(req.user!.role);
@@ -79,8 +100,31 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
       data: { status: 'STARTED' },
     });
 
+    // Strip sensitive fields for trainee users
+    if (req.user!.role === 'TRAINEE') {
+      const sanitized = {
+        ...attempt,
+        session: {
+          ...attempt.session,
+          scenario: {
+            ...attempt.session.scenario,
+            checkpoints: attempt.session.scenario.checkpoints.map(({ correctAnswer, explanation, ...cp }: any) => cp),
+            stages: attempt.session.scenario.stages.map((stage: any) => ({
+              ...stage,
+              hints: stage.hints?.map(({ content, ...hint }: any) => hint) ?? [],
+              logs: stage.logs?.map(({ isEvidence, evidenceTag, ...log }: any) => log) ?? [],
+            })),
+          },
+        },
+      };
+      return res.status(201).json(sanitized);
+    }
+
     res.status(201).json(attempt);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+    }
     next(error);
   }
 });
@@ -162,6 +206,28 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     }
     const savedTimeline = [...timelineMap.values()];
 
+    // Strip sensitive fields for trainee users
+    if (req.user!.role === 'TRAINEE') {
+      const sanitized = {
+        ...attempt,
+        session: {
+          ...attempt.session,
+          scenario: {
+            ...attempt.session.scenario,
+            checkpoints: attempt.session.scenario.checkpoints.map(({ correctAnswer, explanation, ...cp }: any) => cp),
+            stages: attempt.session.scenario.stages.map((stage: any) => ({
+              ...stage,
+              hints: stage.hints?.map(({ content, ...hint }: any) => hint) ?? [],
+              logs: stage.logs?.map(({ isEvidence, evidenceTag, ...log }: any) => log) ?? [],
+            })),
+          },
+        },
+        savedEvidence: savedEvidence.map(({ isEvidence, evidenceTag, ...log }: any) => log),
+        savedTimeline,
+      };
+      return res.json(sanitized);
+    }
+
     res.json({ ...attempt, savedEvidence, savedTimeline });
   } catch (error) {
     next(error);
@@ -177,7 +243,7 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     if (attempt.userId !== req.user!.userId) throw new AppError('Access denied', 403);
     if (attempt.status !== 'IN_PROGRESS') throw new AppError('Attempt is not in progress', 400);
 
-    const { checkpointId, answer } = req.body;
+    const { checkpointId, answer } = submitAnswerSchema.parse(req.body);
 
     const checkpoint = await prisma.checkpoint.findUnique({ where: { id: checkpointId } });
     if (!checkpoint) throw new AppError('Checkpoint not found', 404);
@@ -211,6 +277,9 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
 
     res.json(response);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+    }
     next(error);
   }
 });
@@ -225,12 +294,15 @@ router.post('/:id/actions', async (req: Request, res: Response, next: NextFuncti
       throw new AppError('Access denied', 403);
     }
 
-    const { actionType, details } = req.body;
+    const { actionType, details } = trackActionSchema.parse(req.body);
     const action = await prisma.investigationAction.create({
       data: { attemptId, actionType, details },
     });
     res.status(201).json(action);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+    }
     next(error);
   }
 });
@@ -344,6 +416,20 @@ router.get('/:id/results', async (req: Request, res: Response, next: NextFunctio
     if (!attempt) throw new AppError('Attempt not found', 404);
     if (attempt.userId !== req.user!.userId && !['ADMIN', 'TRAINER'].includes(req.user!.role)) {
       throw new AppError('Access denied', 403);
+    }
+
+    // Strip sensitive checkpoint data for trainee users when attempt is not completed
+    if (req.user!.role === 'TRAINEE' && attempt.status !== 'COMPLETED') {
+      const sanitized = {
+        ...attempt,
+        answers: attempt.answers.map((answer: any) => ({
+          ...answer,
+          checkpoint: answer.checkpoint
+            ? (({ correctAnswer, explanation, ...cp }: any) => cp)(answer.checkpoint)
+            : answer.checkpoint,
+        })),
+      };
+      return res.json(sanitized);
     }
 
     res.json(attempt);

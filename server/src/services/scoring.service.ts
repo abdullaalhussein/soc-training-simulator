@@ -1,7 +1,6 @@
-import { PrismaClient, CheckpointType } from '@prisma/client';
+import { CheckpointType } from '@prisma/client';
 import { logger } from '../utils/logger';
-
-const prisma = new PrismaClient();
+import prisma from '../lib/prisma';
 
 export class ScoringService {
   static async gradeAnswer(checkpoint: any, answer: any): Promise<{ isCorrect: boolean; pointsAwarded: number }> {

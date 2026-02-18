@@ -33,9 +33,9 @@ export class YaraService {
    * Sanitize user-provided YARA rule text by stripping dangerous directives.
    */
   static sanitizeRule(ruleText: string): string {
-    // Remove include and import directives to prevent filesystem access
-    let sanitized = ruleText.replace(/^\s*include\s+"[^"]*"\s*$/gm, '// include removed for security');
-    sanitized = sanitized.replace(/^\s*import\s+"[^"]*"\s*$/gm, '// import removed for security');
+    // Remove include and import directives to prevent filesystem access (both double and single quoted)
+    let sanitized = ruleText.replace(/^\s*include\s+["'][^"']*["']\s*$/gm, '// include removed for security');
+    sanitized = sanitized.replace(/^\s*import\s+["'][^"']*["']\s*$/gm, '// import removed for security');
     return sanitized;
   }
 
@@ -43,6 +43,16 @@ export class YaraService {
    * Test a YARA rule against a set of samples.
    */
   static async testRule(ruleText: string, samples: SampleInput[]): Promise<TestResult> {
+    // Validate rule text size
+    if (ruleText.length > 50000) {
+      return {
+        compiled: false,
+        compileError: 'Rule text exceeds maximum allowed size of 50000 characters',
+        sampleResults: [],
+        accuracy: 0,
+      };
+    }
+
     const id = crypto.randomUUID();
     const tmpDir = path.join('/tmp', `yara-${id}`);
 
@@ -82,6 +92,9 @@ export class YaraService {
 
       for (const sample of samples) {
         const safeName = path.basename(sample.name);
+        if (!safeName || safeName === '.' || safeName === '..' || !/^[a-zA-Z0-9._-]+$/.test(safeName)) {
+          throw new Error(`Invalid sample filename: "${sample.name}"`);
+        }
         const samplePath = path.join(tmpDir, safeName);
         const content = Buffer.from(sample.content, 'base64');
         await fs.writeFile(samplePath, content);

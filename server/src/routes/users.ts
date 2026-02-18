@@ -1,18 +1,24 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AuthService } from '../services/auth.service';
 import { AppError } from '../middleware/errorHandler';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+const passwordSchema = z.string()
+  .min(8)
+  .regex(/[A-Z]/, 'Must contain uppercase')
+  .regex(/[a-z]/, 'Must contain lowercase')
+  .regex(/[0-9]/, 'Must contain digit')
+  .regex(/[^A-Za-z0-9]/, 'Must contain special character');
 
 const createUserSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: passwordSchema,
   name: z.string().min(1),
   role: z.enum(['ADMIN', 'TRAINER', 'TRAINEE']),
 });
@@ -100,6 +106,9 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
 
 router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (req.params.id === req.user!.userId) {
+      throw new AppError('Cannot deactivate own account', 400);
+    }
     const userId = req.params.id as string;
     await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
     res.json({ message: 'User deactivated' });
@@ -108,15 +117,21 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (r
   }
 });
 
+const resetPasswordSchema = z.object({
+  password: passwordSchema,
+});
+
 router.post('/:id/reset-password', requireRole('ADMIN'), auditLog('RESET_PASSWORD', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.params.id as string;
-    const { password } = req.body;
-    if (!password || password.length < 8) throw new AppError('Password must be at least 8 characters', 400);
+    const { password } = resetPasswordSchema.parse(req.body);
     const hashedPassword = await AuthService.hashPassword(password);
     await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+    }
     next(error);
   }
 });

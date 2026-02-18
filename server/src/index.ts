@@ -34,6 +34,9 @@ const io = new SocketIOServer(httpServer, {
   },
 });
 
+// Trust first proxy (Railway/Docker/nginx)
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -47,8 +50,8 @@ app.use(helmet({
   },
 }));
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
 // Health check
 app.get('/api/health', (_req, res) => {

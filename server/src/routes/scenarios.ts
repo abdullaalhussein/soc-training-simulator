@@ -1,12 +1,60 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AppError } from '../middleware/errorHandler';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
+
+const scenarioSchema = z.object({
+  name: z.string().min(1).max(500),
+  description: z.string().max(5000),
+  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
+  category: z.string().max(200),
+  mitreAttackIds: z.array(z.string()),
+  briefing: z.string(),
+  lessonContent: z.string().nullable().optional(),
+  estimatedMinutes: z.number().int().positive().optional(),
+});
+
+const stageSchema = z.object({
+  stageNumber: z.number().int().positive(),
+  title: z.string().min(1).max(500),
+  description: z.string().max(5000),
+  unlockCondition: z.enum(['AFTER_CHECKPOINT', 'AFTER_TIME_DELAY', 'AFTER_PREVIOUS', 'MANUAL']).optional(),
+  unlockDelay: z.number().int().min(0).nullable().optional(),
+});
+
+const checkpointSchema = z.object({
+  stageNumber: z.number().int().positive(),
+  checkpointType: z.enum(['TRUE_FALSE', 'MULTIPLE_CHOICE', 'SEVERITY_CLASSIFICATION', 'RECOMMENDED_ACTION', 'SHORT_ANSWER', 'EVIDENCE_SELECTION', 'INCIDENT_REPORT', 'YARA_RULE']),
+  question: z.string().min(1),
+  options: z.any().optional(),
+  correctAnswer: z.any(),
+  points: z.number().int().min(0).optional(),
+  category: z.string().nullable().optional(),
+  explanation: z.string().nullable().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+const logSchema = z.object({
+  logType: z.enum(['WINDOWS_EVENT', 'SYSMON', 'EDR_ALERT', 'NETWORK_FLOW', 'SIEM_ALERT', 'FIREWALL', 'PROXY', 'DNS', 'EMAIL_GATEWAY', 'AUTH_LOG']),
+  rawLog: z.any(),
+  timestamp: z.string().or(z.date()),
+  summary: z.string(),
+  severity: z.string().optional(),
+  hostname: z.string().nullable().optional(),
+  username: z.string().nullable().optional(),
+  processName: z.string().nullable().optional(),
+  eventId: z.string().nullable().optional(),
+  sourceIp: z.string().nullable().optional(),
+  destIp: z.string().nullable().optional(),
+  isEvidence: z.boolean().optional(),
+  evidenceTag: z.string().nullable().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
 
 router.use(authenticate);
 
@@ -60,6 +108,21 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
       },
     });
     if (!scenario) throw new AppError('Scenario not found', 404);
+
+    // Strip sensitive fields for trainee users
+    if (req.user!.role === 'TRAINEE') {
+      const sanitized = {
+        ...scenario,
+        checkpoints: scenario.checkpoints.map(({ correctAnswer, explanation, ...cp }: any) => cp),
+        stages: scenario.stages.map((stage: any) => ({
+          ...stage,
+          hints: stage.hints.map(({ content, ...hint }: any) => hint),
+          logs: stage.logs.map(({ isEvidence, evidenceTag, ...log }: any) => log),
+        })),
+      };
+      return res.json(sanitized);
+    }
+
     res.json(scenario);
   } catch (error) {
     next(error);
@@ -69,7 +132,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
 // Admin/Trainer can create/update scenarios
 router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { stages, checkpoints, ...scenarioData } = req.body;
+    const { stages, checkpoints, ...rawData } = req.body;
+    const scenarioData = scenarioSchema.parse(rawData);
 
     const scenario = await prisma.scenario.create({
       data: {
@@ -137,7 +201,8 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
 router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scenarioId = req.params.id as string;
-    const { stages, checkpoints, ...scenarioData } = req.body;
+    const { stages, checkpoints, ...rawData } = req.body;
+    const scenarioData = scenarioSchema.partial().parse(rawData);
 
     if (stages || checkpoints) {
       // Full edit: delete old nested data and recreate in a transaction
@@ -210,7 +275,7 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
     } else {
       const scenario = await prisma.scenario.update({
         where: { id: scenarioId },
-        data: scenarioData,
+        data: { ...scenarioData },
       });
       res.json(scenario);
     }
@@ -300,9 +365,8 @@ router.get('/:id/export', requireRole('ADMIN', 'TRAINER'), async (req: Request, 
 // Import a scenario from JSON
 router.post('/import', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { stages, checkpoints, ...scenarioData } = req.body;
-
-    if (!scenarioData.name) throw new AppError('Scenario name is required', 400);
+    const { stages, checkpoints, ...rawData } = req.body;
+    const scenarioData = scenarioSchema.parse(rawData);
 
     const scenario = await prisma.scenario.create({
       data: {
@@ -381,7 +445,7 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'SCENARIO'), asyn
 router.post('/:id/stages', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scenarioId = req.params.id as string;
-    const { stageNumber, title, description, unlockCondition, unlockDelay } = req.body;
+    const { stageNumber, title, description, unlockCondition, unlockDelay } = stageSchema.parse(req.body);
     const stage = await prisma.scenarioStage.create({
       data: { scenarioId, stageNumber, title, description, unlockCondition, unlockDelay },
     });
@@ -395,9 +459,10 @@ router.post('/:id/stages', requireRole('ADMIN', 'TRAINER'), async (req: Request,
 router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const stageId = req.params.stageId as string;
-    const logs = Array.isArray(req.body) ? req.body : [req.body];
+    const rawLogs = Array.isArray(req.body) ? req.body : [req.body];
+    const validatedLogs = z.array(logSchema).parse(rawLogs);
     const created = await prisma.simulatedLog.createMany({
-      data: logs.map((l: any) => ({
+      data: validatedLogs.map((l) => ({
         stageId,
         logType: l.logType,
         rawLog: l.rawLog,
@@ -425,7 +490,7 @@ router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async 
 router.post('/:id/checkpoints', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const scenarioId = req.params.id as string;
-    const { stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder } = req.body;
+    const { stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder } = checkpointSchema.parse(req.body);
     const checkpoint = await prisma.checkpoint.create({
       data: { scenarioId, stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder },
     });

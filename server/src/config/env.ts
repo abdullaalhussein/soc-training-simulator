@@ -19,3 +19,22 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
 };
+
+// Validate JWT secrets
+const isProduction = env.NODE_ENV === 'production';
+
+if (env.JWT_SECRET.includes('change-in-production') || env.JWT_SECRET.length < 32) {
+  if (isProduction) {
+    throw new Error('JWT_SECRET must be at least 32 characters and not a placeholder value');
+  } else {
+    console.warn('WARNING: JWT_SECRET is a placeholder or too short. Set a strong secret before deploying to production.');
+  }
+}
+
+if (env.JWT_REFRESH_SECRET.includes('change-in-production') || env.JWT_REFRESH_SECRET.length < 32) {
+  if (isProduction) {
+    throw new Error('JWT_REFRESH_SECRET must be at least 32 characters and not a placeholder value');
+  } else {
+    console.warn('WARNING: JWT_REFRESH_SECRET is a placeholder or too short. Set a strong secret before deploying to production.');
+  }
+}

@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { disconnectAll } from '@/lib/socket';
 
 export interface User {
   id: string;
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
         set({ user, token, refreshToken, isAuthenticated: true });
       },
       logout: () => {
+        disconnectAll();
         localStorage.removeItem('token');
         set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
       },
