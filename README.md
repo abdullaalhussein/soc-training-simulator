@@ -257,6 +257,17 @@ Deploy 3 services on [Railway](https://railway.app):
 
 CORS auto-allows `*.railway.app` domains.
 
+### CI/CD
+
+Pushing to `master` automatically deploys both server and client to Railway via GitHub Actions (`.github/workflows/deploy.yml`). Requires these repository secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `RAILWAY_TOKEN` | Railway API token (Account → Tokens) |
+| `RAILWAY_PROJECT_ID` | Railway project ID |
+| `RAILWAY_SERVER_SERVICE_ID` | Service ID for the server |
+| `RAILWAY_CLIENT_SERVICE_ID` | Service ID for the client |
+
 ### Minimum Requirements
 
 | Resource | Spec |
