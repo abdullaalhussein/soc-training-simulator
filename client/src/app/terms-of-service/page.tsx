@@ -11,7 +11,7 @@ export default function TermsOfServicePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
       <div className="mx-auto max-w-3xl">
         <div className="mb-8 flex items-center gap-3 pt-8">
-          <Link href="/login" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+          <Link href="/" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
             <Shield className="h-6 w-6 text-primary" />
             <span className="text-lg font-semibold text-white">SOC Training Simulator</span>
           </Link>
@@ -137,7 +137,7 @@ export default function TermsOfServicePage() {
         <div className="mt-6 pb-8 text-center text-sm text-slate-500">
           <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
           <span className="mx-2">&middot;</span>
-          <Link href="/login" className="hover:text-slate-300 transition-colors">Back to Login</Link>
+          <Link href="/" className="hover:text-slate-300 transition-colors">Back to Home</Link>
         </div>
       </div>
     </div>

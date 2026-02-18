@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Shield,
   ScrollText,
@@ -11,7 +12,6 @@ import {
   GraduationCap,
   Users,
   ArrowRight,
-  Monitor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -156,7 +156,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Screenshots Placeholder */}
+      {/* Screenshots */}
       <section className="mx-auto max-w-6xl px-4 py-16">
         <div className="mb-12 text-center">
           <h2 className="mb-3 text-3xl font-bold">See It in Action</h2>
@@ -164,21 +164,24 @@ export default function LandingPage() {
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           {[
-            'Trainee Investigation Workspace',
-            'Trainer Session Dashboard',
-            'Admin Management',
-          ].map((label) => (
+            { label: 'Trainee Dashboard', src: '/screenshots/trainee-workspace.png' },
+            { label: 'Trainer Session Console', src: '/screenshots/trainer-dashboard.png' },
+            { label: 'Admin Scenario Management', src: '/screenshots/admin-management.png' },
+          ].map((item) => (
             <div
-              key={label}
+              key={item.label}
               className="rounded-lg border border-slate-700 bg-slate-800/50 p-4"
             >
-              <div className="flex h-48 items-center justify-center rounded-md bg-slate-700/30">
-                <div className="text-center">
-                  <Monitor className="mx-auto mb-2 h-8 w-8 text-slate-500" />
-                  <p className="text-sm text-slate-500">Screenshot coming soon</p>
-                </div>
+              <div className="overflow-hidden rounded-md">
+                <Image
+                  src={item.src}
+                  alt={item.label}
+                  width={1440}
+                  height={900}
+                  className="w-full h-auto"
+                />
               </div>
-              <p className="mt-3 text-center text-sm font-medium text-slate-300">{label}</p>
+              <p className="mt-3 text-center text-sm font-medium text-slate-300">{item.label}</p>
             </div>
           ))}
         </div>

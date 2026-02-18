@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ScenarioWizard } from '@/components/admin/scenario-wizard/ScenarioWizard';
 import { MitreAttackBadge } from '@/components/MitreAttackBadge';
 import { toast } from '@/components/ui/toaster';
-import { Plus, BookOpen, Layers, CheckSquare, MoreVertical, Pencil, Download, Trash2, Upload, Eye } from 'lucide-react';
+import { Plus, BookOpen, Layers, CheckSquare, MoreVertical, Pencil, Download, Trash2, Upload, Eye, FileDown } from 'lucide-react';
 
 const difficultyColors: Record<string, string> = {
   BEGINNER: 'bg-green-100 text-green-800',
@@ -30,6 +30,74 @@ export default function ScenariosPage() {
   const [editingScenario, setEditingScenario] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDownloadTemplate = () => {
+    const template = {
+      name: 'Example Scenario Name',
+      description: 'A brief description of the scenario.',
+      difficulty: 'BEGINNER',
+      category: 'Email Threats',
+      mitreAttackIds: ['T1566.001', 'T1059.001'],
+      briefing: '## Scenario Briefing\n\nProvide context and objectives for the trainee.',
+      lessonContent: '## Lesson\n\nOptional pre-investigation educational content (markdown).',
+      estimatedMinutes: 45,
+      stages: [
+        {
+          stageNumber: 1,
+          title: 'Stage 1 Title',
+          description: 'What the trainee should investigate in this stage.',
+          unlockCondition: 'AFTER_PREVIOUS',
+          unlockDelay: null,
+          logs: [
+            {
+              logType: 'EMAIL_GATEWAY',
+              summary: 'Short summary of this log entry',
+              severity: 'HIGH',
+              hostname: 'MAIL-GW01',
+              username: 'j.smith',
+              processName: null,
+              eventId: null,
+              sourceIp: null,
+              destIp: null,
+              timestamp: '2024-01-15T09:12:00Z',
+              isEvidence: true,
+              evidenceTag: 'phishing-email',
+              rawLog: { from: 'attacker@example.com', to: 'victim@company.com', subject: 'Urgent Invoice' },
+              sortOrder: 1,
+            },
+          ],
+          hints: [
+            {
+              content: 'A hint to help the trainee if they are stuck.',
+              pointsPenalty: 3,
+              sortOrder: 1,
+            },
+          ],
+        },
+      ],
+      checkpoints: [
+        {
+          stageNumber: 1,
+          checkpointType: 'MULTIPLE_CHOICE',
+          question: 'What technique was used?',
+          options: ['Phishing', 'Brute Force', 'SQL Injection', 'XSS'],
+          correctAnswer: 'Phishing',
+          points: 10,
+          category: 'accuracy',
+          explanation: 'Explanation shown after the trainee answers.',
+          sortOrder: 1,
+        },
+      ],
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scenario-template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Template downloaded' });
+  };
 
   const handleExport = async (scenarioId: string) => {
     try {
@@ -98,6 +166,9 @@ export default function ScenariosPage() {
             className="hidden"
             onChange={handleImport}
           />
+          <Button variant="outline" onClick={handleDownloadTemplate}>
+            <FileDown className="mr-2 h-4 w-4" /> Template
+          </Button>
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importScenario.isPending}>
             <Upload className="mr-2 h-4 w-4" /> Import
           </Button>
