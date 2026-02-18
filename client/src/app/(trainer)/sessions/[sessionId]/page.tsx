@@ -538,13 +538,13 @@ export default function SessionMonitorPage() {
           {selectedTraineeData ? (
             <>
               <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-lg">{selectedTraineeData.userName}</CardTitle>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => setHintDialogOpen(true)}>
                       <MessageSquare className="mr-1 h-3 w-3" /> Send Hint
                     </Button>
-                    {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && session?.status === 'ACTIVE' && (
+                    {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && ['ACTIVE', 'PAUSED'].includes(session?.status) && (
                       <Button
                         size="sm"
                         variant="outline"

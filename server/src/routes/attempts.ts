@@ -365,8 +365,8 @@ router.post('/:id/retake', requireRole('ADMIN', 'TRAINER'), async (req: Request,
     if (!['COMPLETED', 'TIMED_OUT'].includes(oldAttempt.status)) {
       throw new AppError('Only completed or timed-out attempts can be retaken', 400);
     }
-    if (oldAttempt.session.status !== 'ACTIVE') {
-      throw new AppError('Session must be active to allow retakes', 400);
+    if (!['ACTIVE', 'PAUSED'].includes(oldAttempt.session.status)) {
+      throw new AppError('Session must be active or paused to allow retakes', 400);
     }
 
     // Ensure no active attempt already exists for this user in this session
