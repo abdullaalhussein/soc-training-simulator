@@ -577,14 +577,14 @@ export default function SessionMonitorPage() {
                     <TabsTrigger value="activity" className="flex-1">Activity</TabsTrigger>
                     <TabsTrigger value="discussion" className="flex-1">Discussion</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="activity" className="flex-1 overflow-hidden mt-2">
+                  <TabsContent value="activity" className="flex-1 overflow-hidden mt-2 data-[state=active]:flex data-[state=active]:flex-col">
                     <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
                       <Activity className="h-4 w-4" /> Live Activity Feed
                       <span className="text-xs text-muted-foreground font-normal">
                         ({selectedTraineeData.actions.length} actions)
                       </span>
                     </h4>
-                    <ScrollArea className="h-[calc(100%-2.5rem)]">
+                    <ScrollArea className="flex-1">
                       <div className="space-y-1.5">
                         {!selectedTraineeData.actionsLoaded ? (
                           <p className="text-sm text-muted-foreground">Loading activity...</p>
@@ -615,7 +615,7 @@ export default function SessionMonitorPage() {
                       </div>
                     </ScrollArea>
                   </TabsContent>
-                  <TabsContent value="discussion" className="flex-1 overflow-hidden mt-0">
+                  <TabsContent value="discussion" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex data-[state=active]:flex-col">
                     <DiscussionPanel sessionId={sessionId} />
                   </TabsContent>
                 </Tabs>
