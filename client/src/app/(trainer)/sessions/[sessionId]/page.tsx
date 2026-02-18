@@ -210,7 +210,6 @@ export default function SessionMonitorPage() {
 
     return () => {
       socket.off('progress-update');
-      socket.disconnect();
     };
   }, [sessionId]);
 

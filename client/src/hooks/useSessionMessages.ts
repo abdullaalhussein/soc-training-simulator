@@ -37,6 +37,13 @@ export function useSessionMessages(sessionId: string | undefined) {
 
     const socket = user.role === 'TRAINEE' ? getTraineeSocket() : getTrainerSocket();
 
+    // Ensure socket is connected and joined to the session room
+    if (!socket.connected) {
+      socket.auth = { token: localStorage.getItem('token') };
+      socket.connect();
+    }
+    socket.emit('join-session', sessionId);
+
     const handleMessage = (message: SessionMessage) => {
       if (message.sessionId !== sessionId) return;
       queryClient.setQueryData<SessionMessage[]>(queryKey, (old = []) => {

@@ -95,7 +95,6 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
       socket.off('hint-sent');
       socket.off('session-paused');
       socket.off('session-alert');
-      socket.disconnect();
     };
   }, [attemptId, sessionId, queryClient]);
 
