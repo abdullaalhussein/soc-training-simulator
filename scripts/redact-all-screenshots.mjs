@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCREENSHOTS_DIR = path.join(__dirname, '..', 'docs', 'screenshots');
-const BASE_URL = 'https://client-production-4081.up.railway.app';
+// Set BASE_URL via environment variable, e.g.: BASE_URL=http://localhost:3000 node scripts/redact-all-screenshots.mjs
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 // Redact any visible names and emails on the page
 async function redactUserInfo(page) {

@@ -4,8 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCREENSHOTS_DIR = path.join(__dirname, '..', 'docs', 'screenshots');
-const BASE_URL = 'https://client-production-4081.up.railway.app';
-const API_URL = 'https://server-production-35c2.up.railway.app';
+// Set BASE_URL via environment variable, e.g.: BASE_URL=http://localhost:3000 node scripts/take-screenshots.mjs
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 async function login(page, email, password) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
