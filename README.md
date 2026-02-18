@@ -11,6 +11,8 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
+**[Live Demo](https://client-production-4081.up.railway.app)**
+
 ---
 
 ## Overview
@@ -40,6 +42,11 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 ---
 
 ## Screenshots
+
+### Landing Page
+<p align="center">
+  <img src="docs/screenshots/00-landing.png" alt="Landing Page" width="720" />
+</p>
 
 ### Login
 <p align="center">
