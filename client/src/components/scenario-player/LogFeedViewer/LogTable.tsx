@@ -9,24 +9,24 @@ import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 const severityColors: Record<string, string> = {
-  CRITICAL: 'bg-red-100 text-red-800',
-  HIGH: 'bg-orange-100 text-orange-800',
-  MEDIUM: 'bg-yellow-100 text-yellow-800',
-  LOW: 'bg-blue-100 text-blue-800',
-  INFO: 'bg-slate-100 text-slate-800',
+  CRITICAL: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  HIGH: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  MEDIUM: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  LOW: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  INFO: 'bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-400',
 };
 
 const logTypeColors: Record<string, string> = {
-  WINDOWS_EVENT: 'bg-blue-100 text-blue-800',
-  SYSMON: 'bg-purple-100 text-purple-800',
-  EDR_ALERT: 'bg-red-100 text-red-800',
-  NETWORK_FLOW: 'bg-green-100 text-green-800',
-  SIEM_ALERT: 'bg-orange-100 text-orange-800',
-  FIREWALL: 'bg-yellow-100 text-yellow-800',
-  PROXY: 'bg-cyan-100 text-cyan-800',
-  DNS: 'bg-indigo-100 text-indigo-800',
-  EMAIL_GATEWAY: 'bg-pink-100 text-pink-800',
-  AUTH_LOG: 'bg-teal-100 text-teal-800',
+  WINDOWS_EVENT: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  SYSMON: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  EDR_ALERT: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  NETWORK_FLOW: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  SIEM_ALERT: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  FIREWALL: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  PROXY: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+  DNS: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+  EMAIL_GATEWAY: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400',
+  AUTH_LOG: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
 };
 
 interface LogTableProps {

@@ -22,10 +22,10 @@ import { Plus, Users, Monitor, Play, Pause, Square, Trash2 } from 'lucide-react'
 import { toast } from '@/components/ui/toaster';
 
 const statusColors: Record<string, string> = {
-  DRAFT: 'bg-slate-100 text-slate-800',
-  ACTIVE: 'bg-green-100 text-green-800',
-  PAUSED: 'bg-yellow-100 text-yellow-800',
-  COMPLETED: 'bg-blue-100 text-blue-800',
+  DRAFT: 'bg-slate-100 text-slate-800 dark:bg-slate-800/50 dark:text-slate-400',
+  ACTIVE: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  PAUSED: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  COMPLETED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
 };
 
 export default function TrainerConsole() {
@@ -176,7 +176,7 @@ export default function TrainerConsole() {
           <h2 className="text-xl font-semibold mb-3">Active Sessions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeSessions.map((session: any) => (
-              <Card key={session.id} className="border-green-200">
+              <Card key={session.id} className="border-green-200 dark:border-green-800">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{session.name}</CardTitle>

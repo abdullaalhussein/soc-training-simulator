@@ -64,7 +64,7 @@ export function BriefingPanel({ briefing, stageTitle, stageDescription, hints, a
               {hints.map((hint: any, i: number) => (
                 <div key={hint.id}>
                   {revealedHints.has(hint.id) ? (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2 text-sm">
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-2 text-sm">
                       {hintContents[hint.id]}
                     </div>
                   ) : (
@@ -93,7 +93,7 @@ export function BriefingPanel({ briefing, stageTitle, stageDescription, hints, a
               </h3>
               <div className="space-y-2">
                 {trainerHints.map((msg, i) => (
-                  <div key={i} className="bg-blue-50 border border-blue-200 rounded-md p-2 text-sm">
+                  <div key={i} className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-2 text-sm">
                     {msg}
                   </div>
                 ))}

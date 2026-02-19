@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { LogOut, User, Menu } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
@@ -58,6 +59,8 @@ export function Header({ onMenuClick }: HeaderProps) {
         </h2>
         <Badge variant={roleBadgeVariant[user.role]} className="hidden sm:inline-flex">{user.role}</Badge>
       </div>
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -80,6 +83,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      </div>
     </header>
   );
 }

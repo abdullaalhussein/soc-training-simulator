@@ -72,8 +72,8 @@ export function InvestigationWorkspace({
         </TabsContent>
       </Tabs>
       {hasUnansweredCheckpoints && (
-        <div className="p-3 border-t bg-orange-50">
-          <div className="flex items-center gap-2 mb-2 text-xs text-orange-700">
+        <div className="p-3 border-t bg-orange-50 dark:bg-orange-900/20">
+          <div className="flex items-center gap-2 mb-2 text-xs text-orange-700 dark:text-orange-400">
             <AlertCircle className="h-3.5 w-3.5" />
             <span>{unansweredCount} checkpoint question{unansweredCount > 1 ? 's' : ''} to answer for this stage</span>
           </div>
@@ -83,8 +83,8 @@ export function InvestigationWorkspace({
         </div>
       )}
       {!hasUnansweredCheckpoints && currentStage < totalStages && (
-        <div className="p-3 border-t bg-green-50">
-          <div className="flex items-center gap-2 mb-2 text-xs text-green-700">
+        <div className="p-3 border-t bg-green-50 dark:bg-green-900/20">
+          <div className="flex items-center gap-2 mb-2 text-xs text-green-700 dark:text-green-400">
             <CheckCircle className="h-3.5 w-3.5" />
             <span>All checkpoints completed for this stage</span>
           </div>

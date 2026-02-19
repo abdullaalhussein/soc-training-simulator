@@ -262,7 +262,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
 
           {result ? (
             <>
-              <div className={`flex items-center gap-2 p-3 rounded-md ${result.isCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+              <div className={`flex items-center gap-2 p-3 rounded-md ${result.isCorrect ? 'bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400'}`}>
                 {result.isCorrect ? <CheckCircle className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
                 <div>
                   <p className="font-medium">{result.isCorrect ? 'Correct!' : 'Incorrect'}</p>
@@ -270,7 +270,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
                 </div>
               </div>
               {hasCorrectAnswer && (
-                <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-md p-3 space-y-1">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-400 rounded-md p-3 space-y-1">
                   <div className="flex items-center gap-2">
                     <Info className="h-4 w-4 shrink-0" />
                     <p className="text-sm font-medium">Learning Feedback</p>

@@ -13,9 +13,9 @@ import {
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 const difficultyColors: Record<string, string> = {
-  BEGINNER: 'bg-green-100 text-green-800',
-  INTERMEDIATE: 'bg-yellow-100 text-yellow-800',
-  ADVANCED: 'bg-red-100 text-red-800',
+  BEGINNER: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  INTERMEDIATE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  ADVANCED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
 };
 
 const checkpointTypeLabels: Record<string, string> = {

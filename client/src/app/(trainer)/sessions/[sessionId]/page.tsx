@@ -402,7 +402,7 @@ export default function SessionMonitorPage() {
             <UserPlus className="mr-1 h-4 w-4" /> Add Trainee
           </Button>
           {session?.status === 'ACTIVE' && (
-            <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50" onClick={() => setAlertDialogOpen(true)}>
+            <Button size="sm" variant="outline" className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20" onClick={() => setAlertDialogOpen(true)}>
               <AlertTriangle className="mr-1 h-4 w-4" /> Broadcast Alert
             </Button>
           )}
@@ -545,8 +545,8 @@ export default function SessionMonitorPage() {
                   <Badge variant="outline">{selectedTraineeData.elapsedMinutes} min elapsed</Badge>
                   <Badge
                     variant="outline"
-                    className={selectedTraineeData.status === 'IN_PROGRESS' ? 'border-green-500 text-green-700' :
-                               selectedTraineeData.status === 'COMPLETED' ? 'border-blue-500 text-blue-700' : ''}
+                    className={selectedTraineeData.status === 'IN_PROGRESS' ? 'border-green-500 text-green-700 dark:text-green-400' :
+                               selectedTraineeData.status === 'COMPLETED' ? 'border-blue-500 text-blue-700 dark:text-blue-400' : ''}
                   >
                     {selectedTraineeData.status.replace(/_/g, ' ')}
                   </Badge>
@@ -559,7 +559,7 @@ export default function SessionMonitorPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-orange-400 text-orange-700 hover:bg-orange-50"
+                      className="border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20"
                       onClick={() => {
                         setRetakeTargetTrainee(selectedTraineeData);
                         setRetakeDialogOpen(true);
@@ -627,7 +627,7 @@ export default function SessionMonitorPage() {
                 <Users className="h-12 w-12 mx-auto mb-2 opacity-40" />
                 <p className="font-medium text-foreground">{selectedAssignedMember.userName}</p>
                 <p className="text-sm mt-1">Assigned to this session but has not started yet.</p>
-                <Badge variant="outline" className="mt-2 border-amber-400 text-amber-600">Waiting to start</Badge>
+                <Badge variant="outline" className="mt-2 border-amber-400 text-amber-600 dark:text-amber-400">Waiting to start</Badge>
                 {session?.status === 'ACTIVE' && (
                   <Button
                     size="sm"
