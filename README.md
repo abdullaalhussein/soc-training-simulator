@@ -36,6 +36,7 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 - **PDF & CSV report generation** with detailed score breakdowns
 - **Scenario import/export** via JSON for sharing between instances
 - **Live discussion panel** for trainer-trainee communication
+- **Trainee-initiated attempts** — scenario timer starts only when the trainee clicks "Start", not when assigned
 
 ---
 

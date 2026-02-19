@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -8,15 +9,22 @@ export const metadata: Metadata = {
 
 export default function TermsOfServicePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-8 flex items-center gap-3 pt-8">
-          <Link href="/" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-            <Shield className="h-6 w-6 text-primary" />
-            <span className="text-lg font-semibold text-white">SOC Training Simulator</span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      {/* Navbar */}
+      <nav className="sticky top-0 z-50 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <Link href="/" className="flex items-center gap-2">
+            <Shield className="h-6 w-6 text-blue-400" />
+            <span className="text-lg font-semibold">SOC Training Simulator</span>
+          </Link>
+          <Link href="/login">
+            <Button size="sm">Sign In</Button>
           </Link>
         </div>
+      </nav>
 
+      {/* Content */}
+      <section className="mx-auto max-w-3xl px-4 py-16">
         <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-8">
           <h1 className="mb-2 text-3xl font-bold text-white">Terms of Service</h1>
           <p className="mb-8 text-sm text-slate-400">Last updated: February 18, 2026</p>
@@ -133,13 +141,32 @@ export default function TermsOfServicePage() {
             </section>
           </div>
         </div>
+      </section>
 
-        <div className="mt-6 pb-8 text-center text-sm text-slate-500">
-          <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">Privacy Policy</Link>
-          <span className="mx-2">&middot;</span>
-          <Link href="/" className="hover:text-slate-300 transition-colors">Back to Home</Link>
+      {/* Footer */}
+      <footer className="border-t border-slate-700/50 py-8">
+        <div className="mx-auto max-w-6xl px-4 text-center text-sm text-slate-500">
+          <div className="mb-4 flex items-center justify-center gap-4">
+            <Link href="/privacy-policy" className="hover:text-slate-300 transition-colors">
+              Privacy Policy
+            </Link>
+            <span>&middot;</span>
+            <Link href="/terms-of-service" className="text-slate-300 transition-colors">
+              Terms of Service
+            </Link>
+            <span>&middot;</span>
+            <a
+              href="https://github.com/abdullaalhussein/soc-training-simulator"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-slate-300 transition-colors"
+            >
+              GitHub
+            </a>
+          </div>
+          <p>&copy; {new Date().getFullYear()} SOC Training Simulator. All rights reserved.</p>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
