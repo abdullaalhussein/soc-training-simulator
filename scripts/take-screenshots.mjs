@@ -6,6 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCREENSHOTS_DIR = path.join(__dirname, '..', 'docs', 'screenshots');
 // Set BASE_URL via environment variable, e.g.: BASE_URL=http://localhost:3000 node scripts/take-screenshots.mjs
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 async function login(page, email, password) {
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
@@ -26,6 +27,16 @@ async function screenshot(page, name, options = {}) {
   const browser = await chromium.launch({ headless: true });
 
   try {
+    // ==================== 0. Landing Page ====================
+    console.log('\n--- Landing Page ---');
+    const landingCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const landingPage = await landingCtx.newPage();
+    await landingPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+    await landingPage.waitForTimeout(1500);
+    await screenshot(landingPage, '00-landing', { fullPage: true });
+    await screenshot(landingPage, '00-landing-hero');
+    await landingCtx.close();
+
     // ==================== 1. Login Page ====================
     console.log('\n--- Login Page ---');
     const loginCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -77,8 +88,8 @@ async function screenshot(page, name, options = {}) {
     await screenshot(traineePage, '07-trainee-dashboard');
 
     // Try to navigate to a scenario if there's an active session
-    // Check for any "Start Scenario" or "Continue" buttons
-    const startBtn = traineePage.locator('button:has-text("Start Scenario"), button:has-text("Continue")').first();
+    // Check for any "Start" or "Continue" buttons
+    const startBtn = traineePage.locator('button:has-text("Start Investigation"), button:has-text("Continue Investigation")').first();
     if (await startBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       console.log('Found a scenario button, clicking...');
       await startBtn.click();
