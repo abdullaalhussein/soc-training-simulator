@@ -24,6 +24,13 @@ const statusColors: Record<string, string> = {
   TIMED_OUT: 'bg-red-100 text-red-800',
 };
 
+const statusLabels: Record<string, string> = {
+  NOT_STARTED: 'Ready to Investigate',
+  IN_PROGRESS: 'Investigating',
+  COMPLETED: 'Completed',
+  TIMED_OUT: 'Timed Out',
+};
+
 export default function TraineeDashboard() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -130,7 +137,7 @@ export default function TraineeDashboard() {
                         {session.scenario?.difficulty}
                       </Badge>
                       <Badge className={statusColors[status] || ''}>
-                        {status.replace('_', ' ')}
+                        {statusLabels[status] || status.replace('_', ' ')}
                       </Badge>
                     </div>
                     <CardTitle className="text-lg mt-2">{session.scenario?.name}</CardTitle>
@@ -162,7 +169,7 @@ export default function TraineeDashboard() {
                         onClick={() => handleStart(session.id)}
                         disabled={session.status !== 'ACTIVE' || starting === session.id}
                       >
-                        {starting === session.id ? 'Starting...' : status === 'IN_PROGRESS' ? 'Continue' : 'Start Scenario'}
+                        {starting === session.id ? 'Starting...' : status === 'IN_PROGRESS' ? 'Continue Investigation' : 'Start Investigation'}
                       </Button>
                     )}
                   </div>
