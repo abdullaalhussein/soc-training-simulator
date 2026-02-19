@@ -37,6 +37,7 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 - **Scenario import/export** via JSON for sharing between instances
 - **Live discussion panel** for trainer-trainee communication
 - **Trainee-initiated attempts** — scenario timer starts only when the trainee clicks "Start", not when assigned
+- **Dark mode by default** with light/dark toggle — optimized for SOC environments with dimly lit rooms
 
 ---
 
@@ -88,7 +89,7 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 
 | Layer | Technologies |
 |-------|-------------|
-| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, Recharts, Axios |
+| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
 | **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
 | **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, docker-compose |
