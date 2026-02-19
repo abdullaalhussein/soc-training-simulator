@@ -37,7 +37,7 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 - **Scenario import/export** via JSON for sharing between instances
 - **Live discussion panel** for trainer-trainee communication
 - **Trainee-initiated attempts** — scenario timer starts only when the trainee clicks "Start", not when assigned
-- **Dark mode by default** with light/dark toggle — optimized for SOC environments with dimly lit rooms
+- **Light/dark mode toggle** — optimized for SOC environments; switch to dark mode for dimly lit rooms
 
 ---
 
@@ -81,6 +81,15 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 ### Investigation Workspace — Log Viewer, Evidence Basket & Briefing
 <p align="center">
   <img src="docs/screenshots/09-trainee-investigation.png" alt="Investigation Workspace" width="720" />
+</p>
+
+### Dark Mode
+
+<p align="center">
+  <img src="docs/screenshots/03-admin-scenarios-dark.png" alt="Admin Scenarios — Dark Mode" width="720" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/07-trainee-dashboard-dark.png" alt="Trainee Dashboard — Dark Mode" width="720" />
 </p>
 
 ---
