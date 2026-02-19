@@ -127,7 +127,7 @@ export default function LandingPage() {
             </Button>
           </Link>
           <a href="#features">
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="lg" className="border-slate-600 text-white hover:bg-slate-700/50">
               Learn More
             </Button>
           </a>
