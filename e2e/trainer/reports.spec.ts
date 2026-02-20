@@ -12,7 +12,7 @@ test.describe('Reports', () => {
     if (!isVisible) {
       await page.waitForTimeout(2000);
       await page.reload();
-      await page.waitForLoadState('networkidle');
+      await page.waitForLoadState('domcontentloaded');
     }
     await expect(reportsPage.heading).toBeVisible({ timeout: 15_000 });
   });
