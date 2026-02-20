@@ -10,3 +10,6 @@ Thumbs.db
 .prisma/
 coverage/
 .claude/
+e2e/.auth/
+playwright-report/
+test-results/

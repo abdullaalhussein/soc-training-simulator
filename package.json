@@ -29,9 +29,13 @@
     "db:seed": "npx tsx prisma/seed.ts",
     "db:studio": "npx prisma studio --schema=prisma/schema.prisma",
     "db:generate": "npx prisma generate --schema=prisma/schema.prisma",
-    "postinstall": "npx prisma generate --schema=prisma/schema.prisma"
+    "postinstall": "npx prisma generate --schema=prisma/schema.prisma",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "test:e2e:headed": "npx playwright test --headed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "concurrently": "^9.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
