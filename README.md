@@ -10,6 +10,7 @@
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io)](https://socket.io/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Playwright](https://img.shields.io/badge/Playwright-66_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 ---
 
@@ -101,6 +102,7 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 | **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
 | **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
 | **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
+| **Testing** | Playwright (66 E2E tests across 16 spec files) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, docker-compose |
 
 ---
@@ -129,6 +131,14 @@ soc-training-simulator/
 │   ├── schema.prisma        # 13 models, 7 enums
 │   └── seed.ts              # Demo users & scenarios
 ├── scenarios/               # Importable scenario JSON files
+├── e2e/                     # Playwright E2E tests (66 tests)
+│   ├── auth/                # Login, RBAC, redirect tests
+│   ├── admin/               # User, scenario, audit, settings tests
+│   ├── trainer/             # Console, monitor, chat, notifications, reports tests
+│   ├── trainee/             # Dashboard, investigation tests
+│   ├── shared/              # Theme, navigation, logout tests
+│   ├── fixtures/            # Auth setup & test data
+│   └── pages/               # Page object models
 ├── docker-compose.yml       # Local PostgreSQL + pgAdmin
 └── docs/
     └── presentation.html    # Project architecture presentation
@@ -223,6 +233,11 @@ npm run db:seed              # Seed demo users & scenarios
 npm run db:migrate           # Run Prisma migrations
 npm run db:studio            # Open Prisma Studio GUI
 
+# Testing
+npm run test:e2e             # Run all E2E tests (headless)
+npm run test:e2e:ui          # Open Playwright UI for interactive debugging
+npm run test:e2e:headed      # Run tests in headed browser
+
 # Docker
 docker-compose up -d         # Start PostgreSQL + pgAdmin
 docker-compose down          # Stop services
@@ -283,6 +298,28 @@ docker-compose down          # Stop services
 | **Report** | 10% | Incident report keyword coverage + recommendations |
 
 **Adjustments:** -5 points per hint used, trainer manual adjustment with notes.
+
+---
+
+## Testing
+
+The project includes a comprehensive **Playwright E2E test suite** with 66 tests across 16 spec files covering all three roles.
+
+```bash
+npm run test:e2e             # Run all tests (headless Firefox)
+npm run test:e2e:ui          # Interactive Playwright UI
+npm run test:e2e:headed      # Run in visible browser
+```
+
+| Area | Tests | Coverage |
+|------|-------|----------|
+| **Auth** | 8 | Login, invalid credentials, redirects, RBAC enforcement |
+| **Admin** | 16 | User CRUD, scenario management, audit log, settings |
+| **Trainer** | 23 | Console (create/launch/pause/resume/end sessions), session monitor, reports, scenario guide, discussion chat, toast notifications, broadcast alerts |
+| **Trainee** | 10 | Dashboard stats, session cards, investigation workspace, log search, evidence collection, checkpoints |
+| **Shared** | 9 | Theme toggle, sidebar navigation, logout for all roles |
+
+Tests run against a deployed instance by default (`E2E_BASE_URL` / `E2E_API_URL` env vars) or locally with `webServer` auto-start. Auth tokens are set up via a global setup that writes `storageState` files per role.
 
 ---
 
