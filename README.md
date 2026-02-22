@@ -12,6 +12,8 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-66_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
+> If you find this project useful, please consider giving it a star — it helps others discover it and motivates continued development.
+
 ---
 
 ## Overview
@@ -357,7 +359,7 @@ Pushing to `master` automatically deploys both server and client to Railway via 
 
 | Secret | Description |
 |--------|-------------|
-| `RAILWAY_TOKEN` | Railway API token (Account → Tokens) |
+| `RAILWAY_API_TOKEN` | Railway account API token (Account → Tokens) |
 | `RAILWAY_PROJECT_ID` | Railway project ID |
 | `RAILWAY_SERVER_SERVICE_ID` | Service ID for the server |
 | `RAILWAY_CLIENT_SERVICE_ID` | Service ID for the client |
@@ -397,6 +399,20 @@ Scenarios include top-level fields, a `stages[]` array with nested `logs[]` and 
 ## Documentation
 
 Open [`docs/presentation.html`](docs/presentation.html) in a browser for the full architecture & implementation presentation (14 slides, bilingual EN/AR, arrow key navigation).
+
+---
+
+## Enterprise & Custom Deployments
+
+Need SSO, managed hosting, custom scenarios, or dedicated support for your organization? Reach out — we're happy to discuss enterprise options.
+
+**Contact:** [abdullaalhussein@gmail.com](mailto:abdullaalhussein@gmail.com)
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read the [Contributor License Agreement](CLA.md) before submitting a pull request.
 
 ---
 

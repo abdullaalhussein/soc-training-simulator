@@ -295,6 +295,13 @@ export default function LandingPage() {
             >
               GitHub
             </a>
+            <span>&middot;</span>
+            <a
+              href="mailto:abdullaalhussein@gmail.com?subject=SOC Training Simulator — Enterprise Inquiry"
+              className="hover:text-slate-300 transition-colors"
+            >
+              Enterprise
+            </a>
           </div>
           <p>&copy; {new Date().getFullYear()} SOC Training Simulator. All rights reserved.</p>
         </div>
