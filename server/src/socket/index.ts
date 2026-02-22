@@ -4,9 +4,28 @@ import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
 
 const MAX_MESSAGE_LENGTH = 5000;
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
+const RATE_LIMIT_MAX_EVENTS = 30; // max events per window
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Simple per-socket sliding window rate limiter */
+function createRateLimiter() {
+  const timestamps: number[] = [];
+  return function isRateLimited(): boolean {
+    const now = Date.now();
+    // Remove timestamps outside the window
+    while (timestamps.length > 0 && timestamps[0] <= now - RATE_LIMIT_WINDOW_MS) {
+      timestamps.shift();
+    }
+    if (timestamps.length >= RATE_LIMIT_MAX_EVENTS) {
+      return true;
+    }
+    timestamps.push(now);
+    return false;
+  };
 }
 
 export function initializeSocket(io: SocketIOServer) {
@@ -110,6 +129,14 @@ export function initializeSocket(io: SocketIOServer) {
 
   // Trainer namespace
   trainerNsp.on('connection', (socket) => {
+    const isRateLimited = createRateLimiter();
+    socket.use((_event: any, next: any) => {
+      if (isRateLimited()) {
+        logger.warn(`Rate limited trainer socket: ${socket.id} (${socket.data.user.email})`);
+        return next(new Error('Rate limit exceeded'));
+      }
+      next();
+    });
     logger.info(`Trainer connected: ${socket.id} (${socket.data.user.email})`);
 
     socket.on('join-session', async (sessionId: string) => {
@@ -211,6 +238,14 @@ export function initializeSocket(io: SocketIOServer) {
 
   // Trainee namespace
   traineeNsp.on('connection', (socket) => {
+    const isRateLimited = createRateLimiter();
+    socket.use((_event: any, next: any) => {
+      if (isRateLimited()) {
+        logger.warn(`Rate limited trainee socket: ${socket.id} (${socket.data.user.email})`);
+        return next(new Error('Rate limit exceeded'));
+      }
+      next();
+    });
     logger.info(`Trainee connected: ${socket.id} (${socket.data.user.email})`);
 
     socket.on('join-attempt', async (attemptId: string) => {

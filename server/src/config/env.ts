@@ -12,7 +12,7 @@ function requireEnv(name: string): string {
 export const env = {
   DATABASE_URL: process.env.DATABASE_URL || '',
   JWT_SECRET: requireEnv('JWT_SECRET'),
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '24h',
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
   JWT_REFRESH_SECRET: requireEnv('JWT_REFRESH_SECRET'),
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   SERVER_PORT: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
