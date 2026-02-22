@@ -19,11 +19,12 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy server
-        run: railway up --service ${{ secrets.RAILWAY_SERVER_SERVICE_ID }}
+      - name: Link project and deploy server
+        run: |
+          railway link -p ${{ secrets.RAILWAY_PROJECT_ID }} -e production
+          railway up --service ${{ secrets.RAILWAY_SERVER_SERVICE_ID }}
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
 
   deploy-client:
     name: Deploy Client
@@ -35,8 +36,9 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Deploy client
-        run: railway up --service ${{ secrets.RAILWAY_CLIENT_SERVICE_ID }}
+      - name: Link project and deploy client
+        run: |
+          railway link -p ${{ secrets.RAILWAY_PROJECT_ID }} -e production
+          railway up --service ${{ secrets.RAILWAY_CLIENT_SERVICE_ID }}
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
