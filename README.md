@@ -186,6 +186,8 @@ npm run dev
 | Trainer | `trainer@soc.local` | `Password123!` |
 | Trainee | `trainee@soc.local` | `Password123!` |
 
+> **SECURITY WARNING:** These are demo credentials for local development only. **Change all default passwords immediately** before deploying to any network-accessible environment. The server will log warnings on startup if default credentials are detected.
+
 ---
 
 ## Environment Variables

@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Users,
   ArrowRight,
+  KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -133,6 +134,36 @@ export default function LandingPage() {
           </a>
         </div>
       </section>
+
+      {/* Demo Credentials Banner */}
+      <section className="mx-auto max-w-4xl px-4 -mt-8 mb-8">
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <KeyRound className="h-5 w-5 text-blue-400" />
+              <h3 className="text-lg font-semibold text-blue-400">Try the Demo</h3>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">
+              Explore all three roles using the demo accounts below. Data may reset periodically.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border border-slate-700 bg-slate-800/80 p-3">
+                <p className="text-xs font-medium text-slate-400 mb-1">Admin</p>
+                <p className="text-sm font-mono text-slate-200">admin@soc.local</p>
+                <p className="text-xs font-mono text-slate-500">Password123!</p>
+              </div>
+              <div className="rounded-md border border-slate-700 bg-slate-800/80 p-3">
+                <p className="text-xs font-medium text-slate-400 mb-1">Trainer</p>
+                <p className="text-sm font-mono text-slate-200">trainer@soc.local</p>
+                <p className="text-xs font-mono text-slate-500">Password123!</p>
+              </div>
+              <div className="rounded-md border border-slate-700 bg-slate-800/80 p-3">
+                <p className="text-xs font-medium text-slate-400 mb-1">Trainee</p>
+                <p className="text-sm font-mono text-slate-200">trainee@soc.local</p>
+                <p className="text-xs font-mono text-slate-500">Password123!</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
       {/* Features */}
       <section id="features" className="mx-auto max-w-6xl px-4 py-16">

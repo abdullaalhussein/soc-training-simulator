@@ -441,6 +441,15 @@ async function main() {
   }
 
   console.log('Seed completed successfully!');
+  console.log('');
+  console.log('='.repeat(70));
+  console.log('  SECURITY WARNING: Default demo credentials have been created.');
+  console.log('  admin@soc.local / trainer@soc.local / trainee@soc.local');
+  console.log('  Password: Password123!');
+  console.log('');
+  console.log('  CHANGE THESE PASSWORDS before deploying to any');
+  console.log('  network-accessible environment.');
+  console.log('='.repeat(70));
 }
 
 main()

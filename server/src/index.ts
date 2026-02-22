@@ -67,10 +67,41 @@ app.use(errorHandler);
 // Initialize Socket.io
 initializeSocket(io);
 
+// Check for default demo credentials on startup
+async function checkDefaultCredentials() {
+  try {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const bcrypt = (await import('bcryptjs')).default;
+
+    const defaultEmails = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
+    const users = await prisma.user.findMany({
+      where: { email: { in: defaultEmails } },
+      select: { email: true, password: true },
+    });
+
+    for (const user of users) {
+      const isDefault = await bcrypt.compare('Password123!', user.password);
+      if (isDefault) {
+        logger.warn('='.repeat(70));
+        logger.warn('  SECURITY WARNING: Default demo credentials detected!');
+        logger.warn(`  Account "${user.email}" is using the default password.`);
+        logger.warn('  Change all default passwords before exposing to production.');
+        logger.warn('='.repeat(70));
+      }
+    }
+
+    await prisma.$disconnect();
+  } catch {
+    // Non-blocking: don't prevent startup if check fails
+  }
+}
+
 // Start server — bind 0.0.0.0 for Railway/Docker compatibility
 httpServer.listen(env.SERVER_PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${env.SERVER_PORT}`);
   logger.info(`Environment: ${env.NODE_ENV}`);
+  checkDefaultCredentials();
 });
 
 export { io };
