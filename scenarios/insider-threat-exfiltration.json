@@ -1,0 +1,1350 @@
+{
+  "name": "Insider Threat \u2014 Data Exfiltration",
+  "description": "Investigate a disgruntled R&D employee exfiltrating proprietary data through multiple channels after receiving a poor performance review. This intermediate scenario challenges analysts to identify behavioral anomalies, trace data collection and staging, detect exfiltration over web services, and uncover anti-forensic cover-up attempts.",
+  "difficulty": "INTERMEDIATE",
+  "category": "Insider Threat",
+  "mitreAttackIds": ["T1078", "T1083", "T1005", "T1048", "T1074", "T1567"],
+  "estimatedMinutes": 50,
+  "isActive": true,
+  "briefing": "## Insider Threat Investigation \u2014 Confidential\n\n**Classification:** CONFIDENTIAL \u2014 HR-RESTRICTED\n\n**Date:** 2025-07-23 08:15 UTC\n\n**Prepared by:** SOC Tier 2 Lead\n\n---\n\nYour UEBA system flagged an anomaly alert for an R&D employee who hasn't previously worked after hours. HR has confidentially informed the SOC that this employee, **Marcus Chen** (`m.chen@corp.local`), received a poor performance review last week and reacted negatively during the review meeting.\n\nInvestigate carefully \u2014 insider threat cases require special handling. You must:\n\n1. **Preserve chain of custody** \u2014 all evidence must be documented meticulously\n2. **Coordinate with HR and Legal** before any direct confrontation or device seizure\n3. **Operate discreetly** \u2014 do not alert the subject of the investigation\n4. **Determine scope** \u2014 identify exactly what data was accessed, collected, and potentially exfiltrated\n\n### What We Know\n- **Subject:** Marcus Chen, R&D Software Engineer (3 years tenure)\n- **Workstation:** `WS-RDEV03` (10.0.1.45)\n- **Normal work hours:** 08:00\u201317:30 UTC, Monday\u2013Friday\n- **Badge records:** Typically enters building between 07:45\u201308:15 UTC\n- **Last performance review:** 2025-07-15 \u2014 rated \"Below Expectations\"\n- **UEBA alert triggered:** 2025-07-22 at 23:14 UTC\n\n### Your Objectives\n- Determine whether this is a genuine insider threat or benign after-hours work\n- Identify all data sources accessed and any data exfiltrated\n- Document the full timeline of events\n- Recommend appropriate response actions\n\n> **REMINDER:** Insider threat investigations are legally sensitive. Do not access the employee's personal accounts or devices. Work only with corporate log data and coordinate with Legal before escalating.",
+  "lessonContent": "## Insider Threat \u2014 Data Exfiltration: Lesson Content\n\n### 1. Understanding Insider Threats\n\nInsider threats represent one of the most challenging categories of security incidents because the adversary already has legitimate access to systems and data. Unlike external attackers who must breach perimeter defenses, insiders operate within the trusted zone, making detection significantly harder.\n\n#### Types of Insider Threats\n\n| Type | Description | Example |\n|------|-------------|--------|\n| **Malicious Insider** | Intentionally causes harm for personal gain, revenge, or ideology | Employee stealing trade secrets before joining a competitor |\n| **Negligent Insider** | Causes harm through carelessness or lack of awareness | Employee emailing sensitive files to personal account for convenience |\n| **Compromised Insider** | Legitimate credentials stolen by external actor | Phished employee whose account is used for lateral movement |\n| **Unwitting Insider** | Manipulated through social engineering | Employee tricked into installing malware by fake IT support |\n\n### 2. UEBA \u2014 User and Entity Behavior Analytics\n\nUEBA systems establish behavioral baselines for every user and entity (device, application, service account) and alert when deviations occur. This is critical for insider threat detection because signature-based tools often miss insiders who use legitimate tools and credentials.\n\n#### How UEBA Baselines Work\n\n1. **Data Collection:** UEBA ingests authentication logs, file access logs, network traffic, email activity, badge access, VPN connections, and endpoint telemetry.\n2. **Baseline Establishment:** Over weeks or months, the system learns each user's normal patterns:\n   - Typical login times and locations\n   - Normal file access volumes and directories\n   - Usual network traffic patterns\n   - Regular application usage\n3. **Anomaly Scoring:** When a user deviates from their baseline, the system assigns a risk score. Multiple small deviations compound into higher risk scores.\n4. **Alert Generation:** When a user's cumulative risk score exceeds a threshold, an alert fires.\n\n#### Key Behavioral Indicators of Insider Threats\n\n- **Temporal anomalies:** Working at unusual hours, especially after negative workplace events\n- **Access anomalies:** Accessing files or systems outside normal job scope\n- **Volume anomalies:** Downloading or copying unusually large amounts of data\n- **Resignation/termination signals:** Increased data access after giving notice or receiving poor reviews\n- **Circumvention behavior:** Using USB drives, personal cloud storage, or personal email to move corporate data\n- **Anti-forensic behavior:** Deleting files, clearing logs, using secure delete tools\n\n### 3. Normal vs. Abnormal Behavior Baselines\n\nEffective insider threat detection requires understanding what \"normal\" looks like. Here is an example baseline comparison:\n\n#### Marcus Chen \u2014 Baseline vs. Incident Activity\n\n| Metric | 90-Day Baseline | Incident Night |\n|--------|----------------|----------------|\n| Login time | 07:50\u201308:20 UTC | 23:02 UTC |\n| File shares accessed | `/dev/projects/`, `/dev/shared/` | `/finance/reports/`, `/rd/prototypes/`, `/exec/strategy/` |\n| Files accessed per session | 15\u201340 | 347 |\n| Data volume transferred | 50\u2013200 MB/day | 2.3 GB in 4 hours |\n| External uploads | 0 | 847 MB to Dropbox, 312 MB to Gmail |\n| USB device usage | None in 90 days | 1 USB insertion event |\n| After-hours VPN connections | 0 in 90 days | 1 |\n\nThis contrast is what makes the UEBA alert meaningful. Any single indicator might be explainable; the combination is what reveals the threat.\n\n### 4. Data Loss Prevention (DLP)\n\nDLP is a set of tools, processes, and policies designed to prevent unauthorized data exfiltration. In this scenario, several DLP controls were either absent or circumvented:\n\n#### DLP Control Categories\n\n**Network DLP:**\n- Monitors data in motion across the network\n- Inspects email attachments, web uploads, and file transfers\n- Can block or quarantine transfers matching sensitive data patterns\n- *In this scenario:* Proxy logs captured the Dropbox upload but did not block it\n\n**Endpoint DLP:**\n- Monitors data at rest and in use on endpoints\n- Controls USB device access, clipboard operations, screen capture, and print\n- *In this scenario:* USB insertion was detected by EDR but not blocked\n\n**Cloud DLP:**\n- Monitors data moving to cloud services\n- Integrates with CASB (Cloud Access Security Broker) to control shadow IT\n- *In this scenario:* No CASB was in place to block personal cloud storage uploads\n\n#### DLP Best Practices\n\n1. **Classify data** \u2014 You cannot protect what you haven't identified. Implement data classification labels (Public, Internal, Confidential, Restricted).\n2. **Apply policies based on classification** \u2014 Restricted data should never leave the corporate network without encryption and approval.\n3. **Monitor, then enforce** \u2014 Start DLP in monitor-only mode to reduce false positives before enabling blocking.\n4. **Cover all channels** \u2014 Email, web uploads, USB, Bluetooth, cloud sync, print, and clipboard.\n5. **Integrate with UEBA** \u2014 DLP alerts gain context when correlated with behavioral anomalies.\n\n### 5. Investigating Insider Threats \u2014 Legal and Procedural Considerations\n\nInsider threat investigations differ fundamentally from external incident response. Mishandling can expose the organization to legal liability, destroy evidence admissibility, or violate employee privacy rights.\n\n#### Key Principles\n\n**Chain of Custody:**\n- Every piece of evidence must be documented: who collected it, when, how, and where it was stored.\n- Use write-blockers for forensic disk imaging.\n- Hash all evidence files (SHA-256) and log the hashes.\n- Store evidence in a secured, access-controlled location.\n\n**Legal Coordination:**\n- **Before** taking any action that could affect the employee (device seizure, account suspension, monitoring escalation), consult Legal.\n- Understand your jurisdiction's employee monitoring laws. In many jurisdictions, employers can monitor corporate devices and networks, but personal devices and accounts are off-limits.\n- Preserve all evidence even if it appears exculpatory \u2014 selective evidence preservation can be challenged in court.\n\n**HR Involvement:**\n- HR should be involved from the beginning of a confirmed insider threat investigation.\n- HR can provide context: recent reviews, disciplinary actions, resignation notices, behavioral complaints.\n- HR manages the employee relationship \u2014 SOC should never directly confront the subject.\n- If termination is warranted, HR coordinates with IT for simultaneous access revocation.\n\n**Privacy Boundaries:**\n- Only examine corporate systems and data \u2014 never access personal email, personal cloud storage, or personal devices.\n- Document the scope of your investigation and stay within it.\n- If you discover evidence of illegal activity (e.g., selling trade secrets), immediately escalate to Legal and potentially law enforcement.\n\n#### Investigation Workflow\n\n1. **Detection** \u2014 UEBA alert, DLP alert, tip from HR/manager, or anomaly spotted during routine monitoring\n2. **Preliminary Assessment** \u2014 Review the alert in context. Is this a real anomaly or a false positive?\n3. **Scope Definition** \u2014 Define what you will investigate and document it. Get Legal approval.\n4. **Evidence Collection** \u2014 Gather logs, forensic images, and network captures. Maintain chain of custody.\n5. **Analysis** \u2014 Build a timeline. Correlate across data sources. Identify what was accessed and exfiltrated.\n6. **Findings Report** \u2014 Deliver a factual, evidence-based report to HR and Legal. Avoid speculation.\n7. **Remediation** \u2014 Revoke access, contain data exposure, and implement preventive controls.\n8. **Lessons Learned** \u2014 What controls failed? What should be improved?\n\n### 6. MITRE ATT&CK Techniques in This Scenario\n\n| Technique | ID | How It Appears |\n|-----------|----|----------------|\n| Valid Accounts | T1078 | Marcus uses his legitimate corporate credentials to VPN in and access file shares |\n| File and Directory Discovery | T1083 | Directory enumeration commands (`dir /s`) on sensitive file shares |\n| Data from Local System | T1005 | Accessing and collecting files from corporate file servers |\n| Data Staged | T1074 | Compressing collected files into archives before exfiltration |\n| Exfiltration Over Web Service | T1567 | Uploading data to Dropbox and sending via personal Gmail |\n| Exfiltration Over Alternative Protocol | T1048 | Using DNS and HTTPS to exfiltrate data outside normal business channels |\n\n### 7. Key Takeaways\n\n- **Insiders are hard to detect** because they use legitimate access. Behavioral analytics is your best tool.\n- **Context is everything** \u2014 a late-night login alone isn't malicious, but combined with mass file access, compression, and cloud uploads, it paints a clear picture.\n- **DLP must be layered** across network, endpoint, and cloud to be effective.\n- **Legal and HR must be partners** in every insider threat investigation.\n- **Chain of custody is non-negotiable** \u2014 sloppy evidence handling can invalidate an entire case.\n- **Timeliness matters** \u2014 the longer an insider has access after detection, the more damage they can do. But premature action without Legal approval can also cause harm.\n- **Document everything** \u2014 your investigation report may be used in civil litigation, criminal prosecution, or regulatory proceedings.",
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Behavioral Anomalies",
+      "description": "Analyze UEBA and authentication alerts indicating unusual after-hours activity from an R&D employee. Determine whether the behavioral deviations are suspicious or benign.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "AUTH_LOG",
+          "summary": "Badge access log shows Marcus Chen entering the building at 22:47 UTC, far outside his normal 07:45-08:15 arrival window.",
+          "rawLog": {
+            "log_source": "PhysicalAccessControl",
+            "system": "Honeywell_ProWatch",
+            "event_type": "BADGE_IN",
+            "timestamp": "2025-07-22T22:47:33Z",
+            "badge_id": "EMP-2847",
+            "employee_name": "Chen, Marcus",
+            "employee_id": "MCH-0294",
+            "department": "Research & Development",
+            "door_id": "MAIN-LOBBY-01",
+            "door_name": "Main Lobby Entrance",
+            "building": "HQ-Building-A",
+            "floor": "1",
+            "access_result": "GRANTED",
+            "reader_type": "HID_PROX",
+            "anti_passback": "CLEAN",
+            "baseline_entry_time": "07:45-08:15",
+            "deviation_hours": 14.5,
+            "notes": "No other R&D personnel badged in within +/- 2 hours"
+          },
+          "severity": "LOW",
+          "hostname": "PAC-SRV01",
+          "username": "m.chen",
+          "timestamp": "2025-07-22T22:47:33Z",
+          "isEvidence": true,
+          "evidenceTag": "AFTER_HOURS_BADGE_ACCESS",
+          "sortOrder": 1
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "VPN authentication successful for m.chen from home IP 73.162.45.112 at 23:02 UTC. This is the first after-hours VPN connection for this user in 90 days.",
+          "rawLog": {
+            "EventTime": "2025-07-22T23:02:14Z",
+            "Hostname": "VPN-GW01",
+            "EventType": "VPN_AUTH_SUCCESS",
+            "SourceName": "Cisco_AnyConnect",
+            "EventID": 722051,
+            "EventCategory": "Authentication",
+            "Message": "Group <Corp-VPN> User <m.chen@corp.local> IP <73.162.45.112> SVC Session started",
+            "UserName": "m.chen@corp.local",
+            "SourceAddress": "73.162.45.112",
+            "AssignedIP": "10.200.0.88",
+            "VPNGroup": "Corp-VPN",
+            "AuthMethod": "Certificate+LDAP",
+            "TunnelProtocol": "TLS/DTLS",
+            "ClientVersion": "AnyConnect 4.10.07073",
+            "ClientOS": "Windows 11",
+            "DurationSec": 0,
+            "BytesTx": 0,
+            "BytesRx": 0,
+            "SessionID": "VPN-22Jul2025-8834a",
+            "MFAStatus": "Verified",
+            "GeoIP": {
+              "country": "US",
+              "state": "California",
+              "city": "San Jose",
+              "isp": "Comcast Cable Communications"
+            }
+          },
+          "severity": "MEDIUM",
+          "hostname": "VPN-GW01",
+          "username": "m.chen",
+          "sourceIp": "73.162.45.112",
+          "eventId": "722051",
+          "timestamp": "2025-07-22T23:02:14Z",
+          "isEvidence": true,
+          "evidenceTag": "AFTER_HOURS_VPN_LOGIN",
+          "sortOrder": 2
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "UEBA system flagged m.chen with elevated risk score (82/100) due to login time deviation. The user's historical baseline shows zero after-hours logins in 90 days.",
+          "rawLog": {
+            "alert_id": "UEBA-2025-07-22-00419",
+            "alert_source": "Exabeam_UEBA",
+            "alert_type": "BEHAVIORAL_ANOMALY",
+            "timestamp": "2025-07-22T23:14:07Z",
+            "severity": "HIGH",
+            "risk_score": 82,
+            "risk_score_max": 100,
+            "risk_score_previous": 12,
+            "risk_score_delta": 70,
+            "user": "m.chen@corp.local",
+            "user_department": "Research & Development",
+            "user_title": "Software Engineer II",
+            "user_manager": "j.rodriguez@corp.local",
+            "anomaly_factors": [
+              {
+                "factor": "LOGIN_TIME_DEVIATION",
+                "description": "Login at 23:02 UTC is 14.8 hours outside normal window (07:50-08:20 UTC)",
+                "weight": 35,
+                "baseline_period": "90 days",
+                "historical_after_hours_logins": 0
+              },
+              {
+                "factor": "VPN_FROM_HOME_AFTER_HOURS",
+                "description": "First after-hours VPN connection in observation period",
+                "weight": 25,
+                "baseline_period": "90 days",
+                "historical_after_hours_vpn": 0
+              },
+              {
+                "factor": "HR_RISK_FLAG",
+                "description": "Employee flagged by HR with elevated risk indicator",
+                "weight": 22,
+                "hr_flag_date": "2025-07-16",
+                "hr_flag_reason": "Poor performance review - negative reaction"
+              }
+            ],
+            "recommended_actions": [
+              "Initiate enhanced monitoring",
+              "Notify SOC Tier 2 for investigation",
+              "Coordinate with HR before any direct action"
+            ],
+            "correlated_events": 3,
+            "session_id": "UEBA-SESSION-MCH-20250722"
+          },
+          "severity": "HIGH",
+          "hostname": "SIEM-01",
+          "username": "m.chen",
+          "sourceIp": "73.162.45.112",
+          "timestamp": "2025-07-22T23:14:07Z",
+          "isEvidence": true,
+          "evidenceTag": "UEBA_ANOMALY_ALERT",
+          "sortOrder": 3
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Normal daytime login for m.chen at 08:03 UTC on the same day (2025-07-22) for baseline comparison. This represents typical behavior.",
+          "rawLog": {
+            "EventTime": "2025-07-22T08:03:22Z",
+            "Hostname": "WS-RDEV03",
+            "Keywords": "Audit Success",
+            "EventType": "LOGON",
+            "EventID": 4624,
+            "SourceName": "Microsoft-Windows-Security-Auditing",
+            "TaskCategory": "Logon",
+            "Message": "An account was successfully logged on.",
+            "SubjectUserSid": "S-1-5-18",
+            "SubjectUserName": "WS-RDEV03$",
+            "SubjectDomainName": "CORP",
+            "TargetUserSid": "S-1-5-21-3842773048-1748281579-2839672354-11284",
+            "TargetUserName": "m.chen",
+            "TargetDomainName": "CORP",
+            "LogonType": 2,
+            "LogonTypeName": "Interactive",
+            "LogonProcessName": "User32",
+            "AuthenticationPackageName": "Negotiate",
+            "WorkstationName": "WS-RDEV03",
+            "LogonGuid": "{a3e4b7c1-2d8f-4e9a-b6c3-d5e7f8091a2b}",
+            "IpAddress": "10.0.1.45",
+            "IpPort": "0",
+            "KeyLength": 0
+          },
+          "severity": "INFO",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.0.1.45",
+          "eventId": "4624",
+          "timestamp": "2025-07-22T08:03:22Z",
+          "isEvidence": false,
+          "sortOrder": 4
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Normal daytime logoff for m.chen at 17:24 UTC. Standard end-of-day pattern consistent with historical baseline.",
+          "rawLog": {
+            "EventTime": "2025-07-22T17:24:55Z",
+            "Hostname": "WS-RDEV03",
+            "Keywords": "Audit Success",
+            "EventType": "LOGOFF",
+            "EventID": 4634,
+            "SourceName": "Microsoft-Windows-Security-Auditing",
+            "TaskCategory": "Logoff",
+            "Message": "An account was logged off.",
+            "TargetUserSid": "S-1-5-21-3842773048-1748281579-2839672354-11284",
+            "TargetUserName": "m.chen",
+            "TargetDomainName": "CORP",
+            "LogonType": 2,
+            "TargetLogonId": "0x7a3b4c1"
+          },
+          "severity": "INFO",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "eventId": "4634",
+          "timestamp": "2025-07-22T17:24:55Z",
+          "isEvidence": false,
+          "sortOrder": 5
+        },
+        {
+          "logType": "AUTH_LOG",
+          "summary": "Network share authentication for m.chen to file server SRV-FS01 accessing \\\\SRV-FS01\\finance\\reports — a share outside his normal R&D access scope.",
+          "rawLog": {
+            "EventTime": "2025-07-22T23:18:42Z",
+            "Hostname": "SRV-FS01",
+            "Keywords": "Audit Success",
+            "EventType": "LOGON",
+            "EventID": 4624,
+            "SourceName": "Microsoft-Windows-Security-Auditing",
+            "TaskCategory": "Logon",
+            "Message": "An account was successfully logged on.",
+            "SubjectUserSid": "S-1-5-18",
+            "SubjectUserName": "SRV-FS01$",
+            "SubjectDomainName": "CORP",
+            "TargetUserSid": "S-1-5-21-3842773048-1748281579-2839672354-11284",
+            "TargetUserName": "m.chen",
+            "TargetDomainName": "CORP",
+            "LogonType": 3,
+            "LogonTypeName": "Network",
+            "AuthenticationPackageName": "Kerberos",
+            "WorkstationName": "WS-RDEV03",
+            "IpAddress": "10.200.0.88",
+            "IpPort": "49672",
+            "ShareName": "\\\\SRV-FS01\\finance\\reports",
+            "SharePath": "D:\\Shares\\Finance\\Reports",
+            "AccessMask": "0x12019F",
+            "AccessList": "READ_CONTROL, SYNCHRONIZE, ReadData, ReadAttributes, ReadEA"
+          },
+          "severity": "MEDIUM",
+          "hostname": "SRV-FS01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "10.0.3.10",
+          "eventId": "4624",
+          "timestamp": "2025-07-22T23:18:42Z",
+          "isEvidence": true,
+          "evidenceTag": "UNAUTHORIZED_SHARE_ACCESS",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Compare the after-hours VPN login timestamp to the user's 90-day baseline of login times. How many standard deviations from normal is this login?",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Look at which file shares m.chen accessed. Does an R&D engineer normally need access to finance reports? Check the share name in the authentication log.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "The UEBA risk score jumped from 12 to 82 in a single session. Review each anomaly factor and its weight to understand what triggered the alert.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "Data Discovery & Collection",
+      "description": "The employee begins enumerating directories and collecting sensitive files from multiple departments. Identify the data discovery techniques and the scope of data accessed.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Process Create event showing m.chen running recursive directory listing (dir /s /b) on the finance reports share, indicative of file and directory discovery (T1083).",
+          "rawLog": {
+            "EventID": 1,
+            "EventType": "ProcessCreate",
+            "UtcTime": "2025-07-22T23:19:58Z",
+            "ProcessGuid": "{WS-RDEV03-6e7f8a9b-0001-0001-bc3d-4e5f6a7b8c9d}",
+            "ProcessId": 8472,
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c dir \\\\SRV-FS01\\finance\\reports /s /b > C:\\Users\\m.chen\\AppData\\Local\\Temp\\finance_listing.txt",
+            "CurrentDirectory": "C:\\Users\\m.chen\\Desktop\\",
+            "User": "CORP\\m.chen",
+            "LogonGuid": "{WS-RDEV03-6e7f8a9b-0002-0002-1234-567890abcdef}",
+            "LogonId": "0x8b2c4d5",
+            "TerminalSessionId": 1,
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=B99D61D874728EDC0918CA0EB10EAB93D381E7367E377406E65963366C874714",
+            "ParentProcessGuid": "{WS-RDEV03-6e7f8a9b-0003-0003-abcd-ef0123456789}",
+            "ParentProcessId": 5204,
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "RuleName": "technique_id=T1083,technique_name=File and Directory Discovery",
+            "SourceHostname": "WS-RDEV03",
+            "SourceIp": "10.200.0.88"
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "10.0.3.10",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-07-22T23:19:58Z",
+          "isEvidence": true,
+          "evidenceTag": "DIRECTORY_ENUMERATION_FINANCE",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Second directory enumeration command targeting the R&D prototypes share and executive strategy documents. m.chen is systematically scanning multiple sensitive directories.",
+          "rawLog": {
+            "EventID": 1,
+            "EventType": "ProcessCreate",
+            "UtcTime": "2025-07-22T23:22:31Z",
+            "ProcessGuid": "{WS-RDEV03-7f8a9b0c-0004-0004-de12-3456789abcde}",
+            "ProcessId": 9116,
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c dir \\\\SRV-FS01\\rd\\prototypes /s /b > C:\\Users\\m.chen\\AppData\\Local\\Temp\\rd_proto_listing.txt && dir \\\\SRV-FS01\\exec\\strategy /s /b > C:\\Users\\m.chen\\AppData\\Local\\Temp\\exec_listing.txt",
+            "CurrentDirectory": "C:\\Users\\m.chen\\Desktop\\",
+            "User": "CORP\\m.chen",
+            "LogonGuid": "{WS-RDEV03-6e7f8a9b-0002-0002-1234-567890abcdef}",
+            "LogonId": "0x8b2c4d5",
+            "TerminalSessionId": 1,
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=B99D61D874728EDC0918CA0EB10EAB93D381E7367E377406E65963366C874714",
+            "ParentProcessGuid": "{WS-RDEV03-6e7f8a9b-0003-0003-abcd-ef0123456789}",
+            "ParentProcessId": 5204,
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "RuleName": "technique_id=T1083,technique_name=File and Directory Discovery",
+            "SourceHostname": "WS-RDEV03",
+            "SourceIp": "10.200.0.88"
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "10.0.3.10",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-07-22T23:22:31Z",
+          "isEvidence": true,
+          "evidenceTag": "DIRECTORY_ENUMERATION_RD_EXEC",
+          "sortOrder": 2
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "File server audit log showing 347 file access events from m.chen within a 45-minute window on the restricted prototypes folder. Normal daily average is 15-40 file accesses.",
+          "rawLog": {
+            "EventTime": "2025-07-22T23:48:15Z",
+            "Hostname": "SRV-FS01",
+            "Keywords": "Audit Success",
+            "EventType": "OBJECT_ACCESS",
+            "EventID": 4663,
+            "SourceName": "Microsoft-Windows-Security-Auditing",
+            "TaskCategory": "File System",
+            "Message": "An attempt was made to access an object.",
+            "SubjectUserSid": "S-1-5-21-3842773048-1748281579-2839672354-11284",
+            "SubjectUserName": "m.chen",
+            "SubjectDomainName": "CORP",
+            "SubjectLogonId": "0x8b2c4d5",
+            "ObjectServer": "Security",
+            "ObjectType": "File",
+            "ObjectName": "D:\\Shares\\RD\\Prototypes\\Project-Chimera\\design-specs-v4.2.docx",
+            "HandleId": "0x1234",
+            "AccessMask": "0x12019F",
+            "AccessList": "ReadData, ReadAttributes",
+            "ProcessName": "C:\\Windows\\explorer.exe",
+            "ResourceAttributes": "S:AI",
+            "_aggregation_note": "This is a representative event. Total of 347 file access events (EventID 4663) from m.chen between 23:18 and 00:03 UTC across shares: \\\\SRV-FS01\\rd\\prototypes (198 files), \\\\SRV-FS01\\finance\\reports (89 files), \\\\SRV-FS01\\exec\\strategy (60 files)",
+            "_file_access_summary": {
+              "total_files_accessed": 347,
+              "time_window_minutes": 45,
+              "shares_accessed": [
+                {"share": "\\\\SRV-FS01\\rd\\prototypes", "files": 198, "data_size_mb": 1240},
+                {"share": "\\\\SRV-FS01\\finance\\reports", "files": 89, "data_size_mb": 567},
+                {"share": "\\\\SRV-FS01\\exec\\strategy", "files": 60, "data_size_mb": 498}
+              ],
+              "total_data_size_mb": 2305,
+              "user_90day_avg_daily_files": 27,
+              "deviation_factor": 12.8
+            }
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-FS01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "10.0.3.10",
+          "eventId": "4663",
+          "timestamp": "2025-07-22T23:48:15Z",
+          "isEvidence": true,
+          "evidenceTag": "MASS_FILE_ACCESS",
+          "sortOrder": 3
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "CrowdStrike Falcon alert on anomalous bulk file access pattern. 347 files accessed in 45 minutes from three different restricted shares triggers the mass data collection detection rule.",
+          "rawLog": {
+            "event_type": "DetectionSummaryEvent",
+            "event_id": "CS-DET-2025-07-22-7742",
+            "timestamp": "2025-07-22T23:52:03Z",
+            "detect_name": "Anomalous Bulk File Access",
+            "detect_description": "User accessed an abnormally high number of files across multiple restricted shares in a short time window, consistent with data collection for exfiltration.",
+            "severity": "HIGH",
+            "confidence": 85,
+            "tactic": "Collection",
+            "technique": "T1005 - Data from Local System",
+            "host": {
+              "hostname": "WS-RDEV03",
+              "local_ip": "10.200.0.88",
+              "mac_address": "00:1A:2B:3C:4D:5E",
+              "os_version": "Windows 11 Enterprise 23H2",
+              "ou": "OU=RnD,OU=Workstations,DC=corp,DC=local"
+            },
+            "user": {
+              "username": "m.chen@corp.local",
+              "domain": "CORP",
+              "logon_type": "RemoteInteractive"
+            },
+            "detection_details": {
+              "files_accessed": 347,
+              "unique_shares": 3,
+              "time_window_sec": 2700,
+              "data_volume_mb": 2305,
+              "baseline_daily_avg": 27,
+              "anomaly_score": 9.7,
+              "shares_accessed": [
+                "\\\\SRV-FS01\\rd\\prototypes",
+                "\\\\SRV-FS01\\finance\\reports",
+                "\\\\SRV-FS01\\exec\\strategy"
+              ]
+            },
+            "ioc_context": {
+              "process": "explorer.exe",
+              "parent_process": "userinit.exe",
+              "command_line": "N/A (GUI file browsing)",
+              "network_connections": [
+                {"dest_ip": "10.0.3.10", "dest_port": 445, "protocol": "SMB", "bytes_received": 2417041408}
+              ]
+            },
+            "response_actions": [],
+            "assigned_to": null,
+            "status": "NEW"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "10.0.3.10",
+          "processName": "explorer.exe",
+          "timestamp": "2025-07-22T23:52:03Z",
+          "isEvidence": true,
+          "evidenceTag": "EDR_BULK_FILE_ACCESS",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Process Create showing 7-Zip being used to compress collected files into a password-protected archive named 'backup_july.7z'. This is data staging (T1074) prior to exfiltration.",
+          "rawLog": {
+            "EventID": 1,
+            "EventType": "ProcessCreate",
+            "UtcTime": "2025-07-23T00:08:44Z",
+            "ProcessGuid": "{WS-RDEV03-8a9b0c1d-0005-0005-ef01-23456789abcd}",
+            "ProcessId": 11204,
+            "Image": "C:\\Program Files\\7-Zip\\7z.exe",
+            "CommandLine": "\"C:\\Program Files\\7-Zip\\7z.exe\" a -t7z -mhe=on -p\"R3dact3d!\" C:\\Users\\m.chen\\Documents\\backup_july.7z C:\\Users\\m.chen\\AppData\\Local\\Temp\\collected\\*",
+            "FileVersion": "23.01",
+            "Description": "7-Zip Console",
+            "Product": "7-Zip",
+            "Company": "Igor Pavlov",
+            "OriginalFileName": "7z.exe",
+            "CurrentDirectory": "C:\\Users\\m.chen\\Documents\\",
+            "User": "CORP\\m.chen",
+            "LogonGuid": "{WS-RDEV03-6e7f8a9b-0002-0002-1234-567890abcdef}",
+            "LogonId": "0x8b2c4d5",
+            "TerminalSessionId": 1,
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=2DC13B88C3858E2C22D96B1A472E9D2E42F3AA08E24E8A01927FF6D5A8E9B381",
+            "ParentProcessGuid": "{WS-RDEV03-6e7f8a9b-0003-0003-abcd-ef0123456789}",
+            "ParentProcessId": 5204,
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "RuleName": "technique_id=T1074,technique_name=Data Staged",
+            "SourceHostname": "WS-RDEV03",
+            "SourceIp": "10.200.0.88",
+            "_analysis_note": "The -mhe=on flag enables header encryption (hides filenames inside archive). The -p flag sets a password. This is consistent with data staging before exfiltration."
+          },
+          "severity": "HIGH",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "processName": "7z.exe",
+          "eventId": "1",
+          "timestamp": "2025-07-23T00:08:44Z",
+          "isEvidence": true,
+          "evidenceTag": "DATA_STAGING_COMPRESSION",
+          "sortOrder": 5
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "NetFlow data showing a large SMB data transfer spike from the file server (10.0.3.10) to the employee's VPN IP (10.200.0.88). Total of 2.3 GB transferred over 45 minutes — 11.5x the user's daily average.",
+          "rawLog": {
+            "flow_id": "NF-20250722-2348-88421",
+            "timestamp_start": "2025-07-22T23:18:42Z",
+            "timestamp_end": "2025-07-23T00:03:17Z",
+            "duration_sec": 2675,
+            "src_ip": "10.0.3.10",
+            "src_port": 445,
+            "dst_ip": "10.200.0.88",
+            "dst_port": 49672,
+            "protocol": "TCP",
+            "application": "SMB/CIFS",
+            "bytes_to_client": 2417041408,
+            "bytes_to_server": 14729216,
+            "packets_to_client": 1698841,
+            "packets_to_server": 892441,
+            "tcp_flags": "SYN,ACK,PSH,FIN",
+            "src_hostname": "SRV-FS01",
+            "dst_hostname": "WS-RDEV03 (VPN: 10.200.0.88)",
+            "src_asset_criticality": "HIGH",
+            "dst_user": "m.chen@corp.local",
+            "interface": "eth0",
+            "collector": "NFLOW-CORE-01",
+            "baseline_comparison": {
+              "user_daily_avg_bytes": 209715200,
+              "current_session_bytes": 2417041408,
+              "deviation_factor": 11.5,
+              "percentile": 99.8
+            }
+          },
+          "severity": "HIGH",
+          "hostname": "NFLOW-CORE-01",
+          "username": "m.chen",
+          "sourceIp": "10.0.3.10",
+          "destIp": "10.200.0.88",
+          "timestamp": "2025-07-23T00:03:17Z",
+          "isEvidence": true,
+          "evidenceTag": "ANOMALOUS_DATA_TRANSFER_VOLUME",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Examine the command line in the Sysmon logs carefully. The 'dir /s /b' command recursively lists all files and subdirectories. Why would someone redirect this output to a text file?",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The 7-Zip command line contains two critical flags: '-mhe=on' encrypts the archive headers (hiding filenames) and '-p' sets a password. This is classic data staging behavior.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "Compare the number of files accessed (347) to the 90-day daily average (27). Calculate the deviation factor. Also note that three separate restricted shares were accessed — this suggests targeted collection, not casual browsing.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "Data Staging & Exfiltration",
+      "description": "The employee exfiltrates the collected data through multiple channels: personal cloud storage, personal email, and a USB device. Identify all exfiltration vectors and the volume of data leaving the network.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "PROXY",
+          "summary": "Web proxy log showing HTTPS upload of 847 MB to Dropbox (dl.dropboxusercontent.com) from m.chen's workstation. The upload occurred at 00:22 UTC and lasted approximately 12 minutes.",
+          "rawLog": {
+            "timestamp": "2025-07-23T00:22:18Z",
+            "proxy_host": "PROXY-01",
+            "src_ip": "10.200.0.88",
+            "src_port": 51442,
+            "dst_ip": "162.125.66.1",
+            "dst_port": 443,
+            "http_method": "PUT",
+            "url": "https://dl.dropboxusercontent.com/upload/auto/backup_july_part1.7z",
+            "url_category": "Cloud Storage",
+            "content_type": "application/octet-stream",
+            "http_status": 200,
+            "bytes_sent": 888143872,
+            "bytes_received": 2048,
+            "duration_ms": 724000,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            "user": "m.chen@corp.local",
+            "auth_method": "NTLM",
+            "ssl_action": "INSPECT",
+            "ssl_cipher": "TLS_AES_256_GCM_SHA384",
+            "dlp_policy_matched": "MONITOR_ONLY - Cloud Upload > 100MB",
+            "dlp_action": "LOG",
+            "dlp_policy_id": "DLP-POL-042",
+            "risk_score": 78,
+            "action": "ALLOWED",
+            "category_action": "ALLOWED",
+            "_note": "DLP policy is in monitor-only mode. Upload was logged but not blocked."
+          },
+          "severity": "HIGH",
+          "hostname": "PROXY-01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "162.125.66.1",
+          "processName": "chrome.exe",
+          "timestamp": "2025-07-23T00:22:18Z",
+          "isEvidence": true,
+          "evidenceTag": "EXFIL_DROPBOX_UPLOAD",
+          "sortOrder": 1
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS resolution queries from m.chen's workstation to Dropbox and Google cloud storage domains during the exfiltration window. These domains are not in the user's historical DNS baseline.",
+          "rawLog": {
+            "timestamp": "2025-07-23T00:21:04Z",
+            "dns_server": "DNS-INT-01",
+            "src_ip": "10.200.0.88",
+            "query_name": "dl.dropboxusercontent.com",
+            "query_type": "A",
+            "response_code": "NOERROR",
+            "response_data": ["162.125.66.1", "162.125.66.2"],
+            "ttl": 300,
+            "query_id": 47823,
+            "protocol": "UDP",
+            "response_time_ms": 12,
+            "client_hostname": "WS-RDEV03",
+            "additional_queries_in_window": [
+              {
+                "timestamp": "2025-07-23T00:21:02Z",
+                "query_name": "www.dropbox.com",
+                "query_type": "A",
+                "response_code": "NOERROR",
+                "response_data": ["162.125.66.18"]
+              },
+              {
+                "timestamp": "2025-07-23T00:41:22Z",
+                "query_name": "mail.google.com",
+                "query_type": "A",
+                "response_code": "NOERROR",
+                "response_data": ["142.250.80.46"]
+              },
+              {
+                "timestamp": "2025-07-23T00:41:24Z",
+                "query_name": "drive.google.com",
+                "query_type": "A",
+                "response_code": "NOERROR",
+                "response_data": ["142.250.80.78"]
+              }
+            ],
+            "_baseline_note": "m.chen's workstation has zero historical DNS queries to dropbox.com or dropboxusercontent.com in the past 90 days. Google Mail queries are also absent from historical baseline."
+          },
+          "severity": "MEDIUM",
+          "hostname": "DNS-INT-01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "timestamp": "2025-07-23T00:21:04Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_CLOUD_STORAGE_QUERIES",
+          "sortOrder": 2
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "NetFlow showing large outbound data transfer to Dropbox IP (162.125.66.1) totaling 847 MB upload, followed by a 312 MB transfer to Google (142.250.80.46). Combined outbound exfiltration: 1.16 GB.",
+          "rawLog": {
+            "flows": [
+              {
+                "flow_id": "NF-20250723-0022-91204",
+                "timestamp_start": "2025-07-23T00:22:18Z",
+                "timestamp_end": "2025-07-23T00:34:22Z",
+                "duration_sec": 724,
+                "src_ip": "10.200.0.88",
+                "src_port": 51442,
+                "dst_ip": "162.125.66.1",
+                "dst_port": 443,
+                "protocol": "TCP",
+                "application": "HTTPS",
+                "bytes_to_server": 888143872,
+                "bytes_to_client": 45056,
+                "dst_hostname_resolved": "dl.dropboxusercontent.com",
+                "dst_org": "Dropbox Inc.",
+                "geo_dst": "US-CA-San Francisco",
+                "classification": "Cloud Storage Upload"
+              },
+              {
+                "flow_id": "NF-20250723-0042-91347",
+                "timestamp_start": "2025-07-23T00:42:05Z",
+                "timestamp_end": "2025-07-23T00:51:38Z",
+                "duration_sec": 573,
+                "src_ip": "10.200.0.88",
+                "src_port": 52118,
+                "dst_ip": "142.250.80.46",
+                "dst_port": 443,
+                "protocol": "TCP",
+                "application": "HTTPS",
+                "bytes_to_server": 327155712,
+                "bytes_to_client": 28672,
+                "dst_hostname_resolved": "mail.google.com",
+                "dst_org": "Google LLC",
+                "geo_dst": "US-CA-Mountain View",
+                "classification": "Webmail Upload"
+              }
+            ],
+            "aggregate_summary": {
+              "total_outbound_bytes": 1215299584,
+              "total_outbound_mb": 1159,
+              "unique_destinations": 2,
+              "user": "m.chen@corp.local",
+              "timeframe": "2025-07-23T00:22:18Z to 2025-07-23T00:51:38Z",
+              "baseline_daily_outbound_mb": 45,
+              "deviation_factor": 25.8
+            }
+          },
+          "severity": "CRITICAL",
+          "hostname": "NFLOW-CORE-01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "162.125.66.1",
+          "timestamp": "2025-07-23T00:34:22Z",
+          "isEvidence": true,
+          "evidenceTag": "EXFIL_OUTBOUND_DATA_TRANSFER",
+          "sortOrder": 3
+        },
+        {
+          "logType": "EMAIL_GATEWAY",
+          "summary": "Email gateway detected m.chen sending an email with a 312 MB encrypted attachment (backup_july_part2.7z) from his corporate account to a personal Gmail address (marcus.chen.personal@gmail.com).",
+          "rawLog": {
+            "timestamp": "2025-07-23T00:43:12Z",
+            "gateway_host": "MAIL-GW01",
+            "event_type": "EMAIL_SENT",
+            "message_id": "<20250723004312.A47B2C@corp.local>",
+            "sender": "m.chen@corp.local",
+            "recipient": "marcus.chen.personal@gmail.com",
+            "subject": "Personal backup - ignore",
+            "direction": "OUTBOUND",
+            "size_bytes": 327155712,
+            "attachment_count": 1,
+            "attachments": [
+              {
+                "filename": "backup_july_part2.7z",
+                "size_bytes": 327089152,
+                "content_type": "application/x-7z-compressed",
+                "sha256": "7a4b8c2d1e3f5a6b9c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f1a",
+                "is_encrypted": true,
+                "encryption_type": "7z-AES256"
+              }
+            ],
+            "smtp_response": "250 2.0.0 OK",
+            "delivery_status": "DELIVERED",
+            "spf_result": "PASS",
+            "dkim_result": "PASS",
+            "dlp_scan": {
+              "policy_matched": "MONITOR_ONLY - Encrypted Attachment to External",
+              "policy_id": "DLP-EMAIL-019",
+              "action": "LOG_AND_DELIVER",
+              "risk_indicators": [
+                "Encrypted archive attachment",
+                "External personal email recipient",
+                "After-hours sending",
+                "Attachment size exceeds 100MB threshold"
+              ]
+            },
+            "sender_ip": "10.200.0.88",
+            "x_originating_ip": "10.200.0.88",
+            "mail_client": "Microsoft Outlook 16.0"
+          },
+          "severity": "HIGH",
+          "hostname": "MAIL-GW01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "destIp": "142.250.80.46",
+          "timestamp": "2025-07-23T00:43:12Z",
+          "isEvidence": true,
+          "evidenceTag": "EXFIL_EMAIL_PERSONAL_ACCOUNT",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM correlation rule triggered: Data Loss Prevention — Multiple Exfiltration Indicators. The alert correlates cloud storage upload, personal email with encrypted attachment, and anomalous outbound volume into a single high-confidence exfiltration event.",
+          "rawLog": {
+            "alert_id": "SIEM-CORR-2025-07-23-00512",
+            "alert_source": "Splunk_ES",
+            "correlation_rule": "DLP_Multi_Channel_Exfiltration",
+            "rule_id": "CORR-DLP-007",
+            "timestamp": "2025-07-23T00:55:01Z",
+            "severity": "CRITICAL",
+            "confidence": 92,
+            "risk_score": 94,
+            "description": "Multiple data exfiltration indicators detected for single user within 60-minute window. User uploaded large encrypted archive to personal cloud storage (Dropbox) and sent encrypted attachment to personal email (Gmail). Combined outbound volume: 1.16 GB. All activity occurred after hours, correlating with prior UEBA behavioral anomaly alert.",
+            "user": "m.chen@corp.local",
+            "correlated_events": [
+              {
+                "event_type": "UEBA_ANOMALY",
+                "alert_id": "UEBA-2025-07-22-00419",
+                "timestamp": "2025-07-22T23:14:07Z",
+                "summary": "Behavioral anomaly - after hours login"
+              },
+              {
+                "event_type": "PROXY_CLOUD_UPLOAD",
+                "timestamp": "2025-07-23T00:22:18Z",
+                "summary": "847 MB upload to Dropbox",
+                "dest": "162.125.66.1"
+              },
+              {
+                "event_type": "EMAIL_LARGE_ENCRYPTED_ATTACHMENT",
+                "timestamp": "2025-07-23T00:43:12Z",
+                "summary": "312 MB encrypted 7z to personal Gmail",
+                "recipient": "marcus.chen.personal@gmail.com"
+              },
+              {
+                "event_type": "BULK_FILE_ACCESS",
+                "timestamp": "2025-07-22T23:52:03Z",
+                "summary": "347 files accessed across 3 restricted shares"
+              }
+            ],
+            "mitre_attack_mapping": [
+              {"tactic": "Collection", "technique": "T1005", "name": "Data from Local System"},
+              {"tactic": "Exfiltration", "technique": "T1567", "name": "Exfiltration Over Web Service"},
+              {"tactic": "Exfiltration", "technique": "T1048", "name": "Exfiltration Over Alternative Protocol"}
+            ],
+            "recommended_actions": [
+              "IMMEDIATE: Escalate to Incident Response team",
+              "IMMEDIATE: Notify HR and Legal",
+              "CONTAIN: Consider disabling VPN access pending investigation",
+              "PRESERVE: Initiate forensic imaging of WS-RDEV03",
+              "INVESTIGATE: Request Dropbox and Gmail preservation order through Legal"
+            ],
+            "notable_event_status": "NEW",
+            "assigned_to": null
+          },
+          "severity": "CRITICAL",
+          "hostname": "SIEM-01",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "timestamp": "2025-07-23T00:55:01Z",
+          "isEvidence": true,
+          "evidenceTag": "SIEM_EXFIL_CORRELATION",
+          "sortOrder": 5
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "CrowdStrike Falcon detected a USB mass storage device insertion on WS-RDEV03. A SanDisk 128GB USB drive was connected and 892 MB of data was written to it, representing a third exfiltration channel.",
+          "rawLog": {
+            "event_type": "USBDeviceInserted",
+            "event_id": "CS-USB-2025-07-23-3341",
+            "timestamp": "2025-07-23T01:02:47Z",
+            "severity": "HIGH",
+            "detect_name": "USB Mass Storage Device - Data Write",
+            "host": {
+              "hostname": "WS-RDEV03",
+              "local_ip": "10.200.0.88",
+              "os_version": "Windows 11 Enterprise 23H2"
+            },
+            "user": {
+              "username": "m.chen@corp.local",
+              "domain": "CORP"
+            },
+            "device_info": {
+              "device_class": "USB Mass Storage",
+              "vendor_id": "0x0781",
+              "product_id": "0x5583",
+              "vendor_name": "SanDisk",
+              "product_name": "Ultra Fit USB 3.1",
+              "serial_number": "4C530001241128117244",
+              "capacity_gb": 128,
+              "drive_letter": "E:",
+              "file_system": "exFAT",
+              "device_instance_id": "USB\\VID_0781&PID_5583\\4C530001241128117244"
+            },
+            "activity": {
+              "files_written": 23,
+              "bytes_written": 935329792,
+              "write_duration_sec": 187,
+              "notable_files_written": [
+                "E:\\backup_july.7z",
+                "E:\\project_chimera_specs.pdf",
+                "E:\\Q3_revenue_projections.xlsx",
+                "E:\\product_roadmap_2025-2026.pptx"
+              ],
+              "first_write": "2025-07-23T01:03:14Z",
+              "last_write": "2025-07-23T01:06:21Z"
+            },
+            "policy": {
+              "usb_policy": "MONITOR_ONLY",
+              "policy_note": "USB blocking enforcement scheduled for 2025-08-01",
+              "action_taken": "LOGGED"
+            },
+            "device_first_seen": true,
+            "device_first_seen_note": "This USB device has never been connected to any corporate endpoint before."
+          },
+          "severity": "HIGH",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "timestamp": "2025-07-23T01:02:47Z",
+          "isEvidence": true,
+          "evidenceTag": "EXFIL_USB_DEVICE",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Count all the exfiltration channels used: cloud storage upload, personal email, and USB device. Each represents a separate vector the attacker used to ensure they got the data out.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Notice the DLP policies matched 'MONITOR_ONLY' — the data was detected leaving but not blocked. This is a critical gap in the organization's DLP posture.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "The SIEM correlation alert ties everything together. Look at the correlated_events array to see how multiple lower-severity alerts combine into a critical exfiltration finding with 92% confidence.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 4,
+      "title": "Cover-Up Attempt",
+      "description": "After exfiltrating the data, the employee attempts to cover their tracks by securely deleting files, clearing event logs, and disconnecting. Identify the anti-forensic techniques used and any evidence that survived.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Process Create showing m.chen running SDelete (Sysinternals secure delete tool) to wipe the temporary directory containing the collected files and directory listings.",
+          "rawLog": {
+            "EventID": 1,
+            "EventType": "ProcessCreate",
+            "UtcTime": "2025-07-23T01:12:33Z",
+            "ProcessGuid": "{WS-RDEV03-9b0c1d2e-0006-0006-0123-456789abcdef}",
+            "ProcessId": 14208,
+            "Image": "C:\\Users\\m.chen\\Downloads\\SDelete\\sdelete64.exe",
+            "CommandLine": "sdelete64.exe -p 3 -s -q C:\\Users\\m.chen\\AppData\\Local\\Temp\\collected",
+            "FileVersion": "2.05",
+            "Description": "SDelete - Secure Delete",
+            "Product": "Sysinternals SDelete",
+            "Company": "Sysinternals - www.sysinternals.com",
+            "OriginalFileName": "sdelete64.exe",
+            "CurrentDirectory": "C:\\Users\\m.chen\\Downloads\\SDelete\\",
+            "User": "CORP\\m.chen",
+            "LogonGuid": "{WS-RDEV03-6e7f8a9b-0002-0002-1234-567890abcdef}",
+            "LogonId": "0x8b2c4d5",
+            "TerminalSessionId": 1,
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=E2E5B57BDA65F5B0C2C2ED93D71E5D0C8B7A8D1E3F5A7B9C1D3E5F7A9B0C2D4",
+            "ParentProcessGuid": "{WS-RDEV03-6e7f8a9b-0003-0003-abcd-ef0123456789}",
+            "ParentProcessId": 5204,
+            "ParentImage": "C:\\Windows\\explorer.exe",
+            "ParentCommandLine": "C:\\Windows\\explorer.exe",
+            "RuleName": "technique_id=T1070.004,technique_name=Indicator Removal on Host: File Deletion",
+            "SourceHostname": "WS-RDEV03",
+            "SourceIp": "10.200.0.88",
+            "_analysis_note": "SDelete with -p 3 performs 3-pass overwrite (DoD standard). -s flag processes subdirectories recursively. -q suppresses output. This is deliberate anti-forensic activity."
+          },
+          "severity": "HIGH",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "processName": "sdelete64.exe",
+          "eventId": "1",
+          "timestamp": "2025-07-23T01:12:33Z",
+          "isEvidence": true,
+          "evidenceTag": "ANTI_FORENSIC_SECURE_DELETE",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon detected m.chen deleting the directory listing files and the 7z archive from Documents, followed by emptying the Recycle Bin — further attempts to eliminate evidence of the data collection.",
+          "rawLog": {
+            "EventID": 23,
+            "EventType": "FileDelete",
+            "UtcTime": "2025-07-23T01:14:51Z",
+            "ProcessGuid": "{WS-RDEV03-6e7f8a9b-0003-0003-abcd-ef0123456789}",
+            "ProcessId": 5204,
+            "Image": "C:\\Windows\\explorer.exe",
+            "User": "CORP\\m.chen",
+            "TargetFilename": "C:\\Users\\m.chen\\Documents\\backup_july.7z",
+            "Hashes": "SHA256=UNKNOWN-FILE_DELETED_BEFORE_HASH",
+            "IsExecutable": false,
+            "Archived": false,
+            "SourceHostname": "WS-RDEV03",
+            "additional_deleted_files": [
+              {
+                "timestamp": "2025-07-23T01:14:58Z",
+                "file": "C:\\Users\\m.chen\\AppData\\Local\\Temp\\finance_listing.txt"
+              },
+              {
+                "timestamp": "2025-07-23T01:15:04Z",
+                "file": "C:\\Users\\m.chen\\AppData\\Local\\Temp\\rd_proto_listing.txt"
+              },
+              {
+                "timestamp": "2025-07-23T01:15:09Z",
+                "file": "C:\\Users\\m.chen\\AppData\\Local\\Temp\\exec_listing.txt"
+              }
+            ],
+            "recycle_bin_emptied": {
+              "timestamp": "2025-07-23T01:15:28Z",
+              "items_deleted": 7
+            }
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "processName": "explorer.exe",
+          "eventId": "23",
+          "timestamp": "2025-07-23T01:14:51Z",
+          "isEvidence": true,
+          "evidenceTag": "FILE_DELETION_EVIDENCE_DESTRUCTION",
+          "sortOrder": 2
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Security Event Log cleared by m.chen (Event ID 1102). This is a high-confidence indicator of anti-forensic activity — attempting to destroy the audit trail of all previous security events on the workstation.",
+          "rawLog": {
+            "EventTime": "2025-07-23T01:18:07Z",
+            "Hostname": "WS-RDEV03",
+            "Keywords": "Audit Success",
+            "EventType": "LOG_CLEAR",
+            "EventID": 1102,
+            "SourceName": "Microsoft-Windows-Eventlog",
+            "TaskCategory": "Log clear",
+            "Message": "The audit log was cleared.",
+            "SubjectUserSid": "S-1-5-21-3842773048-1748281579-2839672354-11284",
+            "SubjectUserName": "m.chen",
+            "SubjectDomainName": "CORP",
+            "SubjectLogonId": "0x8b2c4d5",
+            "LogName": "Security",
+            "_analysis_note": "Event ID 1102 is generated when the Security log is cleared. Ironically, this event itself cannot be suppressed — it is always recorded in the new empty log. This is one of the most reliable indicators of cover-up activity."
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "eventId": "1102",
+          "timestamp": "2025-07-23T01:18:07Z",
+          "isEvidence": true,
+          "evidenceTag": "EVENT_LOG_CLEARED",
+          "sortOrder": 3
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "CrowdStrike Falcon generated a high-severity alert for anti-forensic tool usage. SDelete (secure deletion utility) and Security log clearing were both detected, indicating deliberate evidence destruction.",
+          "rawLog": {
+            "event_type": "DetectionSummaryEvent",
+            "event_id": "CS-DET-2025-07-23-7891",
+            "timestamp": "2025-07-23T01:19:22Z",
+            "detect_name": "Anti-Forensic Activity Detected",
+            "detect_description": "Multiple anti-forensic techniques detected on endpoint: secure file deletion using SDelete (3-pass DoD wipe) followed by Windows Security Event Log clearing. These actions strongly indicate deliberate evidence destruction.",
+            "severity": "CRITICAL",
+            "confidence": 95,
+            "tactic": "Defense Evasion",
+            "technique": "T1070 - Indicator Removal on Host",
+            "sub_techniques": [
+              "T1070.001 - Clear Windows Event Logs",
+              "T1070.004 - File Deletion"
+            ],
+            "host": {
+              "hostname": "WS-RDEV03",
+              "local_ip": "10.200.0.88",
+              "os_version": "Windows 11 Enterprise 23H2"
+            },
+            "user": {
+              "username": "m.chen@corp.local",
+              "domain": "CORP"
+            },
+            "detection_details": {
+              "indicators": [
+                {
+                  "type": "SECURE_DELETE_TOOL",
+                  "tool": "SDelete v2.05 (Sysinternals)",
+                  "path": "C:\\Users\\m.chen\\Downloads\\SDelete\\sdelete64.exe",
+                  "command_line": "sdelete64.exe -p 3 -s -q C:\\Users\\m.chen\\AppData\\Local\\Temp\\collected",
+                  "timestamp": "2025-07-23T01:12:33Z",
+                  "note": "3-pass overwrite, recursive, quiet mode"
+                },
+                {
+                  "type": "EVENT_LOG_CLEARED",
+                  "log_name": "Security",
+                  "event_id": 1102,
+                  "timestamp": "2025-07-23T01:18:07Z"
+                }
+              ],
+              "risk_assessment": "CRITICAL - Anti-forensic techniques used in conjunction with confirmed data exfiltration activity strongly indicate malicious insider threat."
+            },
+            "response_actions": [],
+            "status": "NEW"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-RDEV03",
+          "username": "m.chen",
+          "sourceIp": "10.200.0.88",
+          "processName": "sdelete64.exe",
+          "timestamp": "2025-07-23T01:19:22Z",
+          "isEvidence": true,
+          "evidenceTag": "EDR_ANTI_FORENSIC_ALERT",
+          "sortOrder": 4
+        },
+        {
+          "logType": "AUTH_LOG",
+          "summary": "VPN session terminated by m.chen at 01:24 UTC after completing the exfiltration and cover-up activities. Total session duration: 2 hours 22 minutes.",
+          "rawLog": {
+            "EventTime": "2025-07-23T01:24:38Z",
+            "Hostname": "VPN-GW01",
+            "EventType": "VPN_SESSION_END",
+            "SourceName": "Cisco_AnyConnect",
+            "EventID": 722023,
+            "EventCategory": "Session",
+            "Message": "Group <Corp-VPN> User <m.chen@corp.local> IP <73.162.45.112> SVC Session terminated",
+            "UserName": "m.chen@corp.local",
+            "SourceAddress": "73.162.45.112",
+            "AssignedIP": "10.200.0.88",
+            "VPNGroup": "Corp-VPN",
+            "SessionID": "VPN-22Jul2025-8834a",
+            "DurationSec": 8544,
+            "DurationFormatted": "2h 22m 24s",
+            "BytesTx": 1347028992,
+            "BytesRx": 2580742144,
+            "DisconnectReason": "User_Initiated",
+            "session_summary": {
+              "start_time": "2025-07-22T23:02:14Z",
+              "end_time": "2025-07-23T01:24:38Z",
+              "total_bytes_tx": 1347028992,
+              "total_bytes_rx": 2580742144,
+              "total_bytes_tx_mb": 1284,
+              "total_bytes_rx_mb": 2460
+            }
+          },
+          "severity": "MEDIUM",
+          "hostname": "VPN-GW01",
+          "username": "m.chen",
+          "sourceIp": "73.162.45.112",
+          "eventId": "722023",
+          "timestamp": "2025-07-23T01:24:38Z",
+          "isEvidence": true,
+          "evidenceTag": "VPN_SESSION_END",
+          "sortOrder": 5
+        }
+      ],
+      "hints": [
+        {
+          "content": "SDelete with the '-p 3' flag performs a 3-pass overwrite meeting DoD 5220.22-M standard. This isn't something a user does casually — it indicates awareness of forensic recovery techniques and deliberate intent to destroy evidence.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "Event ID 1102 (Security log cleared) is self-documenting — clearing the log always generates this event in the new empty log. The attacker can't prevent this. It's sometimes called the 'last witness' event.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "Even though the local Security log was cleared and files were securely deleted, the SIEM, EDR, proxy, email gateway, DNS, and VPN logs all exist on separate infrastructure the user couldn't access. This is why centralized logging is critical.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What was the primary UEBA anomaly factor that contributed most to m.chen's elevated risk score of 82?",
+      "options": [
+        "VPN connection from an unrecognized geographic location",
+        "Login time deviation of 14.8 hours outside normal window with zero prior after-hours logins",
+        "Failed multi-factor authentication attempts",
+        "Access to file shares using a service account"
+      ],
+      "correctAnswer": "Login time deviation of 14.8 hours outside normal window with zero prior after-hours logins",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "The UEBA alert shows the LOGIN_TIME_DEVIATION factor had the highest weight (35 points). Marcus logged in at 23:02 UTC, which is 14.8 hours outside his normal 07:50-08:20 UTC window. His historical baseline showed zero after-hours logins in the 90-day observation period, making this an extreme deviation. The VPN was from his home IP (a known location), MFA succeeded, and he used his own credentials — not a service account.",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select ALL logs from Stage 1 that represent behavioral anomalies deviating from m.chen's established baseline. (Select all that apply)",
+      "options": [
+        "Badge access at 22:47 UTC (AFTER_HOURS_BADGE_ACCESS)",
+        "VPN login at 23:02 UTC (AFTER_HOURS_VPN_LOGIN)",
+        "UEBA anomaly alert with risk score 82 (UEBA_ANOMALY_ALERT)",
+        "Normal daytime login at 08:03 UTC",
+        "Normal daytime logoff at 17:24 UTC",
+        "File share access to finance reports (UNAUTHORIZED_SHARE_ACCESS)"
+      ],
+      "correctAnswer": [
+        "Badge access at 22:47 UTC (AFTER_HOURS_BADGE_ACCESS)",
+        "VPN login at 23:02 UTC (AFTER_HOURS_VPN_LOGIN)",
+        "UEBA anomaly alert with risk score 82 (UEBA_ANOMALY_ALERT)",
+        "File share access to finance reports (UNAUTHORIZED_SHARE_ACCESS)"
+      ],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "Four logs represent anomalous behavior: the after-hours badge access (14.5 hours outside baseline), the after-hours VPN login (first in 90 days), the UEBA alert summarizing the anomalies, and the access to the finance file share (outside the user's normal R&D scope). The daytime login (08:03) and logoff (17:24) are normal baseline events included for contrast — they demonstrate what m.chen's typical activity looks like.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "TRUE_FALSE",
+      "question": "Based on Stage 1 evidence alone, there is sufficient proof that m.chen is intentionally exfiltrating data and the SOC should immediately disable his account.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Stage 1 only shows behavioral anomalies: after-hours login and access to a share outside normal scope. While suspicious, there could be legitimate explanations (urgent project, helping a colleague). Insider threat investigations require patience and thorough evidence gathering. Prematurely disabling the account could alert the subject, destroy the investigation, and expose the company to legal liability if the activity turns out to be benign. The SOC should continue monitoring and collecting evidence while coordinating with HR and Legal.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What MITRE ATT&CK technique is demonstrated by m.chen running 'dir /s /b' commands and redirecting output to text files?",
+      "options": [
+        "T1059 - Command and Scripting Interpreter",
+        "T1083 - File and Directory Discovery",
+        "T1005 - Data from Local System",
+        "T1074 - Data Staged"
+      ],
+      "correctAnswer": "T1083 - File and Directory Discovery",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The 'dir /s /b' command recursively lists all files and subdirectories in a bare format (full path, no headers). Redirecting this output to a text file is a classic File and Directory Discovery (T1083) technique — the attacker is cataloging what files exist before deciding which ones to collect. While cmd.exe is technically a command interpreter (T1059), the purpose of the command is discovery. T1005 (Data from Local System) and T1074 (Data Staged) occur later when files are actually copied and compressed.",
+      "sortOrder": 4
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "Classify the overall severity of the activity observed in Stage 2, considering that m.chen accessed 347 files (12.8x baseline) across three restricted shares and compressed them into a password-protected, header-encrypted archive.",
+      "options": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "correctAnswer": "HIGH",
+      "points": 15,
+      "category": "accuracy",
+      "explanation": "Stage 2 represents HIGH severity. The combination of directory enumeration, mass file access (12.8x above baseline) across multiple restricted shares including finance and executive strategy, and compression into a password-protected archive with header encryption shows clear data collection and staging intent. It is not yet CRITICAL because exfiltration has not been confirmed at this stage — the data has been collected and staged but not yet observed leaving the network. The severity will escalate to CRITICAL once exfiltration is confirmed in Stage 3.",
+      "sortOrder": 5
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "SHORT_ANSWER",
+      "question": "What is the significance of the '-mhe=on' flag in the 7-Zip command line? Why would an attacker use this specifically?",
+      "options": [],
+      "correctAnswer": "The -mhe=on flag enables header encryption in 7-Zip archives, which encrypts the filenames and directory structure inside the archive. Without this flag, someone inspecting the archive can see the names of contained files even without the password. An attacker uses this to prevent investigators or DLP tools from identifying sensitive filenames within the archive without knowing the password.",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "The '-mhe=on' flag stands for 'encrypt headers: on' and is a feature of the 7z format that encrypts the entire archive directory, including all filenames, file sizes, and folder structure. In a standard password-protected archive, a DLP tool or investigator could open the archive and see filenames like 'Q3_revenue_projections.xlsx' without entering the password. With header encryption enabled, even the file listing is encrypted, making content inspection impossible without the decryption key. This demonstrates the insider's awareness of DLP capabilities and forensic examination techniques.",
+      "sortOrder": 6
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select ALL exfiltration channels (vectors) that m.chen used to extract data from the corporate network.",
+      "options": [
+        "Dropbox cloud storage upload (847 MB)",
+        "Personal Gmail with encrypted attachment (312 MB)",
+        "USB mass storage device (892 MB)",
+        "FTP transfer to external server",
+        "DNS tunneling exfiltration",
+        "Bluetooth file transfer to mobile device"
+      ],
+      "correctAnswer": [
+        "Dropbox cloud storage upload (847 MB)",
+        "Personal Gmail with encrypted attachment (312 MB)",
+        "USB mass storage device (892 MB)"
+      ],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "m.chen used three distinct exfiltration channels: (1) Dropbox upload of 847 MB via web browser, evidenced by proxy and DNS logs; (2) Personal Gmail email with a 312 MB encrypted 7z attachment, evidenced by email gateway logs; and (3) USB device copy of 892 MB to a SanDisk 128GB drive, evidenced by EDR telemetry. There is no evidence of FTP, DNS tunneling, or Bluetooth in the logs. The use of three separate channels indicates the insider wanted redundancy — ensuring data was successfully extracted even if one channel was later blocked or detected.",
+      "sortOrder": 7
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What critical DLP gap allowed the data exfiltration to succeed despite DLP policies being in place?",
+      "options": [
+        "DLP software was not installed on the proxy or email gateway",
+        "DLP policies were configured in MONITOR_ONLY mode — uploads were logged but not blocked",
+        "m.chen had a DLP exemption due to his R&D role",
+        "The encrypted archive bypassed all DLP inspection completely"
+      ],
+      "correctAnswer": "DLP policies were configured in MONITOR_ONLY mode — uploads were logged but not blocked",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Both the proxy log and email gateway log explicitly show DLP policies matched in MONITOR_ONLY mode (DLP-POL-042 and DLP-EMAIL-019). The policies correctly detected the suspicious activity (cloud upload > 100MB, encrypted attachment to external email) and logged it, but the action was 'LOG' / 'LOG_AND_DELIVER' rather than 'BLOCK'. This is a common situation where organizations deploy DLP in monitor mode to understand traffic patterns and reduce false positives before enabling enforcement. The USB policy was similarly in MONITOR_ONLY mode with blocking scheduled for 2025-08-01 — one week too late.",
+      "sortOrder": 8
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Why does Event ID 1102 (Security log cleared) still appear in the logs even though m.chen attempted to clear the Security event log?",
+      "options": [
+        "m.chen did not have sufficient privileges to fully clear the log",
+        "The EDR agent intercepted and prevented the log clearing",
+        "Windows always generates Event ID 1102 in the new empty log — it cannot be suppressed by the user",
+        "A Group Policy restored the log entries from a backup within seconds"
+      ],
+      "correctAnswer": "Windows always generates Event ID 1102 in the new empty log — it cannot be suppressed by the user",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Windows Event ID 1102 is a built-in safeguard. When any user clears the Security event log (even an administrator), Windows automatically writes Event ID 1102 as the first entry in the newly cleared log. This event records who cleared the log and when. It cannot be prevented, disabled, or suppressed by the user — it is hardcoded into the Windows Event Log service. This is sometimes called the 'last witness' event because it is the one event that always survives a log clearing attempt.",
+      "sortOrder": 9
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "RECOMMENDED_ACTION",
+      "question": "Based on the complete evidence chain across all four stages, what should be the SOC's IMMEDIATE recommended actions? Select ALL appropriate actions.",
+      "options": [
+        "Immediately confront m.chen and demand an explanation",
+        "Escalate to Incident Response team, HR, and Legal simultaneously",
+        "Disable m.chen's VPN and remote access pending investigation",
+        "Initiate forensic imaging of WS-RDEV03 before the user returns",
+        "Request legal preservation orders for Dropbox and Gmail accounts",
+        "Send a company-wide email warning about insider threats",
+        "Delete the SIEM alerts to prevent information leakage about the investigation"
+      ],
+      "correctAnswer": [
+        "Escalate to Incident Response team, HR, and Legal simultaneously",
+        "Disable m.chen's VPN and remote access pending investigation",
+        "Initiate forensic imaging of WS-RDEV03 before the user returns",
+        "Request legal preservation orders for Dropbox and Gmail accounts"
+      ],
+      "points": 20,
+      "category": "response",
+      "explanation": "The correct actions prioritize containment, evidence preservation, and proper coordination: (1) Escalate to IR, HR, and Legal — this is mandatory for insider threat cases, as Legal must approve next steps and HR manages the employee relationship; (2) Disable VPN/remote access — prevents further exfiltration while the investigation proceeds; (3) Forensic imaging — must happen before m.chen returns and potentially destroys more evidence on the workstation; (4) Legal preservation orders — Dropbox and Gmail are personal services, so Legal must issue preservation requests before data is deleted. Directly confronting the employee is HR's decision, not the SOC's. Company-wide notifications and deleting alerts are both harmful to the investigation.",
+      "sortOrder": 10
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "What is the final overall severity classification for this complete insider threat incident, considering all stages?",
+      "options": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "correctAnswer": "CRITICAL",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "This incident is CRITICAL severity. A confirmed insider threat actor with legitimate access exfiltrated over 2 GB of sensitive data including R&D prototypes, financial reports, and executive strategy documents through three separate channels (cloud storage, personal email, USB). The data included proprietary information that could cause significant competitive harm. The actor demonstrated premeditation (after-hours timing, systematic discovery), operational security awareness (encrypted archives, header encryption), and anti-forensic intent (secure deletion, log clearing). The combination of confirmed exfiltration of highly sensitive data, multiple exfiltration vectors, and deliberate cover-up activities makes this a CRITICAL severity incident requiring immediate executive notification.",
+      "sortOrder": 11
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "INCIDENT_REPORT",
+      "question": "Write a brief incident summary (2-3 sentences) suitable for inclusion in an executive notification to the CISO. Include: who, what data, how, and total volume exfiltrated.",
+      "options": [],
+      "correctAnswer": "On 2025-07-22 at approximately 23:00 UTC, employee Marcus Chen (R&D Software Engineer) conducted unauthorized after-hours access to corporate file shares containing R&D prototypes, financial reports, and executive strategy documents, collecting approximately 2.3 GB of sensitive data. The data was compressed into encrypted archives and exfiltrated through three channels: Dropbox cloud upload (847 MB), personal Gmail attachment (312 MB), and USB storage device (892 MB), totaling over 2 GB of confirmed exfiltration. The employee subsequently attempted to destroy evidence using secure deletion tools and event log clearing, indicating premeditated and deliberate intent.",
+      "points": 20,
+      "category": "report",
+      "explanation": "An effective executive summary for the CISO must be concise yet comprehensive. It should identify the subject (Marcus Chen, R&D), the data at risk (R&D prototypes, financial reports, executive strategy), the exfiltration methods and volumes (three channels, 2+ GB total), and the indicators of deliberate intent (encryption, anti-forensics). The summary should be factual and evidence-based, avoiding speculation about motive. This format enables the CISO to quickly assess business impact and make decisions about escalation to law enforcement, board notification, or regulatory disclosure.",
+      "sortOrder": 12
+    }
+  ]
+}

