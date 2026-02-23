@@ -4,18 +4,11 @@ import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { AIService } from '../services/ai.service';
 import { z } from 'zod';
+import prisma from '../lib/prisma';
+
 const router = Router();
 
 const DAILY_SCENARIO_GEN_LIMIT = parseInt(process.env.AI_DAILY_SCENARIO_LIMIT || '5', 10);
-const dailyScenarioGenCount = new Map<string, number>();
-
-// Clean up old entries daily
-setInterval(() => {
-  const today = new Date().toISOString().slice(0, 10);
-  for (const key of dailyScenarioGenCount.keys()) {
-    if (!key.endsWith(today)) dailyScenarioGenCount.delete(key);
-  }
-}, 60 * 60 * 1000); // every hour
 
 const generateScenarioSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
@@ -37,13 +30,20 @@ router.post(
         throw new AppError('AI features are not configured. Set ANTHROPIC_API_KEY to enable.', 503);
       }
 
-      // Daily rate limit per user for scenario generation (in-memory tracker)
-      const todayKey = `${req.user!.userId}:${new Date().toISOString().slice(0, 10)}`;
-      const currentCount = dailyScenarioGenCount.get(todayKey) || 0;
-      if (currentCount >= DAILY_SCENARIO_GEN_LIMIT) {
+      // Database-backed daily rate limit per user for scenario generation
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const todayCount = await prisma.auditLog.count({
+        where: {
+          userId: req.user!.userId,
+          action: 'AI_SCENARIO_GENERATE',
+          createdAt: { gte: startOfDay },
+        },
+      });
+
+      if (todayCount >= DAILY_SCENARIO_GEN_LIMIT) {
         throw new AppError(`Daily scenario generation limit reached (${DAILY_SCENARIO_GEN_LIMIT}/day). Try again tomorrow.`, 429);
       }
-      dailyScenarioGenCount.set(todayKey, currentCount + 1);
 
       const params = generateScenarioSchema.parse(req.body);
       const scenario = await AIService.generateScenario(params);
@@ -51,6 +51,16 @@ router.post(
       if (!scenario) {
         throw new AppError('Failed to generate scenario. Please try again.', 500);
       }
+
+      // Log the generation for rate limiting (persists across restarts)
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          action: 'AI_SCENARIO_GENERATE',
+          resource: 'SCENARIO',
+          details: { description: params.description.slice(0, 100) },
+        },
+      });
 
       res.json(scenario);
     } catch (error) {

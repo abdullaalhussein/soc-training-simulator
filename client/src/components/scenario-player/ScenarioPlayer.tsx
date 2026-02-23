@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
 import { AiAssistantPanel } from './AiAssistantPanel';
 import { ResultsScreen } from './ResultsScreen';
+import { OnboardingGuide } from './OnboardingGuide';
 
 interface ScenarioPlayerProps {
   attemptId: string;
@@ -378,6 +379,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         </Tabs>
         {checkpointModal}
         {trainerAlertDialog}
+        <OnboardingGuide />
       </div>
     );
   }
@@ -453,6 +455,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         </div>
         {checkpointModal}
         {trainerAlertDialog}
+        <OnboardingGuide />
       </div>
     );
   }
@@ -514,6 +517,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
       </div>
       {checkpointModal}
       {trainerAlertDialog}
+      <OnboardingGuide />
     </div>
   );
 }
