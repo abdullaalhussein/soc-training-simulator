@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MitreAttackPicker } from './MitreAttackPicker';
 import { useGenerateScenario } from '@/hooks/useGenerateScenario';
 import { useImportScenario } from '@/hooks/useScenarios';
 import { toast } from '@/components/ui/toaster';
-import { Sparkles, Loader2, Download, Upload, Copy } from 'lucide-react';
+import { Sparkles, Loader2, Download, Upload, Copy, ChevronDown, Zap } from 'lucide-react';
 
 interface ScenarioGeneratorDialogProps {
   open: boolean;
@@ -30,12 +30,20 @@ const CATEGORIES = [
   'Supply Chain Attack',
 ];
 
+const TEMPLATES = [
+  { label: 'Phishing Campaign', description: 'A spear-phishing email campaign targeting employees with a malicious attachment that drops a reverse shell and establishes C2 communication.' },
+  { label: 'Ransomware Incident', description: 'A ransomware attack that begins with an exposed RDP service, escalates privileges via credential dumping, moves laterally, and encrypts file shares.' },
+  { label: 'Insider Threat', description: 'A disgruntled employee exfiltrates sensitive data by accessing unauthorized file shares, using USB devices, and uploading to external cloud storage.' },
+  { label: 'Web App Attack', description: 'An attacker exploits a SQL injection vulnerability in a web application to extract database credentials, then pivots to internal systems.' },
+];
+
 export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGeneratorDialogProps) {
   const [description, setDescription] = useState('');
-  const [difficulty, setDifficulty] = useState('INTERMEDIATE');
-  const [mitreInput, setMitreInput] = useState('');
-  const [numStages, setNumStages] = useState(3);
-  const [category, setCategory] = useState('Malware');
+  const [difficulty, setDifficulty] = useState<string>('');
+  const [mitreIds, setMitreIds] = useState<string[]>([]);
+  const [numStages, setNumStages] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const [showExpert, setShowExpert] = useState(false);
   const [generatedJson, setGeneratedJson] = useState<any>(null);
   const [jsonText, setJsonText] = useState('');
 
@@ -43,29 +51,23 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
   const importMutation = useImportScenario();
 
   const handleGenerate = async () => {
-    const mitreAttackIds = mitreInput
-      .split(/[,\s]+/)
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-
-    if (mitreAttackIds.length === 0) {
-      toast({ title: 'Enter at least one MITRE ATT&CK ID (e.g., T1566.001)', variant: 'destructive' });
-      return;
-    }
-
     try {
-      const result = await generateMutation.mutateAsync({
-        description,
-        difficulty,
-        mitreAttackIds,
-        numStages,
-        category,
-      });
+      const params: any = { description };
+      if (difficulty) params.difficulty = difficulty;
+      if (mitreIds.length > 0) params.mitreAttackIds = mitreIds;
+      if (numStages) params.numStages = Number(numStages);
+      if (category) params.category = category;
+
+      const result = await generateMutation.mutateAsync(params);
       setGeneratedJson(result);
       setJsonText(JSON.stringify(result, null, 2));
     } catch {
       toast({ title: 'Failed to generate scenario', variant: 'destructive' });
     }
+  };
+
+  const handleTemplate = (template: typeof TEMPLATES[0]) => {
+    setDescription(template.description);
   };
 
   const handleDownload = () => {
@@ -105,7 +107,11 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
     setGeneratedJson(null);
     setJsonText('');
     setDescription('');
-    setMitreInput('');
+    setDifficulty('');
+    setMitreIds([]);
+    setNumStages('');
+    setCategory('');
+    setShowExpert(false);
   };
 
   return (
@@ -121,68 +127,107 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
         <div className="flex-1 overflow-y-auto space-y-4">
           {!generatedJson ? (
             <>
+              {/* Description — the only required field */}
               <div>
-                <Label>Attack Description</Label>
+                <Label>Describe the attack scenario</Label>
                 <Textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the attack scenario you want to create. E.g., 'A phishing campaign targeting finance employees that delivers a macro-enabled document, which downloads a second-stage payload and establishes persistence via scheduled tasks.'"
+                  placeholder="E.g., A phishing campaign targeting finance employees that delivers a macro-enabled document, downloads a second-stage payload, and establishes persistence via scheduled tasks."
                   rows={4}
+                  className="mt-1"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Just describe the attack — AI will determine difficulty, MITRE techniques, stages, and all scenario content.
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label>Difficulty</Label>
-                  <Select value={difficulty} onValueChange={setDifficulty}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="BEGINNER">Beginner</SelectItem>
-                      <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-                      <SelectItem value="ADVANCED">Advanced</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Quick templates */}
+              <div>
+                <Label className="text-xs text-muted-foreground">Quick templates</Label>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {TEMPLATES.map((t) => (
+                    <Button
+                      key={t.label}
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => handleTemplate(t)}
+                    >
+                      <Zap className="h-3 w-3 mr-1" />
+                      {t.label}
+                    </Button>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <Label>Category</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((cat) => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Expert controls — collapsible */}
+              <div className="border rounded-lg">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+                  onClick={() => setShowExpert(!showExpert)}
+                >
+                  <span>Expert controls (optional)</span>
+                  <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showExpert ? 'rotate-180' : ''}`} />
+                </button>
+                {showExpert && (
+                  <div className="px-3 pb-3 space-y-3 border-t">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                      <div>
+                        <Label className="text-xs">Difficulty</Label>
+                        <Select value={difficulty} onValueChange={setDifficulty}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="AI decides" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BEGINNER">Beginner</SelectItem>
+                            <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
+                            <SelectItem value="ADVANCED">Advanced</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                <div>
-                  <Label>MITRE ATT&CK IDs</Label>
-                  <Input
-                    value={mitreInput}
-                    onChange={(e) => setMitreInput(e.target.value)}
-                    placeholder="T1566.001, T1059.001, T1053.005"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Comma-separated technique IDs</p>
-                </div>
+                      <div>
+                        <Label className="text-xs">Category</Label>
+                        <Select value={category} onValueChange={setCategory}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="AI decides" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIES.map((cat) => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                <div>
-                  <Label>Number of Stages</Label>
-                  <Select value={String(numStages)} onValueChange={(v) => setNumStages(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <SelectItem key={n} value={String(n)}>{n} stage{n !== 1 ? 's' : ''}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                      <div>
+                        <Label className="text-xs">Number of Stages</Label>
+                        <Select value={numStages} onValueChange={setNumStages}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="AI decides" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <SelectItem key={n} value={String(n)}>{n} stage{n !== 1 ? 's' : ''}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="text-xs">MITRE ATT&CK Techniques</Label>
+                      <div className="mt-1">
+                        <MitreAttackPicker value={mitreIds} onChange={setMitreIds} />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Leave empty and AI will select the appropriate techniques from the description.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           ) : (

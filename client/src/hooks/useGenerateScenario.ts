@@ -5,10 +5,10 @@ import { api } from '@/lib/api';
 
 interface GenerateScenarioParams {
   description: string;
-  difficulty: string;
-  mitreAttackIds: string[];
-  numStages: number;
-  category: string;
+  difficulty?: string;
+  mitreAttackIds?: string[];
+  numStages?: number;
+  category?: string;
 }
 
 export function useGenerateScenario() {

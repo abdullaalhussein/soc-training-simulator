@@ -4,15 +4,25 @@ import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { AIService } from '../services/ai.service';
 import { z } from 'zod';
-
 const router = Router();
+
+const DAILY_SCENARIO_GEN_LIMIT = parseInt(process.env.AI_DAILY_SCENARIO_LIMIT || '5', 10);
+const dailyScenarioGenCount = new Map<string, number>();
+
+// Clean up old entries daily
+setInterval(() => {
+  const today = new Date().toISOString().slice(0, 10);
+  for (const key of dailyScenarioGenCount.keys()) {
+    if (!key.endsWith(today)) dailyScenarioGenCount.delete(key);
+  }
+}, 60 * 60 * 1000); // every hour
 
 const generateScenarioSchema = z.object({
   description: z.string().min(10, 'Description must be at least 10 characters').max(2000),
-  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
-  mitreAttackIds: z.array(z.string()).min(1, 'At least one MITRE ATT&CK ID is required'),
-  numStages: z.number().int().min(1).max(5).default(3),
-  category: z.string().min(1, 'Category is required').max(100),
+  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']).optional(),
+  mitreAttackIds: z.array(z.string()).optional(),
+  numStages: z.number().int().min(1).max(5).optional(),
+  category: z.string().max(100).optional(),
 });
 
 router.use(authenticate);
@@ -26,6 +36,14 @@ router.post(
       if (!AIService.isAvailable()) {
         throw new AppError('AI features are not configured. Set ANTHROPIC_API_KEY to enable.', 503);
       }
+
+      // Daily rate limit per user for scenario generation (in-memory tracker)
+      const todayKey = `${req.user!.userId}:${new Date().toISOString().slice(0, 10)}`;
+      const currentCount = dailyScenarioGenCount.get(todayKey) || 0;
+      if (currentCount >= DAILY_SCENARIO_GEN_LIMIT) {
+        throw new AppError(`Daily scenario generation limit reached (${DAILY_SCENARIO_GEN_LIMIT}/day). Try again tomorrow.`, 429);
+      }
+      dailyScenarioGenCount.set(todayKey, currentCount + 1);
 
       const params = generateScenarioSchema.parse(req.body);
       const scenario = await AIService.generateScenario(params);
