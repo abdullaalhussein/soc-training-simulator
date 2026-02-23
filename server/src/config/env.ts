@@ -18,6 +18,7 @@ export const env = {
   SERVER_PORT: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
   NODE_ENV: process.env.NODE_ENV || 'development',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
 };
 
 // Validate JWT secrets
@@ -29,6 +30,10 @@ if (env.JWT_SECRET.includes('change-in-production') || env.JWT_SECRET.length < 3
   } else {
     console.warn('WARNING: JWT_SECRET is a placeholder or too short. Set a strong secret before deploying to production.');
   }
+}
+
+if (!env.ANTHROPIC_API_KEY) {
+  console.warn('WARNING: ANTHROPIC_API_KEY is not set. AI-powered scoring, assistant, and scenario generation will be disabled.');
 }
 
 if (env.JWT_REFRESH_SECRET.includes('change-in-production') || env.JWT_REFRESH_SECRET.length < 32) {

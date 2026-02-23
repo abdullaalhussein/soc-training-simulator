@@ -1,9 +1,14 @@
 import { CheckpointType } from '@prisma/client';
 import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
+import { AIService } from './ai.service';
 
 export class ScoringService {
-  static async gradeAnswer(checkpoint: any, answer: any): Promise<{ isCorrect: boolean; pointsAwarded: number }> {
+  static async gradeAnswer(
+    checkpoint: any,
+    answer: any,
+    scenarioContext?: string,
+  ): Promise<{ isCorrect: boolean; pointsAwarded: number; feedback?: string }> {
     const { checkpointType, correctAnswer, points } = checkpoint;
 
     switch (checkpointType) {
@@ -32,9 +37,27 @@ export class ScoringService {
       }
 
       case 'SHORT_ANSWER': {
-        // Basic keyword matching
-        const answerStr = String(answer).toLowerCase();
         const keywords = Array.isArray(correctAnswer) ? correctAnswer : (correctAnswer.keywords || []);
+
+        // Try AI grading first
+        const aiShortResult = await AIService.gradeShortAnswer(
+          checkpoint.question,
+          String(answer),
+          keywords,
+          scenarioContext,
+        );
+
+        if (aiShortResult) {
+          const score = aiShortResult.score;
+          return {
+            isCorrect: score >= 0.6,
+            pointsAwarded: Math.round(score * points * 10) / 10,
+            feedback: aiShortResult.feedback,
+          };
+        }
+
+        // Fallback: keyword matching
+        const answerStr = String(answer).toLowerCase();
         const matchCount = keywords.filter((k: string) => answerStr.includes(k.toLowerCase())).length;
         const score = keywords.length > 0 ? matchCount / keywords.length : 0;
 
@@ -45,8 +68,25 @@ export class ScoringService {
         const report = typeof answer === 'object' ? answer : { summary: String(answer), recommendations: [] };
         const expected = typeof correctAnswer === 'object' ? correctAnswer : { keywords: [], minRecommendations: 3 };
 
+        // Try AI grading first
+        const aiReportResult = await AIService.gradeIncidentReport(
+          checkpoint.question,
+          { summary: report.summary || '', recommendations: report.recommendations || [] },
+          { keywords: expected.keywords || [], minRecommendations: expected.minRecommendations || 3 },
+          scenarioContext,
+        );
+
+        if (aiReportResult) {
+          const score = aiReportResult.score;
+          return {
+            isCorrect: score >= 0.6,
+            pointsAwarded: Math.round(score * points * 10) / 10,
+            feedback: aiReportResult.feedback,
+          };
+        }
+
+        // Fallback: keyword + recommendation count scoring
         let score = 0;
-        // Check keywords in summary
         const summaryText = (report.summary || '').toLowerCase();
         const keywords = expected.keywords || [];
         const keywordScore = keywords.length > 0
@@ -54,7 +94,6 @@ export class ScoringService {
           : 0;
         score += keywordScore * 0.5;
 
-        // Check recommendations count
         const recs = report.recommendations || [];
         const minRecs = expected.minRecommendations || 3;
         const recScore = Math.min(recs.length / minRecs, 1);

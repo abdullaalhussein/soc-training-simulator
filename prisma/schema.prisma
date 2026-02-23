@@ -271,9 +271,10 @@ model Attempt {
   user     User                 @relation(fields: [userId], references: [id])
   retakeOf Attempt?             @relation("AttemptRetakes", fields: [retakeOfId], references: [id])
   retakes  Attempt[]            @relation("AttemptRetakes")
-  answers  Answer[]
-  actions  InvestigationAction[]
-  notes    TrainerNote[]
+  answers      Answer[]
+  actions      InvestigationAction[]
+  notes        TrainerNote[]
+  aiMessages   AiAssistantMessage[]
 
   @@unique([sessionId, userId, attemptNumber])
   @@index([sessionId, userId])
@@ -289,6 +290,7 @@ model Answer {
   answer       Json
   isCorrect    Boolean  @default(false)
   pointsAwarded Float   @default(0)
+  feedback     String?  @db.Text
   answeredAt   DateTime @default(now())
 
   attempt    Attempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
@@ -354,6 +356,18 @@ model SessionMessage {
   user    User    @relation(fields: [userId], references: [id])
 
   @@index([sessionId, createdAt])
+}
+
+model AiAssistantMessage {
+  id        String   @id @default(cuid())
+  attemptId String
+  role      String   // 'user' or 'assistant'
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, createdAt])
 }
 
 model RefreshToken {

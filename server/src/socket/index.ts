@@ -1,11 +1,13 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { AuthService } from '../services/auth.service';
+import { AIService } from '../services/ai.service';
 import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
 
 const MAX_MESSAGE_LENGTH = 5000;
 const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
 const RATE_LIMIT_MAX_EVENTS = 30; // max events per window
+const AI_MESSAGES_PER_ATTEMPT = 20; // max AI assistant messages per attempt
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -312,6 +314,109 @@ export function initializeSocket(io: SocketIOServer) {
         userName: socket.data.user.email,
       };
       trainerNsp.to(`session:${data.sessionId}`).emit('progress-update', sanitized);
+    });
+
+    socket.on('ai-assistant-message', async (data: { attemptId: string; message: string }) => {
+      if (!isNonEmptyString(data?.attemptId) || !isNonEmptyString(data?.message)) return;
+      if (data.message.length > MAX_MESSAGE_LENGTH) {
+        socket.emit('error-message', { message: 'Message too long' });
+        return;
+      }
+
+      try {
+        const userId = socket.data.user.userId;
+
+        // Validate attempt ownership
+        const attempt = await prisma.attempt.findUnique({
+          where: { id: data.attemptId },
+          include: {
+            session: {
+              include: {
+                scenario: {
+                  include: {
+                    stages: { orderBy: { stageNumber: 'asc' } },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        if (!attempt || attempt.userId !== userId) {
+          socket.emit('error-message', { message: 'Access denied' });
+          return;
+        }
+
+        // Rate limit: count existing AI messages for this attempt
+        const aiMessageCount = await prisma.aiAssistantMessage.count({
+          where: { attemptId: data.attemptId, role: 'user' },
+        });
+
+        if (aiMessageCount >= AI_MESSAGES_PER_ATTEMPT) {
+          socket.emit('ai-assistant-response', {
+            content: 'You have reached the maximum number of AI assistant messages for this attempt.',
+            remaining: 0,
+          });
+          return;
+        }
+
+        // Fetch conversation history
+        const history = await prisma.aiAssistantMessage.findMany({
+          where: { attemptId: data.attemptId },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        });
+
+        const conversationHistory = history.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        // Build context
+        const scenario = attempt.session.scenario;
+        const currentStageData = scenario.stages.find((s) => s.stageNumber === attempt.currentStage);
+        const stageInfo = currentStageData
+          ? `Stage ${currentStageData.stageNumber}: ${currentStageData.title} — ${currentStageData.description}`
+          : `Stage ${attempt.currentStage}`;
+
+        // Call AI
+        const aiResponse = await AIService.getAssistantResponse(
+          data.message,
+          conversationHistory,
+          scenario.briefing,
+          stageInfo,
+          {
+            currentStage: attempt.currentStage,
+            totalStages: scenario.stages.length,
+            score: attempt.totalScore,
+            hintsUsed: attempt.hintsUsed,
+          },
+        );
+
+        if (!aiResponse) {
+          socket.emit('ai-assistant-response', {
+            content: 'AI assistant is currently unavailable. Please try again later.',
+            remaining: AI_MESSAGES_PER_ATTEMPT - aiMessageCount,
+          });
+          return;
+        }
+
+        // Save both messages
+        await prisma.aiAssistantMessage.createMany({
+          data: [
+            { attemptId: data.attemptId, role: 'user', content: data.message },
+            { attemptId: data.attemptId, role: 'assistant', content: aiResponse },
+          ],
+        });
+
+        socket.emit('ai-assistant-response', {
+          content: aiResponse,
+          remaining: AI_MESSAGES_PER_ATTEMPT - aiMessageCount - 1,
+        });
+      } catch (err) {
+        logger.error('AI assistant error', { error: err });
+        socket.emit('error-message', { message: 'AI assistant error' });
+      }
     });
 
     handleSessionMessage(socket);

@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { api } from '@/lib/api';
 import { toast } from '@/components/ui/toaster';
-import { CheckCircle, XCircle, Info, ArrowRight } from 'lucide-react';
+import { CheckCircle, XCircle, Info, ArrowRight, Sparkles } from 'lucide-react';
 import { YaraRuleEditor } from './YaraRuleEditor';
 
 interface CheckpointModalProps {
@@ -269,6 +269,15 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
                   <p className="text-xs">Points awarded: {result.pointsAwarded}/{cp.points}</p>
                 </div>
               </div>
+              {result.feedback && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-purple-800 dark:text-purple-400 rounded-md p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 shrink-0" />
+                    <p className="text-sm font-medium">AI Feedback</p>
+                  </div>
+                  <p className="text-sm">{result.feedback}</p>
+                </div>
+              )}
               {hasCorrectAnswer && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-400 rounded-md p-3 space-y-1">
                   <div className="flex items-center gap-2">

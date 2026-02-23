@@ -248,18 +248,28 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     const checkpoint = await prisma.checkpoint.findUnique({ where: { id: checkpointId } });
     if (!checkpoint) throw new AppError('Checkpoint not found', 404);
 
-    const { isCorrect, pointsAwarded } = await ScoringService.gradeAnswer(checkpoint, answer);
+    // Fetch scenario briefing for AI context
+    let scenarioContext: string | undefined;
+    try {
+      const attemptWithScenarioBriefing = await prisma.attempt.findUnique({
+        where: { id: attemptId },
+        include: { session: { include: { scenario: { select: { briefing: true } } } } },
+      });
+      scenarioContext = attemptWithScenarioBriefing?.session?.scenario?.briefing;
+    } catch { /* non-critical */ }
+
+    const { isCorrect, pointsAwarded, feedback } = await ScoringService.gradeAnswer(checkpoint, answer, scenarioContext);
 
     const savedAnswer = await prisma.answer.upsert({
       where: { attemptId_checkpointId: { attemptId, checkpointId } },
-      update: { answer, isCorrect, pointsAwarded },
-      create: { attemptId, checkpointId, answer, isCorrect, pointsAwarded },
+      update: { answer, isCorrect, pointsAwarded, feedback: feedback || null },
+      create: { attemptId, checkpointId, answer, isCorrect, pointsAwarded, feedback: feedback || null },
     });
 
     // Recalculate scores
     await ScoringService.recalculateScores(attemptId);
 
-    const response: any = { ...savedAnswer };
+    const response: any = { ...savedAnswer, feedback: savedAnswer.feedback || feedback || undefined };
 
     // For BEGINNER scenarios, include correct answer + explanation on wrong answers
     if (!isCorrect) {
@@ -433,6 +443,27 @@ router.get('/:id/results', async (req: Request, res: Response, next: NextFunctio
     }
 
     res.json(attempt);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get AI assistant messages for an attempt
+router.get('/:id/ai-messages', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.userId !== req.user!.userId && !['ADMIN', 'TRAINER'].includes(req.user!.role)) {
+      throw new AppError('Access denied', 403);
+    }
+
+    const messages = await prisma.aiAssistantMessage.findMany({
+      where: { attemptId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json(messages);
   } catch (error) {
     next(error);
   }

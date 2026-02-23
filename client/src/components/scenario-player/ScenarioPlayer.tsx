@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { useMobile } from '@/hooks/useMobile';
 import { getTraineeSocket } from '@/lib/socket';
-import { FileText, MessageCircle, AlertTriangle } from 'lucide-react';
+import { FileText, MessageCircle, AlertTriangle, Sparkles } from 'lucide-react';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
+import { AiAssistantPanel } from './AiAssistantPanel';
 
 interface ScenarioPlayerProps {
   attemptId: string;
@@ -34,6 +35,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const [localAnsweredIds, setLocalAnsweredIds] = useState<Set<string>>(new Set());
   const [briefingSheetOpen, setBriefingSheetOpen] = useState(false);
   const [chatSheetOpen, setChatSheetOpen] = useState(false);
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
   const [trainerAlert, setTrainerAlert] = useState<string | null>(null);
 
   const isMobile = useMobile();
@@ -339,6 +341,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
             <TabsTrigger value="brief" className="flex-1">Brief</TabsTrigger>
             <TabsTrigger value="logs" className="flex-1">Logs</TabsTrigger>
             <TabsTrigger value="work" className="flex-1">Work</TabsTrigger>
+            <TabsTrigger value="ai" className="flex-1">AI</TabsTrigger>
             {sessionId && <TabsTrigger value="chat" className="flex-1">Chat</TabsTrigger>}
           </TabsList>
           <TabsContent value="brief" className="flex-1 overflow-y-auto mt-0">
@@ -349,6 +352,9 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
           </TabsContent>
           <TabsContent value="work" className="flex-1 overflow-y-auto mt-0">
             <InvestigationWorkspace {...workspaceProps} />
+          </TabsContent>
+          <TabsContent value="ai" className="flex-1 overflow-hidden mt-0">
+            <AiAssistantPanel attemptId={attemptId} />
           </TabsContent>
           {sessionId && (
             <TabsContent value="chat" className="flex-1 overflow-hidden mt-0">
@@ -383,6 +389,14 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
             >
               <FileText className="mr-1 h-4 w-4" /> Briefing
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shadow-md"
+              onClick={() => setAiSheetOpen(true)}
+            >
+              <Sparkles className="mr-1 h-4 w-4" /> AI Help
+            </Button>
             {sessionId && (
               <Button
                 size="sm"
@@ -400,6 +414,14 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
                 <SheetTitle>Briefing</SheetTitle>
               </SheetHeader>
               <BriefingPanel {...briefingProps} />
+            </SheetContent>
+          </Sheet>
+          <Sheet open={aiSheetOpen} onOpenChange={setAiSheetOpen}>
+            <SheetContent side="right" className="w-80 p-0 flex flex-col">
+              <SheetHeader className="px-4 py-3 border-b">
+                <SheetTitle>AI Assistant</SheetTitle>
+              </SheetHeader>
+              <AiAssistantPanel attemptId={attemptId} />
             </SheetContent>
           </Sheet>
           {sessionId && (
@@ -433,25 +455,43 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
           <InvestigationWorkspace {...workspaceProps} />
         </div>
-        {sessionId && (
-          <>
+        <div className="absolute bottom-4 right-[19rem] z-10 flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-md"
+            onClick={() => setAiSheetOpen(true)}
+          >
+            <Sparkles className="mr-1 h-4 w-4" /> AI Help
+          </Button>
+          {sessionId && (
             <Button
               size="sm"
               variant="outline"
-              className="absolute bottom-4 right-[19rem] z-10 shadow-md"
+              className="shadow-md"
               onClick={() => setChatSheetOpen(true)}
             >
               <MessageCircle className="mr-1 h-4 w-4" /> Chat
             </Button>
-            <Sheet open={chatSheetOpen} onOpenChange={setChatSheetOpen}>
-              <SheetContent side="right" className="w-80 p-0 flex flex-col">
-                <SheetHeader className="px-4 py-3 border-b">
-                  <SheetTitle>Discussion</SheetTitle>
-                </SheetHeader>
-                <DiscussionPanel sessionId={sessionId} />
-              </SheetContent>
-            </Sheet>
-          </>
+          )}
+        </div>
+        <Sheet open={aiSheetOpen} onOpenChange={setAiSheetOpen}>
+          <SheetContent side="right" className="w-80 p-0 flex flex-col">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle>AI Assistant</SheetTitle>
+            </SheetHeader>
+            <AiAssistantPanel attemptId={attemptId} />
+          </SheetContent>
+        </Sheet>
+        {sessionId && (
+          <Sheet open={chatSheetOpen} onOpenChange={setChatSheetOpen}>
+            <SheetContent side="right" className="w-80 p-0 flex flex-col">
+              <SheetHeader className="px-4 py-3 border-b">
+                <SheetTitle>Discussion</SheetTitle>
+              </SheetHeader>
+              <DiscussionPanel sessionId={sessionId} />
+            </SheetContent>
+          </Sheet>
         )}
       </div>
       {checkpointModal}

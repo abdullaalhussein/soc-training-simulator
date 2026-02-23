@@ -11,9 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScenarioWizard } from '@/components/admin/scenario-wizard/ScenarioWizard';
+import { ScenarioGeneratorDialog } from '@/components/admin/ScenarioGeneratorDialog';
 import { MitreAttackBadge } from '@/components/MitreAttackBadge';
 import { toast } from '@/components/ui/toaster';
-import { Plus, BookOpen, Layers, CheckSquare, MoreVertical, Pencil, Download, Trash2, Upload, Eye, FileDown } from 'lucide-react';
+import { Plus, BookOpen, Layers, CheckSquare, MoreVertical, Pencil, Download, Trash2, Upload, Eye, FileDown, Sparkles } from 'lucide-react';
 
 const difficultyColors: Record<string, string> = {
   BEGINNER: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -27,6 +28,7 @@ export default function ScenariosPage() {
   const deleteScenario = useDeleteScenario();
   const importScenario = useImportScenario();
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [editingScenario, setEditingScenario] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +174,9 @@ export default function ScenariosPage() {
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importScenario.isPending}>
             <Upload className="mr-2 h-4 w-4" /> Import
           </Button>
+          <Button variant="outline" onClick={() => setGeneratorOpen(true)}>
+            <Sparkles className="mr-2 h-4 w-4" /> Generate with AI
+          </Button>
           <Button onClick={() => setWizardOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Create Scenario
           </Button>
@@ -287,6 +292,9 @@ export default function ScenariosPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* AI Scenario Generator Dialog */}
+      <ScenarioGeneratorDialog open={generatorOpen} onOpenChange={setGeneratorOpen} />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
