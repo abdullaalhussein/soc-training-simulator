@@ -50,9 +50,11 @@ export function InvestigationWorkspace({
       <Tabs defaultValue="evidence" className="flex-1 flex flex-col">
         <TabsList className="mx-3 mt-2">
           <TabsTrigger value="evidence" className="text-xs">
+            <Package className="h-3.5 w-3.5 mr-1" />
             Evidence <Badge variant="secondary" className="ml-1 text-xs">{evidence.length}</Badge>
           </TabsTrigger>
           <TabsTrigger value="timeline" className="text-xs">
+            <Clock className="h-3.5 w-3.5 mr-1" />
             Timeline <Badge variant="secondary" className="ml-1 text-xs">{timelineEntries.length}</Badge>
           </TabsTrigger>
         </TabsList>

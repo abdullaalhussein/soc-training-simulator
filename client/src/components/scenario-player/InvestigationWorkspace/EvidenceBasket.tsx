@@ -2,7 +2,8 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Minus, Package } from 'lucide-react';
+import { format } from 'date-fns';
+import { Trash2, Package } from 'lucide-react';
 
 interface EvidenceBasketProps {
   evidence: any[];
@@ -21,26 +22,33 @@ export function EvidenceBasket({ evidence, onRemove }: EvidenceBasketProps) {
   }
 
   return (
-    <div className="space-y-2">
-      {evidence.map((log) => (
-        <div key={log.id} className="border rounded-md p-2 text-sm hover:bg-muted/50 overflow-hidden">
-          <div className="flex items-center gap-1 mb-1 flex-wrap">
-            <Badge variant="outline" className="text-xs">{log.logType}</Badge>
-            <Badge variant="outline" className="text-xs">{log.severity}</Badge>
+    <div className="space-y-2.5">
+      {evidence.map((log, index) => (
+        <div key={log.id} className="border rounded-lg bg-card shadow-sm overflow-hidden">
+          <div className="flex items-start justify-between gap-2 px-3 pt-2.5 pb-1">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <span className="text-xs font-semibold text-muted-foreground">#{index + 1}</span>
+              <Badge className="text-[10px]" variant="outline">{log.logType?.replace('_', ' ')}</Badge>
+              <Badge className="text-[10px]" variant="outline">{log.severity}</Badge>
+            </div>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+              title="Remove from Evidence"
+              onClick={() => onRemove(log.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
-          <p className="text-xs truncate mb-1.5">{log.summary}</p>
-          {log.hostname && (
-            <p className="text-xs text-muted-foreground mb-1.5">{log.hostname}</p>
-          )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full h-7 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => onRemove(log.id)}
-          >
-            <Minus className="h-3.5 w-3.5 mr-1" />
-            <span className="text-xs">Remove</span>
-          </Button>
+          <div className="px-3 pb-2.5 space-y-1">
+            <p className="text-xs leading-relaxed">{log.summary}</p>
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              {log.hostname && <span>{log.hostname}</span>}
+              {log.hostname && log.timestamp && <span>·</span>}
+              {log.timestamp && <span>{format(new Date(log.timestamp), 'HH:mm:ss')}</span>}
+            </div>
+          </div>
         </div>
       ))}
     </div>

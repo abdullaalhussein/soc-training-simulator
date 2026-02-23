@@ -51,6 +51,11 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
         createdBy: { select: { id: true, name: true } },
         _count: { select: { members: true, attempts: true } },
         members: req.user!.role === 'TRAINEE' ? { where: { userId: req.user!.userId } } : false,
+        attempts: req.user!.role === 'TRAINEE' ? {
+          where: { userId: req.user!.userId, status: { not: 'RETAKEN' } },
+          select: { id: true, status: true, totalScore: true },
+          orderBy: { createdAt: 'desc' },
+        } : false,
       },
       orderBy: { createdAt: 'desc' },
     });
