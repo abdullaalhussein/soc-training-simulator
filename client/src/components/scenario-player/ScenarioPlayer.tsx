@@ -15,9 +15,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { useMobile } from '@/hooks/useMobile';
 import { getTraineeSocket } from '@/lib/socket';
-import { FileText, MessageCircle, AlertTriangle, Sparkles } from 'lucide-react';
+import { FileText, MessageCircle, AlertTriangle, Sparkles, Lock, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
 import { AiAssistantPanel } from './AiAssistantPanel';
+import { ResultsScreen } from './ResultsScreen';
 
 interface ScenarioPlayerProps {
   attemptId: string;
@@ -37,6 +39,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const [chatSheetOpen, setChatSheetOpen] = useState(false);
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
   const [trainerAlert, setTrainerAlert] = useState<string | null>(null);
+  const [viewingStage, setViewingStage] = useState<number | null>(null);
 
   const isMobile = useMobile();
   const isTablet = useMobile(1024);
@@ -60,6 +63,13 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     }
     setStateRestored(true);
   }, [attempt, stateRestored]);
+
+  // Sync viewingStage when currentStage advances
+  useEffect(() => {
+    if (attempt?.currentStage) {
+      setViewingStage(attempt.currentStage);
+    }
+  }, [attempt?.currentStage]);
 
   // Timer
   useEffect(() => {
@@ -118,11 +128,12 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   }, [attemptId, attempt, elapsedSeconds]);
 
   const addEvidence = useCallback((log: any) => {
-    if (!evidence.find(e => e.id === log.id)) {
-      setEvidence(prev => [...prev, log]);
-      trackAction('EVIDENCE_ADDED', { logId: log.id, summary: log.summary });
-    }
-  }, [evidence, trackAction]);
+    setEvidence(prev => {
+      if (prev.find(e => e.id === log.id)) return prev;
+      return [...prev, log];
+    });
+    trackAction('EVIDENCE_ADDED', { logId: log.id, summary: log.summary });
+  }, [trackAction]);
 
   const removeEvidence = useCallback((logId: string) => {
     setEvidence(prev => prev.filter(e => e.id !== logId));
@@ -130,7 +141,10 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   }, [trackAction]);
 
   const addTimelineEntry = useCallback((entry: any) => {
-    setTimelineEntries(prev => [...prev, { ...entry, id: Date.now().toString() }]);
+    setTimelineEntries(prev => {
+      if (entry.logId && prev.find(e => e.logId === entry.logId)) return prev;
+      return [...prev, { ...entry, id: Date.now().toString() }];
+    });
     trackAction('TIMELINE_ENTRY_ADDED', entry);
   }, [trackAction]);
 
@@ -189,6 +203,9 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const scenario = attempt.session?.scenario;
   const stages = scenario?.stages || [];
   const currentStageData = stages.find((s: any) => s.stageNumber === attempt.currentStage);
+  const activeViewingStage = viewingStage ?? attempt.currentStage;
+  const viewingStageData = stages.find((s: any) => s.stageNumber === activeViewingStage);
+  const isViewingCurrentStage = activeViewingStage === attempt.currentStage;
   const checkpoints = scenario?.checkpoints?.filter((c: any) => c.stageNumber === attempt.currentStage) || [];
   const serverAnsweredIds = new Set(attempt.answers?.map((a: any) => a.checkpointId) || []);
   const unansweredCheckpoints = checkpoints.filter(
@@ -196,79 +213,27 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   );
 
   if (attempt.status === 'COMPLETED') {
-    return (
-      <div className="min-h-screen bg-background p-4 md:p-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className="text-center space-y-2">
-            <h1 className="text-2xl md:text-3xl font-bold">Thanks for Your Efforts!</h1>
-            <p className="text-muted-foreground">
-              Great work completing this investigation. Here&apos;s a summary of your performance.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-primary">{attempt.totalScore}</p>
-              <p className="text-sm text-muted-foreground">Total Score</p>
-            </div>
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold">{attempt.accuracyScore}</p>
-              <p className="text-sm text-muted-foreground">Accuracy (/35)</p>
-            </div>
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold">{attempt.investigationScore}</p>
-              <p className="text-sm text-muted-foreground">Investigation (/20)</p>
-            </div>
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold">{attempt.evidenceScore}</p>
-              <p className="text-sm text-muted-foreground">Evidence (/20)</p>
-            </div>
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold">{attempt.responseScore}</p>
-              <p className="text-sm text-muted-foreground">Response (/15)</p>
-            </div>
-            <div className="bg-card border rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold">{attempt.reportScore}</p>
-              <p className="text-sm text-muted-foreground">Report (/10)</p>
-            </div>
-          </div>
-          {attempt.hintPenalty > 0 && (
-            <p className="text-sm text-destructive">Hint Penalty: -{attempt.hintPenalty} points ({attempt.hintsUsed} hints used)</p>
-          )}
-          {attempt.notes?.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-semibold">Trainer Notes</h3>
-              {attempt.notes.map((n: any) => (
-                <div key={n.id} className="bg-muted p-3 rounded-md text-sm">
-                  <p className="font-medium">{n.trainer?.name}</p>
-                  <p>{n.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="text-center pt-4">
-            <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
-              Back to Dashboard
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
+    return <ResultsScreen attemptId={attemptId} />;
   }
 
   const briefingProps = {
     briefing: scenario?.briefing || '',
-    stageTitle: currentStageData?.title || '',
-    stageDescription: currentStageData?.description || '',
-    hints: currentStageData?.hints || [],
+    stageTitle: viewingStageData?.title || '',
+    stageDescription: viewingStageData?.description || '',
+    hints: viewingStageData?.hints || [],
     attemptId,
-    trainerHints,
+    trainerHints: isViewingCurrentStage ? trainerHints : [],
     onHintUsed: () => queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] }),
   };
 
   const logProps = {
     attemptId,
+    stageNumber: activeViewingStage,
+    evidence,
+    timelineEntries,
     onTrackAction: trackAction,
     onAddEvidence: addEvidence,
+    onRemoveEvidence: removeEvidence,
     onAddTimeline: addTimelineEntry,
   };
 
@@ -298,6 +263,53 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     onOpenCheckpoints: handleStageComplete,
     onAdvanceStage: handleAdvanceStage,
   };
+
+  const stageSelector = stages.length > 1 && (
+    <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/30 overflow-x-auto">
+      {stages.map((s: any) => {
+        const isUnlocked = s.stageNumber <= attempt.currentStage;
+        const isActive = s.stageNumber === activeViewingStage;
+        const isCurrent = s.stageNumber === attempt.currentStage;
+        return (
+          <button
+            key={s.stageNumber}
+            disabled={!isUnlocked}
+            onClick={() => setViewingStage(s.stageNumber)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors',
+              isActive
+                ? 'bg-primary text-primary-foreground'
+                : isUnlocked
+                  ? 'bg-background border hover:bg-accent cursor-pointer'
+                  : 'text-muted-foreground/50 cursor-not-allowed',
+            )}
+          >
+            {!isUnlocked && <Lock className="h-3 w-3" />}
+            <span>Stage {s.stageNumber}</span>
+            {isCurrent && isUnlocked && (
+              <span className="ml-1 inline-block w-1.5 h-1.5 rounded-full bg-green-500" />
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const viewingPastStageBanner = !isViewingCurrentStage && (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-3 py-2 flex items-center justify-between">
+      <p className="text-xs text-amber-800 dark:text-amber-400">
+        Viewing Stage {activeViewingStage}: {viewingStageData?.title}
+      </p>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-6 text-xs text-amber-800 dark:text-amber-400"
+        onClick={() => setViewingStage(attempt.currentStage)}
+      >
+        Back to current stage <ChevronRight className="ml-1 h-3 w-3" />
+      </Button>
+    </div>
+  );
 
   const checkpointModal = showCheckpoint && unansweredCheckpoints.length > 0 && (
     <CheckpointModal
@@ -336,6 +348,8 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     return (
       <div className="h-screen flex flex-col bg-background">
         <PlayerHeader {...headerProps} />
+        {stageSelector}
+        {viewingPastStageBanner}
         <Tabs defaultValue="logs" className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="w-full rounded-none border-b shrink-0">
             <TabsTrigger value="brief" className="flex-1">Brief</TabsTrigger>
@@ -373,11 +387,13 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
     return (
       <div className="h-screen flex flex-col bg-background">
         <PlayerHeader {...headerProps} />
+        {stageSelector}
+        {viewingPastStageBanner}
         <div className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 min-w-0 overflow-hidden">
             <LogFeedViewer {...logProps} />
           </div>
-          <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
+          <div className="w-72 flex-shrink-0 border-l overflow-y-auto overflow-x-hidden">
             <InvestigationWorkspace {...workspaceProps} />
           </div>
           <div className="absolute bottom-4 left-4 z-10 flex gap-2">
@@ -445,6 +461,8 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   return (
     <div className="h-screen flex flex-col bg-background">
       <PlayerHeader {...headerProps} />
+      {stageSelector}
+      {viewingPastStageBanner}
       <div className="flex-1 flex overflow-hidden relative">
         <div className="w-64 flex-shrink-0 border-r overflow-y-auto">
           <BriefingPanel {...briefingProps} />
@@ -452,7 +470,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         <div className="flex-1 min-w-0 overflow-hidden">
           <LogFeedViewer {...logProps} />
         </div>
-        <div className="w-72 flex-shrink-0 border-l overflow-y-auto">
+        <div className="w-72 flex-shrink-0 border-l overflow-y-auto overflow-x-hidden">
           <InvestigationWorkspace {...workspaceProps} />
         </div>
         <div className="absolute bottom-4 right-[19rem] z-10 flex gap-2">

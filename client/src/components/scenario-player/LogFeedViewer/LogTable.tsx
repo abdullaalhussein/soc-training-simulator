@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Clock, Check } from 'lucide-react';
 import { format } from 'date-fns';
 
 const severityColors: Record<string, string> = {
@@ -33,13 +33,15 @@ interface LogTableProps {
   logs: any[];
   pagination: any;
   isLoading: boolean;
+  evidenceIds?: Set<string>;
+  timelineLogIds?: Set<string>;
   onLogClick: (log: any) => void;
   onAddEvidence: (log: any) => void;
   onAddTimeline: (entry: any) => void;
   onPageChange: (page: number) => void;
 }
 
-export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidence, onAddTimeline, onPageChange }: LogTableProps) {
+export function LogTable({ logs, pagination, isLoading, evidenceIds, timelineLogIds, onLogClick, onAddEvidence, onAddTimeline, onPageChange }: LogTableProps) {
   if (isLoading) {
     return (
       <div className="p-4 space-y-2">
@@ -101,24 +103,48 @@ export function LogTable({ logs, pagination, isLoading, onLogClick, onAddEvidenc
                   <TableCell className="text-sm truncate" title={log.summary}>{log.summary}</TableCell>
                   <TableCell className="p-1">
                     <div className="flex gap-0" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6"
-                        title="Add to Evidence"
-                        onClick={() => onAddEvidence(log)}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6"
-                        title="Add to Timeline"
-                        onClick={() => onAddTimeline({ timestamp: log.timestamp, summary: log.summary, logId: log.id })}
-                      >
-                        <Clock className="h-3 w-3" />
-                      </Button>
+                      {evidenceIds?.has(log.id) ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-green-600"
+                          title="Already in Evidence"
+                          disabled
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          title="Add to Evidence"
+                          onClick={() => onAddEvidence(log)}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {timelineLogIds?.has(log.id) ? (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-green-600"
+                          title="Already in Timeline"
+                          disabled
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          title="Add to Timeline"
+                          onClick={() => onAddTimeline({ timestamp: log.timestamp, summary: log.summary, logId: log.id })}
+                        >
+                          <Clock className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

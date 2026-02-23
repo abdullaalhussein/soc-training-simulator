@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
-import { X, Clock } from 'lucide-react';
+import { Minus, Clock } from 'lucide-react';
 
 interface TimelineBuilderProps {
   entries: any[];
@@ -26,26 +26,22 @@ export function TimelineBuilder({ entries, onRemove }: TimelineBuilderProps) {
   }
 
   return (
-    <div className="space-y-0">
-      {sorted.map((entry, i) => (
-        <div key={entry.id} className="flex gap-3">
-          <div className="flex flex-col items-center">
-            <div className="w-2 h-2 rounded-full bg-primary mt-2" />
-            {i < sorted.length - 1 && <div className="w-0.5 flex-1 bg-border" />}
-          </div>
-          <div className="flex-1 pb-4">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
-                <p className="text-xs font-mono text-muted-foreground">
-                  {format(new Date(entry.timestamp), 'yyyy-MM-dd HH:mm:ss')}
-                </p>
-                <p className="text-sm mt-0.5">{entry.summary}</p>
-              </div>
-              <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => onRemove(entry.id)}>
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
+    <div className="space-y-2">
+      {sorted.map((entry) => (
+        <div key={entry.id} className="border rounded-md p-2 text-sm hover:bg-muted/50 overflow-hidden">
+          <Badge variant="outline" className="text-xs mb-1">
+            {format(new Date(entry.timestamp), 'yyyy-MM-dd HH:mm:ss')}
+          </Badge>
+          <p className="text-xs truncate mb-1.5">{entry.summary}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-7 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onRemove(entry.id)}
+          >
+            <Minus className="h-3.5 w-3.5 mr-1" />
+            <span className="text-xs">Remove</span>
+          </Button>
         </div>
       ))}
     </div>

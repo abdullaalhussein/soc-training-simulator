@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { X, Package } from 'lucide-react';
+import { Minus, Package } from 'lucide-react';
 
 interface EvidenceBasketProps {
   evidence: any[];
@@ -23,28 +23,24 @@ export function EvidenceBasket({ evidence, onRemove }: EvidenceBasketProps) {
   return (
     <div className="space-y-2">
       {evidence.map((log) => (
-        <div key={log.id} className="border rounded-md p-2 text-sm group hover:bg-muted/50">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1 mb-1">
-                <Badge variant="outline" className="text-xs">{log.logType}</Badge>
-                <Badge variant="outline" className="text-xs">{log.severity}</Badge>
-              </div>
-              <p className="text-xs truncate">{log.summary}</p>
-              {log.hostname && (
-                <p className="text-xs text-muted-foreground mt-0.5">{log.hostname}</p>
-              )}
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-6 w-6 shrink-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
-              onClick={() => onRemove(log.id)}
-              title="Remove evidence"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+        <div key={log.id} className="border rounded-md p-2 text-sm hover:bg-muted/50 overflow-hidden">
+          <div className="flex items-center gap-1 mb-1 flex-wrap">
+            <Badge variant="outline" className="text-xs">{log.logType}</Badge>
+            <Badge variant="outline" className="text-xs">{log.severity}</Badge>
           </div>
+          <p className="text-xs truncate mb-1.5">{log.summary}</p>
+          {log.hostname && (
+            <p className="text-xs text-muted-foreground mb-1.5">{log.hostname}</p>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full h-7 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => onRemove(log.id)}
+          >
+            <Minus className="h-3.5 w-3.5 mr-1" />
+            <span className="text-xs">Remove</span>
+          </Button>
         </div>
       ))}
     </div>

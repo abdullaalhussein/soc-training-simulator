@@ -4,15 +4,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-import { Plus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 
 interface LogDetailModalProps {
   log: any;
+  isEvidence?: boolean;
   onClose: () => void;
   onAddEvidence: (log: any) => void;
+  onRemoveEvidence?: (logId: string) => void;
 }
 
-export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalProps) {
+export function LogDetailModal({ log, isEvidence, onClose, onAddEvidence, onRemoveEvidence }: LogDetailModalProps) {
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[80vh] flex flex-col">
@@ -42,9 +44,15 @@ export function LogDetailModal({ log, onClose, onAddEvidence }: LogDetailModalPr
         </div>
         <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={() => { onAddEvidence(log); onClose(); }}>
-            <Plus className="mr-2 h-4 w-4" /> Add to Evidence
-          </Button>
+          {isEvidence ? (
+            <Button variant="destructive" onClick={() => { onRemoveEvidence?.(log.id); onClose(); }}>
+              <Minus className="mr-2 h-4 w-4" /> Remove from Evidence
+            </Button>
+          ) : (
+            <Button onClick={() => { onAddEvidence(log); onClose(); }}>
+              <Plus className="mr-2 h-4 w-4" /> Add to Evidence
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

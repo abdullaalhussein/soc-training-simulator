@@ -27,7 +27,7 @@ export function InvestigationWorkspace({
   onStageComplete, onAdvanceStage, hasUnansweredCheckpoints, unansweredCount, currentStage, totalStages, stageTitle,
 }: InvestigationWorkspaceProps) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-w-0 overflow-hidden">
       <div className="p-3 border-b space-y-2">
         <h3 className="font-semibold text-sm">Investigation Workspace</h3>
         <div className="bg-muted/50 rounded-md p-2">

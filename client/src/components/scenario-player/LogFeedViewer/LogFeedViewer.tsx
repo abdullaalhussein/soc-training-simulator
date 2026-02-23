@@ -10,31 +10,40 @@ import { LogDetailModal } from './LogDetailModal';
 
 interface LogFeedViewerProps {
   attemptId: string;
+  stageNumber?: number;
+  evidence?: any[];
+  timelineEntries?: any[];
   onTrackAction: (type: string, details?: any) => void;
   onAddEvidence: (log: any) => void;
+  onRemoveEvidence?: (logId: string) => void;
   onAddTimeline: (entry: any) => void;
 }
 
-export function LogFeedViewer({ attemptId, onTrackAction, onAddEvidence, onAddTimeline }: LogFeedViewerProps) {
+export function LogFeedViewer({ attemptId, stageNumber, evidence, timelineEntries, onTrackAction, onAddEvidence, onRemoveEvidence, onAddTimeline }: LogFeedViewerProps) {
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selectedLog, setSelectedLog] = useState<any>(null);
+  const evidenceIds = new Set(evidence?.map((e: any) => e.id) || []);
+  const timelineLogIds = new Set(timelineEntries?.map((e: any) => e.logId).filter(Boolean) || []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['logs', attemptId, filters, search, page],
+    queryKey: ['logs', attemptId, filters, search, page, stageNumber],
     queryFn: async () => {
       const params: any = { ...filters, page: String(page), pageSize: '50' };
       if (search) params.search = search;
+      if (stageNumber !== undefined) params.stageNumber = String(stageNumber);
       const { data } = await api.get(`/logs/attempt/${attemptId}`, { params });
       return data;
     },
   });
 
   const { data: filterOptions } = useQuery({
-    queryKey: ['log-filters', attemptId],
+    queryKey: ['log-filters', attemptId, stageNumber],
     queryFn: async () => {
-      const { data } = await api.get(`/logs/attempt/${attemptId}/filters`);
+      const params: any = {};
+      if (stageNumber !== undefined) params.stageNumber = String(stageNumber);
+      const { data } = await api.get(`/logs/attempt/${attemptId}/filters`, { params });
       return data;
     },
   });
@@ -76,6 +85,8 @@ export function LogFeedViewer({ attemptId, onTrackAction, onAddEvidence, onAddTi
           logs={data?.logs || []}
           pagination={data?.pagination}
           isLoading={isLoading}
+          evidenceIds={evidenceIds}
+          timelineLogIds={timelineLogIds}
           onLogClick={handleLogClick}
           onAddEvidence={onAddEvidence}
           onAddTimeline={onAddTimeline}
@@ -85,8 +96,10 @@ export function LogFeedViewer({ attemptId, onTrackAction, onAddEvidence, onAddTi
       {selectedLog && (
         <LogDetailModal
           log={selectedLog}
+          isEvidence={evidenceIds.has(selectedLog.id)}
           onClose={() => setSelectedLog(null)}
           onAddEvidence={onAddEvidence}
+          onRemoveEvidence={onRemoveEvidence}
         />
       )}
     </div>

@@ -38,8 +38,13 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
     }
 
     // Only return logs from unlocked stages
+    const stageNumberParam = req.query.stageNumber ? parseInt(req.query.stageNumber as string) : undefined;
     const unlockedStageIds = attempt.session.scenario.stages
-      .filter((s: { stageNumber: number }) => s.stageNumber <= attempt.currentStage)
+      .filter((s: { stageNumber: number }) => {
+        if (s.stageNumber > attempt.currentStage) return false;
+        if (stageNumberParam !== undefined) return s.stageNumber === stageNumberParam;
+        return true;
+      })
       .map((s: { id: string }) => s.id);
 
     const {
@@ -144,8 +149,13 @@ router.get('/attempt/:attemptId/filters', async (req: Request, res: Response, ne
       throw new AppError('Access denied', 403);
     }
 
+    const filterStageNumber = req.query.stageNumber ? parseInt(req.query.stageNumber as string) : undefined;
     const unlockedStageIds = attempt.session.scenario.stages
-      .filter((s: { stageNumber: number }) => s.stageNumber <= attempt.currentStage)
+      .filter((s: { stageNumber: number }) => {
+        if (s.stageNumber > attempt.currentStage) return false;
+        if (filterStageNumber !== undefined) return s.stageNumber === filterStageNumber;
+        return true;
+      })
       .map((s: { id: string }) => s.id);
 
     const logs = await prisma.simulatedLog.findMany({

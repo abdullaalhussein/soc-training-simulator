@@ -29,6 +29,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [results, setResults] = useState<Record<string, any>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showFinish, setShowFinish] = useState(false);
 
   const cp = stableCheckpoints[currentIndex];
   if (!cp) return null;
@@ -51,12 +52,16 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
 
       // If correct answer is included (beginner wrong answer), don't auto-advance
       const hasCorrectAnswer = data.correctAnswer !== undefined;
+      const isLastCheckpoint = currentIndex === stableCheckpoints.length - 1;
       if (!hasCorrectAnswer) {
-        if (currentIndex < stableCheckpoints.length - 1) {
+        if (!isLastCheckpoint) {
           setTimeout(() => setCurrentIndex(currentIndex + 1), 1500);
         } else {
-          setTimeout(() => onComplete(), 2000);
+          // Last checkpoint: require manual click so trainee can read feedback
+          setShowFinish(true);
         }
+      } else if (isLastCheckpoint) {
+        setShowFinish(true);
       }
     } catch {
       toast({ title: 'Failed to submit answer', variant: 'destructive' });
@@ -303,13 +308,14 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
               {submitting ? 'Submitting...' : 'Submit Answer'}
             </Button>
           )}
-          {result && hasCorrectAnswer && (
+          {result && hasCorrectAnswer && !showFinish && (
             <Button onClick={handleManualAdvance}>
-              {currentIndex < stableCheckpoints.length - 1 ? (
-                <>Continue <ArrowRight className="ml-1 h-4 w-4" /></>
-              ) : (
-                'Finish'
-              )}
+              Continue <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+          {result && showFinish && (
+            <Button onClick={() => onComplete()}>
+              Finish Stage
             </Button>
           )}
         </DialogFooter>
