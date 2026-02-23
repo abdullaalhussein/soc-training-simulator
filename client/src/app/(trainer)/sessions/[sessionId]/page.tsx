@@ -115,9 +115,9 @@ export default function SessionMonitorPage() {
   const [retakeDialogOpen, setRetakeDialogOpen] = useState(false);
   const [retakeTargetTrainee, setRetakeTargetTrainee] = useState<TraineeState | null>(null);
 
-  // Auto-refresh session data every 10 seconds as fallback for socket
+  // Auto-refresh session data every 3 seconds as fallback for socket
   useEffect(() => {
-    const interval = setInterval(() => refetch(), 10000);
+    const interval = setInterval(() => refetch(), 3000);
     return () => clearInterval(interval);
   }, [refetch]);
 

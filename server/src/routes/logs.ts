@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
 import rateLimit from 'express-rate-limit';
@@ -67,8 +68,26 @@ router.get('/attempt/:attemptId', async (req: Request, res: Response, next: Next
         if (!isNaN(d.getTime())) where.timestamp.lte = d;
       }
     }
-    if (search) {
-      where.summary = { contains: search as string, mode: 'insensitive' };
+    if (search && unlockedStageIds.length > 0) {
+      const s = search as string;
+      const pattern = `%${s}%`;
+      const matchingIds = await prisma.$queryRaw<{ id: string }[]>(
+        Prisma.sql`
+          SELECT "id" FROM "SimulatedLog"
+          WHERE "stageId" IN (${Prisma.join(unlockedStageIds)})
+          AND (
+            "summary" ILIKE ${pattern}
+            OR "hostname" ILIKE ${pattern}
+            OR "username" ILIKE ${pattern}
+            OR "processName" ILIKE ${pattern}
+            OR "eventId" ILIKE ${pattern}
+            OR "sourceIp" ILIKE ${pattern}
+            OR "destIp" ILIKE ${pattern}
+            OR "rawLog"::text ILIKE ${pattern}
+          )
+        `
+      );
+      where.id = { in: matchingIds.map((r) => r.id) };
     }
 
     const pageNum = Math.max(1, parseInt(page as string) || 1);

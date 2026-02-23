@@ -38,8 +38,9 @@ export function EvidenceBasket({ evidence, onRemove }: EvidenceBasketProps) {
             <Button
               size="icon"
               variant="ghost"
-              className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-6 w-6 shrink-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10"
               onClick={() => onRemove(log.id)}
+              title="Remove evidence"
             >
               <X className="h-3 w-3" />
             </Button>

@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
-const MODEL = 'claude-sonnet-4-20250514';
+const MODEL = 'claude-sonnet-4-6';
 
 export class AIService {
   private static client: Anthropic | null = null;

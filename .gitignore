@@ -13,3 +13,4 @@ coverage/
 e2e/.auth/
 playwright-report/
 test-results/
+pg-data/
