@@ -14,7 +14,7 @@ import {
   DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from '@/components/ui/toaster';
-import { Plus, UserX, KeyRound, Pencil } from 'lucide-react';
+import { Plus, UserX, UserCheck, KeyRound, Pencil } from 'lucide-react';
 
 const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
   ADMIN: 'default',
@@ -65,6 +65,15 @@ export default function UsersPage() {
     try {
       await deleteUser.mutateAsync(id);
       toast({ title: 'User deactivated' });
+    } catch {
+      toast({ title: 'Failed', variant: 'destructive' });
+    }
+  };
+
+  const handleActivate = async (id: string) => {
+    try {
+      await updateUser.mutateAsync({ id, isActive: true });
+      toast({ title: 'User activated' });
     } catch {
       toast({ title: 'Failed', variant: 'destructive' });
     }
@@ -171,9 +180,15 @@ export default function UsersPage() {
                         <Button size="sm" variant="ghost" onClick={() => openResetPw(user)} title="Change password">
                           <KeyRound className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeactivate(user.id)}>
-                          <UserX className="h-4 w-4" />
-                        </Button>
+                        {user.isActive ? (
+                          <Button size="sm" variant="ghost" className="text-destructive" onClick={() => handleDeactivate(user.id)} title="Deactivate user">
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                        ) : (
+                          <Button size="sm" variant="ghost" className="text-green-600" onClick={() => handleActivate(user.id)} title="Activate user">
+                            <UserCheck className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
