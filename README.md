@@ -21,6 +21,12 @@
 
 SOC Training Simulator is a full-stack, multi-role platform for training cybersecurity analysts on realistic incident scenarios. Trainees investigate multi-stage attacks by analyzing simulated security logs, collecting evidence, writing YARA rules, and submitting incident reports — while trainers monitor progress in real-time and an AI-powered SOC Mentor guides learning.
 
+### Demo
+
+<p align="center">
+  <video src="demo.mp4" controls width="720"></video>
+</p>
+
 ### Roles
 
 | Role | Capabilities |
