@@ -7,6 +7,7 @@ import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { Server as SocketIOServer } from 'socket.io';
 import { env } from './config/env';
 import { corsOptions } from './config/cors';
@@ -50,6 +51,7 @@ app.use(helmet({
   },
 }));
 app.use(cors(corsOptions));
+app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 

@@ -20,6 +20,14 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/api/auth',
+};
+
 router.post('/login', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
@@ -40,7 +48,11 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
       // Don't fail the login if audit logging fails
     }
 
-    res.json(result);
+    // Set refresh token as httpOnly cookie
+    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+
+    // Return token and user only (no refreshToken in body)
+    res.json({ token: result.token, user: result.user });
   } catch (error) {
     // Audit log failed login attempt
     try {
@@ -64,36 +76,42 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
   }
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token required'),
-});
-
 router.post('/refresh', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { refreshToken } = refreshSchema.parse(req.body);
-    const result = await AuthService.refresh(refreshToken);
-    res.json(result);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
       return next(new AppError('Refresh token required', 400));
     }
+
+    const result = await AuthService.refresh(refreshToken);
+
+    // Set new refresh token cookie (rotation)
+    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+
+    // Return only the new access token
+    res.json({ token: result.token });
+  } catch (error) {
     next(error);
   }
 });
 
-const logoutSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token required'),
-});
-
 router.post('/logout', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { refreshToken } = logoutSchema.parse(req.body);
-    await AuthService.logout(refreshToken);
+    const refreshToken = req.cookies?.refreshToken;
+    if (refreshToken) {
+      await AuthService.logout(refreshToken);
+    }
+
+    // Clear the refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/api/auth',
+    });
+
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(new AppError('Refresh token required', 400));
-    }
     next(error);
   }
 });

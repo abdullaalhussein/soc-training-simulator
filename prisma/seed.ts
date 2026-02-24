@@ -1,5 +1,7 @@
 import { PrismaClient, Role, Difficulty, LogType, UnlockCondition, CheckpointType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 import { scenario2, scenario3, scenario4, scenario5 } from './seed-data/scenarios';
 
 const prisma = new PrismaClient();
@@ -438,6 +440,101 @@ async function main() {
     }
 
     console.log(`Created scenario: ${scenarioFields.name}`);
+  }
+
+  // Seed scenarios from JSON files in ../scenarios/
+  const scenariosDir = path.resolve(__dirname, '..', 'scenarios');
+  if (fs.existsSync(scenariosDir)) {
+    const jsonFiles = fs.readdirSync(scenariosDir).filter(f => f.endsWith('.json'));
+    for (const file of jsonFiles) {
+      const raw = fs.readFileSync(path.join(scenariosDir, file), 'utf-8');
+      const data = JSON.parse(raw);
+
+      // Skip if a scenario with this name already exists
+      const existing = await prisma.scenario.findFirst({ where: { name: data.name } });
+      if (existing) {
+        console.log(`Skipped (already exists): ${data.name}`);
+        continue;
+      }
+
+      const scenario = await prisma.scenario.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          difficulty: data.difficulty as Difficulty,
+          category: data.category,
+          mitreAttackIds: data.mitreAttackIds || [],
+          briefing: data.briefing,
+          lessonContent: data.lessonContent || null,
+          estimatedMinutes: data.estimatedMinutes || 60,
+          isActive: data.isActive !== false,
+        },
+      });
+
+      for (const stageData of data.stages || []) {
+        const stage = await prisma.scenarioStage.create({
+          data: {
+            scenarioId: scenario.id,
+            stageNumber: stageData.stageNumber,
+            title: stageData.title,
+            description: stageData.description,
+            unlockCondition: (stageData.unlockCondition as UnlockCondition) || 'AFTER_PREVIOUS',
+          },
+        });
+
+        for (const logData of stageData.logs || []) {
+          await prisma.simulatedLog.create({
+            data: {
+              stageId: stage.id,
+              logType: logData.logType as LogType,
+              summary: logData.summary,
+              rawLog: logData.rawLog,
+              severity: logData.severity || 'INFO',
+              hostname: logData.hostname || null,
+              username: logData.username || null,
+              sourceIp: logData.sourceIp || null,
+              destIp: logData.destIp || null,
+              processName: logData.processName || null,
+              eventId: logData.eventId || null,
+              timestamp: new Date(logData.timestamp),
+              isEvidence: logData.isEvidence || false,
+              evidenceTag: logData.evidenceTag || null,
+              sortOrder: logData.sortOrder || 0,
+            },
+          });
+        }
+
+        for (const hintData of stageData.hints || []) {
+          await prisma.hint.create({
+            data: {
+              stageId: stage.id,
+              content: hintData.content,
+              pointsPenalty: hintData.pointsPenalty || 3,
+              sortOrder: hintData.sortOrder || 0,
+            },
+          });
+        }
+      }
+
+      for (const cpData of data.checkpoints || []) {
+        await prisma.checkpoint.create({
+          data: {
+            scenarioId: scenario.id,
+            stageNumber: cpData.stageNumber,
+            checkpointType: cpData.checkpointType as CheckpointType,
+            question: cpData.question,
+            options: cpData.options || null,
+            correctAnswer: cpData.correctAnswer,
+            points: cpData.points || 10,
+            category: cpData.category || null,
+            explanation: cpData.explanation || null,
+            sortOrder: cpData.sortOrder || 0,
+          },
+        });
+      }
+
+      console.log(`Created scenario from JSON: ${data.name}`);
+    }
   }
 
   console.log('Seed completed successfully!');

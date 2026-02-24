@@ -16,33 +16,28 @@ export interface User {
 interface AuthState {
   user: User | null;
   token: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
-  login: (user: User, token: string, refreshToken: string) => void;
+  login: (user: User, token: string) => void;
   logout: () => void;
   setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       token: null,
-      refreshToken: null,
       isAuthenticated: false,
-      login: (user, token, refreshToken) => {
+      login: (user, token) => {
         localStorage.setItem('token', token);
-        set({ user, token, refreshToken, isAuthenticated: true });
+        set({ user, token, isAuthenticated: true });
       },
       logout: () => {
-        const { refreshToken } = get();
-        // Best-effort server-side token revocation
-        if (refreshToken) {
-          try { api.post('/auth/logout', { refreshToken }); } catch {}
-        }
+        // Best-effort server-side token revocation (cookie sent automatically)
+        try { api.post('/auth/logout', {}); } catch {}
         disconnectAll();
         localStorage.removeItem('token');
-        set({ user: null, token: null, refreshToken: null, isAuthenticated: false });
+        set({ user: null, token: null, isAuthenticated: false });
       },
       setUser: (user) => set({ user }),
     }),
@@ -51,7 +46,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         token: state.token,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

@@ -9,6 +9,7 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Raw axios instance for refresh calls to avoid interceptor loops
@@ -17,6 +18,7 @@ const rawAxios = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -38,32 +40,26 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (typeof window !== 'undefined') {
-        const { useAuthStore } = await import('@/store/authStore');
-        const { refreshToken } = useAuthStore.getState();
+        try {
+          // Cookie is sent automatically via withCredentials
+          const { data } = await rawAxios.post('/auth/refresh', {});
+          const { token: newToken } = data;
 
-        if (refreshToken) {
-          try {
-            const { data } = await rawAxios.post('/auth/refresh', { refreshToken });
-            const { token: newToken, refreshToken: newRefreshToken } = data;
+          // Update the store with the new access token
+          const { useAuthStore } = await import('@/store/authStore');
+          const store = useAuthStore.getState();
+          store.login(store.user!, newToken);
 
-            // Update the store with new tokens
-            const store = useAuthStore.getState();
-            store.login(store.user!, newToken, newRefreshToken);
-
-            // Retry the original request with the new token
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return api(originalRequest);
-          } catch {
-            // Refresh failed — logout and redirect
-            useAuthStore.getState().logout();
-            window.location.href = '/login';
-            return Promise.reject(error);
-          }
+          // Retry the original request with the new token
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } catch {
+          // Refresh failed — logout and redirect
+          const { useAuthStore } = await import('@/store/authStore');
+          useAuthStore.getState().logout();
+          window.location.href = '/login';
+          return Promise.reject(error);
         }
-
-        // No refresh token available — logout and redirect
-        useAuthStore.getState().logout();
-        window.location.href = '/login';
       }
     }
 

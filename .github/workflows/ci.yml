@@ -11,6 +11,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install server dependencies
+        run: cd server && npm ci
+
+      - name: Generate Prisma client
+        run: cd server && npx prisma generate
+
+      - name: Run unit tests
+        run: cd server && npm test
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest

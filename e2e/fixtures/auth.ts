@@ -47,7 +47,6 @@ async function globalSetup(_config: FullConfig) {
       state: {
         user: data.user,
         token: data.token,
-        refreshToken: data.refreshToken,
         isAuthenticated: true,
       },
       version: 0,

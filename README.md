@@ -1,6 +1,6 @@
 # SOC Training Simulator
 
-**A multi-role Security Operations Center (SOC) training platform with realistic simulated logs for hands-on cybersecurity education.**
+**An open-source platform that prepares SOC analysts for real incidents before they face one.**
 
 <p dir="rtl" align="right"><strong>محاكي تدريب مركز العمليات الأمنية</strong> — منصة تدريب متعددة الأدوار لمحللي الأمن السيبراني</p>
 
@@ -10,6 +10,7 @@
 [![Socket.io](https://img.shields.io/badge/Socket.io-4-010101?logo=socket.io)](https://socket.io/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Anthropic](https://img.shields.io/badge/Anthropic-Claude_AI-D4A574?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
 [![Playwright](https://img.shields.io/badge/Playwright-66_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 > If you find this project useful, please consider giving it a star — it helps others discover it and motivates continued development.
@@ -18,7 +19,7 @@
 
 ## Overview
 
-SOC Training Simulator provides a realistic environment for training cybersecurity analysts. Trainees investigate multi-stage scenarios by analyzing simulated security logs, collecting evidence, writing YARA rules, and submitting incident reports — all while trainers monitor progress in real-time.
+SOC Training Simulator is a full-stack, multi-role platform for training cybersecurity analysts on realistic incident scenarios. Trainees investigate multi-stage attacks by analyzing simulated security logs, collecting evidence, writing YARA rules, and submitting incident reports — while trainers monitor progress in real-time and an AI-powered SOC Mentor guides learning.
 
 ### Roles
 
@@ -30,17 +31,54 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 
 ### Key Features
 
+- **13 built-in scenarios** spanning Beginner to Advanced difficulty (phishing, brute force, lateral movement, DNS tunneling, APT campaigns, SQL injection, insider threat, YARA rules, SOC fundamentals)
 - **Multi-stage scenario investigation** with configurable unlock conditions
 - **10 realistic log types** — SIEM, EDR, Sysmon, Firewall, DNS, Network Flow, Proxy, Windows Event, Auth, Email Gateway
 - **8 checkpoint types** — True/False, Multiple Choice, Severity Classification, Recommended Action, Short Answer, Evidence Selection, Incident Report, YARA Rule
+- **AI-powered SOC Mentor** — context-aware assistant that guides trainees with Socratic questioning (never gives away answers)
+- **AI Scoring** — Claude grades Short Answer and Incident Report checkpoints with detailed feedback
+- **AI Scenario Generator** — create new scenarios from a text prompt
+- **Server-side AI output filter** — 4-layer filter prevents the AI from leaking answers
 - **YARA rule writing & testing** with real-time compilation against samples
 - **Real-time trainer monitoring** via Socket.io (hints, alerts, pause/resume, chat)
 - **5-dimension scoring system** — Accuracy (35%), Investigation (20%), Evidence (20%), Response (15%), Report (10%)
 - **PDF & CSV report generation** with detailed score breakdowns
 - **Scenario import/export** via JSON for sharing between instances
-- **Live discussion panel** for trainer-trainee communication
-- **Trainee-initiated attempts** — scenario timer starts only when the trainee clicks "Start", not when assigned
-- **Light/dark mode toggle** — optimized for SOC environments; switch to dark mode for dimly lit rooms
+- **Pre-investigation lessons** with markdown-rendered educational content
+- **Light/dark mode toggle** — optimized for SOC environments
+
+### How It Compares
+
+| Feature | SOC Training Simulator | LetsDefend | TryHackMe | CyberDefenders |
+|---------|----------------------|------------|-----------|----------------|
+| Open source | Yes (MIT) | No | No | No |
+| Self-hosted | Yes | No | No | No |
+| AI Mentor / Scoring | Yes (Claude) | No | No | No |
+| Custom scenarios | JSON import + AI generator | Limited | Community rooms | Limited |
+| Real-time trainer monitoring | Yes (Socket.io) | No | No | No |
+| YARA rule playground | Yes | No | No | No |
+| Multi-role (Admin/Trainer/Trainee) | Yes | Single user | Single user | Single user |
+| Cost | Free (BYOK for AI) | $25/mo+ | $14/mo+ | Free tier limited |
+
+---
+
+## AI Features (Bring Your Own Key)
+
+SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anthropic.com/) for three optional AI features:
+
+| Feature | What it does | Works without API key? |
+|---------|-------------|----------------------|
+| **SOC Mentor** | Context-aware chat assistant that guides trainees using Socratic questioning | No (disabled) |
+| **AI Scoring** | Grades Short Answer and Incident Report checkpoints with detailed feedback | No (falls back to keyword matching) |
+| **AI Scenario Generator** | Creates new scenarios from a text description | No (disabled) |
+
+**To enable AI features**, set your API key in `.env`:
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
+```
+
+**Without an API key**, the platform is fully functional — all investigation, scoring (via deterministic methods), checkpoint, evidence, YARA, and reporting features work without AI. The SOC Mentor chat and AI scenario generator will simply be unavailable.
 
 ---
 
@@ -103,9 +141,10 @@ SOC Training Simulator provides a realistic environment for training cybersecuri
 |-------|-------------|
 | **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
 | **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
+| **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
 | **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
-| **Testing** | Playwright (66 E2E tests across 16 spec files) |
-| **DevOps** | Docker (multi-stage builds), Railway.app, docker-compose |
+| **Testing** | Vitest (unit), Playwright (66 E2E tests across 16 spec files) |
+| **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
 
 ---
 
@@ -125,14 +164,15 @@ soc-training-simulator/
 ├── server/                  # Express 5 backend
 │   ├── src/routes/          # API route handlers
 │   ├── src/middleware/       # Auth, RBAC, audit logging
-│   ├── src/services/        # Scoring, YARA, PDF reports
+│   ├── src/services/        # Scoring, AI, YARA, PDF reports
+│   ├── src/utils/           # Helpers (AI output filter, logger)
 │   └── src/socket/          # Socket.io namespaces (/trainer, /trainee)
 ├── shared/                  # Shared TypeScript types & constants
 │   └── src/types/           # Enums, interfaces, validation
 ├── prisma/                  # Database schema & seed data
 │   ├── schema.prisma        # 13 models, 7 enums
-│   └── seed.ts              # Demo users & scenarios
-├── scenarios/               # Importable scenario JSON files
+│   └── seed.ts              # Demo users & all 13 scenarios
+├── scenarios/               # 8 importable scenario JSON files
 ├── e2e/                     # Playwright E2E tests (66 tests)
 │   ├── auth/                # Login, RBAC, redirect tests
 │   ├── admin/               # User, scenario, audit, settings tests
@@ -148,7 +188,7 @@ soc-training-simulator/
 
 ---
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
@@ -170,7 +210,7 @@ cp .env.example .env
 # 3. Start database (PostgreSQL on port 5433, pgAdmin on port 5050)
 docker-compose up -d
 
-# 4. Push schema & seed demo data
+# 4. Push schema & seed demo data (includes all 13 scenarios)
 npm run db:push
 npm run db:seed
 
@@ -179,6 +219,21 @@ npm run dev
 #   Client → http://localhost:3000
 #   Server → http://localhost:3001
 ```
+
+### Quick Deploy (Railway)
+
+1. Fork this repo
+2. Create a new project on [Railway](https://railway.app)
+3. Add a **PostgreSQL** plugin (auto-provisions `DATABASE_URL`)
+4. Add a **Server** service → point to `server/Dockerfile`, set these env vars:
+   - `JWT_SECRET` — a random 32+ character string
+   - `JWT_REFRESH_SECRET` — a different random 32+ character string
+   - `CORS_ORIGIN` — your client's Railway URL
+   - `ANTHROPIC_API_KEY` — (optional) your Anthropic API key for AI features
+5. Add a **Client** service → point to `client/Dockerfile`, set build args:
+   - `NEXT_PUBLIC_API_URL` — your server's Railway URL
+   - `NEXT_PUBLIC_WS_URL` — your server's Railway URL
+6. Deploy. Run `npx prisma db push && npx prisma db seed` in the server service shell.
 
 ### Default Credentials
 
@@ -202,7 +257,7 @@ DATABASE_URL="postgresql://soc_admin:soc_password_2024@localhost:5433/soc_traini
 
 # JWT Authentication
 JWT_SECRET="your-jwt-secret-change-in-production"
-JWT_EXPIRES_IN="24h"
+JWT_EXPIRES_IN="4h"
 JWT_REFRESH_SECRET="your-refresh-secret-change-in-production"
 JWT_REFRESH_EXPIRES_IN="7d"
 
@@ -216,6 +271,10 @@ NEXT_PUBLIC_WS_URL=http://localhost:3001
 
 # CORS
 CORS_ORIGIN=http://localhost:3000
+
+# AI Features (optional)
+ANTHROPIC_API_KEY=
+AI_DAILY_LIMIT=30
 ```
 
 ---
@@ -233,11 +292,12 @@ npm run build                # Build shared → server → client
 
 # Database
 npm run db:push              # Push Prisma schema to database
-npm run db:seed              # Seed demo users & scenarios
+npm run db:seed              # Seed demo users & all 13 scenarios
 npm run db:migrate           # Run Prisma migrations
 npm run db:studio            # Open Prisma Studio GUI
 
 # Testing
+npm run test -w server       # Run unit tests (Vitest)
 npm run test:e2e             # Run all E2E tests (headless)
 npm run test:e2e:ui          # Open Playwright UI for interactive debugging
 npm run test:e2e:headed      # Run tests in headed browser
@@ -254,11 +314,13 @@ docker-compose down          # Stop services
 | Endpoint | Description | Access |
 |----------|-------------|--------|
 | `POST /api/auth/login` | User login | Public |
-| `POST /api/auth/refresh` | Refresh JWT token | Public |
+| `POST /api/auth/refresh` | Refresh JWT token (httpOnly cookie) | Public |
+| `POST /api/auth/logout` | Logout and revoke refresh token | Authenticated |
 | `GET /api/auth/me` | Current user profile | Authenticated |
 | `GET/POST /api/users` | User management | Admin |
 | `GET/POST /api/scenarios` | Scenario CRUD | Admin, Trainer |
 | `POST /api/scenarios/import` | Import scenario from JSON | Admin, Trainer |
+| `POST /api/scenarios/generate` | AI-generate scenario from prompt | Admin, Trainer |
 | `GET/POST /api/sessions` | Session lifecycle | Admin, Trainer |
 | `PUT /api/sessions/:id/status` | Pause/resume/end session | Admin, Trainer |
 | `POST /api/attempts/start` | Start an attempt | Trainee |
@@ -287,6 +349,7 @@ docker-compose down          # Stop services
 | `join-attempt` | Join attempt room |
 | `join-session` | Join session room |
 | `progress-update` | Send progress to trainers |
+| `ai-assistant-message` | Send message to SOC Mentor |
 | `send-session-message` | Discussion chat |
 
 ---
@@ -307,7 +370,17 @@ docker-compose down          # Stop services
 
 ## Testing
 
-The project includes a comprehensive **Playwright E2E test suite** with 66 tests across 16 spec files covering all three roles.
+### Unit Tests (Vitest)
+
+```bash
+cd server && npm test
+```
+
+Unit tests cover the two most critical paths:
+- **Scoring Service** — all checkpoint types, fallback grading, edge cases
+- **AI Output Filter** — all 4 filter layers (regex patterns, answer matching, explanation overlap, JSON leak detection)
+
+### E2E Tests (Playwright)
 
 ```bash
 npm run test:e2e             # Run all tests (headless Firefox)
@@ -322,8 +395,6 @@ npm run test:e2e:headed      # Run in visible browser
 | **Trainer** | 23 | Console (create/launch/pause/resume/end sessions), session monitor, reports, scenario guide, discussion chat, toast notifications, broadcast alerts |
 | **Trainee** | 10 | Dashboard stats, session cards, investigation workspace, log search, evidence collection, checkpoints |
 | **Shared** | 9 | Theme toggle, sidebar navigation, logout for all roles |
-
-Tests run against a deployed instance by default (`E2E_BASE_URL` / `E2E_API_URL` env vars) or locally with `webServer` auto-start. Auth tokens are set up via a global setup that writes `storageState` files per role.
 
 ---
 
@@ -355,7 +426,10 @@ Deploy 3 services on [Railway](https://railway.app):
 
 ### CI/CD
 
-Pushing to `master` automatically deploys both server and client to Railway via GitHub Actions (`.github/workflows/deploy.yml`). Requires these repository secrets:
+GitHub Actions runs on every push/PR to `master`:
+- **Unit tests** — `cd server && npm test`
+- **Type checking** — server and client `tsc --noEmit`
+- **Deployment** — auto-deploys to Railway (requires repository secrets)
 
 | Secret | Description |
 |--------|-------------|
