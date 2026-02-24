@@ -44,17 +44,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install server dependencies
-        run: cd server && npm ci
-
-      - name: Generate Prisma client
-        run: cd server && npx prisma generate --schema=../prisma/schema.prisma
+      - name: Install all workspace dependencies
+        run: npm ci
 
       - name: Type check server
         run: cd server && npx tsc --noEmit
-
-      - name: Install client dependencies
-        run: cd client && npm ci
 
       - name: Type check client
         run: cd client && npx tsc --noEmit
