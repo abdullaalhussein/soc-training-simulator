@@ -53,7 +53,7 @@ export default defineConfig({
       testDir: './e2e/demo',
       use: {
         storageState: { cookies: [], origins: [] },
-        video: 'on',
+        video: { mode: 'on', size: { width: 1920, height: 1080 } },
         viewport: { width: 1920, height: 1080 },
         launchOptions: { slowMo: 300 },
       },

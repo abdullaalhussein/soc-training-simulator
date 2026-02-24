@@ -212,15 +212,30 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   // Showcase the 3-panel workspace
   await page.waitForTimeout(4000);
 
-  // Click a log row to open detail view
+  // Click a log row to open detail view (maximize)
   const firstRow = page.locator('tbody tr').first();
   if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
     await firstRow.click();
-    await page.waitForTimeout(2500);
+    await page.waitForTimeout(4000); // pause to showcase the expanded log detail
+
+    // Collect evidence — click the bookmark/collect button in the detail view
+    const collectBtn = page.locator('button').filter({ has: page.locator('svg.lucide-bookmark') }).first()
+      .or(page.getByRole('button', { name: /collect|evidence|bookmark/i }).first());
+    if (await collectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await collectBtn.click();
+      await page.waitForTimeout(2000); // show evidence collected feedback
+    }
 
     // Close detail dialog/panel (press Escape)
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(1500);
+
+    // Switch to Evidence tab to show collected evidence
+    const evidenceTab = page.getByRole('tab', { name: /evidence/i });
+    if (await evidenceTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await evidenceTab.click();
+      await page.waitForTimeout(3000); // showcase evidence panel
+    }
   }
 
   // Type in search bar to filter logs
