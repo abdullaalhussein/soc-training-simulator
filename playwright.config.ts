@@ -52,10 +52,15 @@ export default defineConfig({
       name: 'demo',
       testDir: './e2e/demo',
       use: {
+        browserName: 'chromium',
         storageState: { cookies: [], origins: [] },
         video: { mode: 'on', size: { width: 1920, height: 1080 } },
         viewport: { width: 1920, height: 1080 },
-        launchOptions: { slowMo: 300 },
+        deviceScaleFactor: 1,
+        launchOptions: {
+          slowMo: 300,
+          args: ['--force-device-scale-factor=1', '--high-dpi-support=1'],
+        },
       },
     },
   ],

@@ -17,10 +17,17 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5): P
   return fetch(url, options);
 }
 
-async function globalSetup(_config: FullConfig) {
+async function globalSetup(config: FullConfig) {
   const authDir = path.resolve('e2e/.auth');
   if (!fs.existsSync(authDir)) {
     fs.mkdirSync(authDir, { recursive: true });
+  }
+
+  // Skip auth setup if only running the demo project (it handles its own auth)
+  const grepArgs = process.argv.join(' ');
+  if (grepArgs.includes('--project=demo') && !grepArgs.includes('--project=auth')) {
+    console.log('Skipping auth setup — demo project handles its own auth');
+    return;
   }
 
   const roles = ['admin', 'trainer', 'trainee'] as const;

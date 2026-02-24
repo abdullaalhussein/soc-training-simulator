@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { API_URL, BASE_URL, USERS } from '../fixtures/test-data';
 
 /**
- * Demo Recording Script — 7-scene walkthrough of the SOC Training Simulator.
+ * Demo Recording Script — walkthrough of the SOC Training Simulator.
  *
  * Run with:
  *   npx playwright test e2e/demo/demo-recording.spec.ts --project=demo --headed
@@ -35,8 +35,12 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5): P
 let sessionId: string;
 let attemptId: string;
 let traineeToken: string;
+let trainerToken: string;
+let trainerUser: any;
+let traineeUser: any;
 
-test.beforeAll(async () => {
+test.beforeAll(async ({ }, testInfo) => {
+  testInfo.setTimeout(120_000); // 2 minutes for setup
   // 1. Login as trainer
   const trainerRes = await fetchWithRetry(`${API_URL}/api/auth/login`, {
     method: 'POST',
@@ -45,7 +49,8 @@ test.beforeAll(async () => {
   });
   if (!trainerRes.ok) throw new Error(`Trainer login failed: ${trainerRes.status}`);
   const trainerData = await trainerRes.json();
-  const trainerToken = trainerData.token;
+  trainerToken = trainerData.token;
+  trainerUser = trainerData.user;
 
   // 2. Get scenarios
   const scenariosRes = await fetch(`${API_URL}/api/scenarios`, {
@@ -54,42 +59,76 @@ test.beforeAll(async () => {
   const scenarios = await scenariosRes.json();
   if (!scenarios?.length) throw new Error('No scenarios seeded — run npm run db:seed first');
 
-  // 3. Get trainee user id
+  // 3. Delete all existing sessions so the console is clean
+  const existingSessionsRes = await fetch(`${API_URL}/api/sessions`, {
+    headers: { Authorization: `Bearer ${trainerToken}` },
+  });
+  const existingSessions = await existingSessionsRes.json();
+  for (const s of existingSessions) {
+    // End active sessions first, then delete
+    if (s.status === 'ACTIVE' || s.status === 'PAUSED') {
+      await fetchWithRetry(`${API_URL}/api/sessions/${s.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${trainerToken}` },
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
+    }
+    await fetchWithRetry(`${API_URL}/api/sessions/${s.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${trainerToken}` },
+    });
+  }
+
+  // 4. Get trainee user id
   const traineesRes = await fetch(`${API_URL}/api/users?role=TRAINEE`, {
     headers: { Authorization: `Bearer ${trainerToken}` },
   });
   const trainees = await traineesRes.json();
-  const traineeUser = trainees.find((t: any) => t.email === USERS.trainee.email) || trainees[0];
+  const trainee = trainees.find((t: any) => t.email === USERS.trainee.email) || trainees[0];
 
-  // 4. Create session with trainee assigned
-  const sessionRes = await fetch(`${API_URL}/api/sessions`, {
+  // 5. Create TWO sessions so the console shows a realistic list
+  // Session 1 — the one we'll use for the demo investigation
+  const session1Res = await fetch(`${API_URL}/api/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${trainerToken}` },
     body: JSON.stringify({
-      name: `Demo Session ${Date.now()}`,
+      name: 'Onboarding — Week 1',
       scenarioId: scenarios[0].id,
-      memberIds: [traineeUser.id],
+      memberIds: [trainee.id],
     }),
   });
-  const session = await sessionRes.json();
-  sessionId = session.id;
+  const session1 = await session1Res.json();
+  sessionId = session1.id;
 
-  // 5. Launch session
+  // Session 2 — a second session for visual variety
+  const scenario2 = scenarios.length > 1 ? scenarios[1] : scenarios[0];
+  await fetch(`${API_URL}/api/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${trainerToken}` },
+    body: JSON.stringify({
+      name: 'Advanced Threat Hunting',
+      scenarioId: scenario2.id,
+      memberIds: [trainee.id],
+    }),
+  });
+
+  // 6. Launch session 1
   await fetch(`${API_URL}/api/sessions/${sessionId}/status`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${trainerToken}` },
     body: JSON.stringify({ status: 'ACTIVE' }),
   });
 
-  // 6. Login as trainee and start attempt
-  const traineeRes = await fetchWithRetry(`${API_URL}/api/auth/login`, {
+  // 7. Login as trainee and start attempt
+  const traineeLoginRes = await fetchWithRetry(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: USERS.trainee.email, password: USERS.trainee.password }),
   });
-  if (!traineeRes.ok) throw new Error(`Trainee login failed: ${traineeRes.status}`);
-  const traineeData = await traineeRes.json();
+  if (!traineeLoginRes.ok) throw new Error(`Trainee login failed: ${traineeLoginRes.status}`);
+  const traineeData = await traineeLoginRes.json();
   traineeToken = traineeData.token;
+  traineeUser = traineeData.user;
 
   const attemptRes = await fetch(`${API_URL}/api/attempts/start`, {
     method: 'POST',
@@ -101,11 +140,11 @@ test.beforeAll(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Single continuous test — one video file with all 7 scenes
+// Single continuous test — one video file
 // ---------------------------------------------------------------------------
 
-test('Demo walkthrough — 7 scenes', async ({ page }) => {
-  test.setTimeout(180_000); // 3 minutes max
+test('Demo walkthrough', async ({ page }) => {
+  test.setTimeout(300_000); // 5 minutes max
 
   // =========================================================================
   // SCENE 1 — Login Page (Trainer login with visible typing)
@@ -113,7 +152,7 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
   await expect(page.getByRole('heading', { name: 'SOC Training Simulator' })).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(3000); // showcase login UI
+  await page.waitForTimeout(3000);
 
   // Type trainer credentials visibly
   await page.locator('#email').pressSequentially(USERS.trainer.email, { delay: 80 });
@@ -126,12 +165,12 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // =========================================================================
-  // SCENE 2 — Trainer Console
+  // SCENE 2 — Trainer Console (clean — only 2 sessions)
   // =========================================================================
   await expect(page.locator('h1').filter({ hasText: 'Trainer Console' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.waitForTimeout(3000); // showcase console
+  await page.waitForTimeout(3000);
 
   // Open the Create Session dialog
   await page.getByRole('button', { name: 'Create Session' }).click();
@@ -140,7 +179,7 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
 
   // Fill session name
   const sessionNameInput = page.locator('[role="dialog"]').getByPlaceholder('e.g., Cohort 5 - Week 3');
-  await sessionNameInput.pressSequentially('Onboarding — Week 1', { delay: 60 });
+  await sessionNameInput.pressSequentially('Incident Response — Lab 3', { delay: 60 });
   await page.waitForTimeout(800);
 
   // Open scenario dropdown and select first option
@@ -152,23 +191,83 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
     await page.waitForTimeout(1000);
   }
 
-  await page.waitForTimeout(2000); // pause on the filled form
+  await page.waitForTimeout(2000);
 
-  // Close dialog without creating (just showcasing the form)
+  // Close dialog (just showcasing the form)
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(2000); // final pause on console
+  await page.waitForTimeout(2000);
 
   // =========================================================================
-  // SCENE 3 — Trainee Dashboard (re-login as trainee)
+  // SCENE 3 — Trainer Session Monitor (Activity + Discussion)
   // =========================================================================
 
-  // Clear auth and login as trainee via UI
+  // Navigate to the session monitor for the demo session
+  await page.goto(`/sessions/${sessionId}`);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(3000);
+
+  // Click on the trainee in the list to select them
+  const traineeBtn = page.locator('button').filter({ hasText: /SOC Analyst|trainee/i }).first();
+  if (await traineeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await traineeBtn.click();
+    await page.waitForTimeout(2000);
+  }
+
+  // Show Activity tab (should be default)
+  const activityTab = page.getByRole('tab', { name: 'Activity' });
+  if (await activityTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await activityTab.click();
+    await page.waitForTimeout(3000);
+  }
+
+  // Switch to Discussion tab — trainer communicates with trainee
+  const discussionTab = page.getByRole('tab', { name: 'Discussion' });
+  if (await discussionTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await discussionTab.click();
+    await page.waitForTimeout(1500);
+
+    // Type a message to the trainee
+    const msgInput = page.getByPlaceholder('Type a message...');
+    if (await msgInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await msgInput.pressSequentially('Focus on the email headers — check the sender domain carefully.', { delay: 50 });
+      await page.waitForTimeout(1500);
+
+      // Click send button (sibling in the flex container)
+      const sendBtn = msgInput.locator('..').locator('button').first();
+      if (await sendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await sendBtn.click();
+        await page.waitForTimeout(2500);
+      }
+    }
+  }
+
+  // Show the Send Hint dialog
+  const sendHintBtn = page.getByRole('button', { name: 'Send Hint' });
+  if (await sendHintBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await sendHintBtn.click();
+    await page.waitForTimeout(2000);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1000);
+  }
+
+  // Show the Broadcast Alert dialog
+  const broadcastBtn = page.getByRole('button', { name: 'Broadcast Alert' });
+  if (await broadcastBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await broadcastBtn.click();
+    await page.waitForTimeout(2000);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(1000);
+  }
+
+  // =========================================================================
+  // SCENE 4 — Trainee Dashboard (re-login as trainee)
+  // =========================================================================
+
   await page.evaluate(() => localStorage.clear());
   await page.goto('/login');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1000);
 
-  // Clear previous input values
   await page.locator('#email').fill('');
   await page.locator('#password').fill('');
 
@@ -184,17 +283,16 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   await expect(page.locator('h1').filter({ hasText: 'Welcome back' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.waitForTimeout(3000); // showcase dashboard stats
+  await page.waitForTimeout(3000);
 
   // Scroll down to show session cards
   await page.evaluate(() => window.scrollBy({ top: 400, behavior: 'smooth' }));
   await page.waitForTimeout(2000);
 
   // =========================================================================
-  // SCENE 4 — Investigation Workspace
+  // SCENE 5 — Investigation Workspace + Evidence Collection
   // =========================================================================
 
-  // Navigate directly to the attempt (trainee already logged in from Scene 3)
   await page.goto(`/scenario/${attemptId}`);
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(3000);
@@ -212,30 +310,46 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   // Showcase the 3-panel workspace
   await page.waitForTimeout(4000);
 
-  // Click a log row to open detail view (maximize)
+  // Click first log row to expand detail view
   const firstRow = page.locator('tbody tr').first();
   if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
     await firstRow.click();
-    await page.waitForTimeout(4000); // pause to showcase the expanded log detail
+    await page.waitForTimeout(3000);
 
-    // Collect evidence — click the bookmark/collect button in the detail view
-    const collectBtn = page.locator('button').filter({ has: page.locator('svg.lucide-bookmark') }).first()
-      .or(page.getByRole('button', { name: /collect|evidence|bookmark/i }).first());
-    if (await collectBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await collectBtn.click();
-      await page.waitForTimeout(2000); // show evidence collected feedback
+    // Add to Evidence from the detail modal
+    const addEvidenceModalBtn = page.locator('[role="dialog"]').getByRole('button', { name: /Add to Evidence/i });
+    if (await addEvidenceModalBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await addEvidenceModalBtn.click();
+      await page.waitForTimeout(2000);
+    } else {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
     }
+  }
 
-    // Close detail dialog/panel (press Escape)
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(1500);
-
-    // Switch to Evidence tab to show collected evidence
-    const evidenceTab = page.getByRole('tab', { name: /evidence/i });
-    if (await evidenceTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await evidenceTab.click();
-      await page.waitForTimeout(3000); // showcase evidence panel
+  // Add more evidence using the inline Plus buttons in the log table
+  const addEvidenceBtns = page.locator('button[title="Add to Evidence"]');
+  const btnCount = await addEvidenceBtns.count();
+  for (let i = 0; i < Math.min(2, btnCount); i++) {
+    const btn = addEvidenceBtns.nth(i);
+    if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await btn.click();
+      await page.waitForTimeout(1500);
     }
+  }
+
+  // Switch to Evidence tab to show collected evidence
+  const evidenceTab = page.getByRole('tab', { name: /evidence/i });
+  if (await evidenceTab.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await evidenceTab.click();
+    await page.waitForTimeout(3000);
+  }
+
+  // Switch back to logs
+  const logsTab = page.getByRole('tab', { name: /logs/i }).or(page.getByRole('tab', { name: /feed/i }));
+  if (await logsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await logsTab.click();
+    await page.waitForTimeout(1000);
   }
 
   // Type in search bar to filter logs
@@ -243,14 +357,12 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
     await searchInput.pressSequentially('suspicious', { delay: 80 });
     await page.waitForTimeout(2500);
-
-    // Clear search
     await searchInput.fill('');
     await page.waitForTimeout(1000);
   }
 
   // =========================================================================
-  // SCENE 5 — Checkpoints
+  // SCENE 6 — Checkpoints
   // =========================================================================
 
   const checkpointBtn = page
@@ -264,7 +376,6 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
 
     const modal = page.locator('[role="dialog"]');
     if (await modal.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Select an answer option
       const option = modal
         .locator('button, [role="radio"], label')
         .filter({ hasText: /.+/ })
@@ -274,44 +385,37 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
         await page.waitForTimeout(1000);
       }
 
-      // Submit answer
       const submitBtn = modal.getByRole('button', { name: /submit/i });
       if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await submitBtn.click();
-        await page.waitForTimeout(3000); // pause on result (Correct/Incorrect + Explanation)
+        await page.waitForTimeout(3000);
       }
 
-      // Close checkpoint modal
       await page.keyboard.press('Escape');
       await page.waitForTimeout(1000);
     }
   } else {
-    // No checkpoint button visible — pause briefly and move on
     await page.waitForTimeout(2000);
   }
 
   // =========================================================================
-  // SCENE 6 — SOC Mentor (AI Assistant)
+  // SCENE 7 — SOC Mentor (AI Assistant)
   // =========================================================================
 
-  // Open the AI Help sheet (floating button on desktop)
   const aiHelpBtn = page.getByRole('button', { name: /AI Help/i }).first();
   if (await aiHelpBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
     await aiHelpBtn.click();
     await page.waitForTimeout(2000);
 
-    // Type a question
     const aiInput = page.getByPlaceholder(/ask for guidance/i).first();
     if (await aiInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await aiInput.pressSequentially('What should I investigate next?', { delay: 60 });
-      await page.waitForTimeout(3000); // showcase the SOC Mentor UI
+      await page.waitForTimeout(3000);
     }
 
-    // Close the sheet
     await page.keyboard.press('Escape');
     await page.waitForTimeout(1000);
   } else {
-    // Fallback: try clicking an AI-related tab (mobile layout)
     const aiTab = page.getByRole('tab', { name: /ai/i });
     if (await aiTab.isVisible({ timeout: 3000 }).catch(() => false)) {
       await aiTab.click();
@@ -320,18 +424,16 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   }
 
   // =========================================================================
-  // SCENE 7 — Results / Dashboard overview
+  // SCENE 8 — Results / Dashboard overview
   // =========================================================================
 
-  // Navigate back to the trainee dashboard to show overall progress
   await page.goto('/dashboard');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('h1').filter({ hasText: 'Welcome back' })).toBeVisible({
     timeout: 15_000,
   });
-  await page.waitForTimeout(3000); // final showcase
+  await page.waitForTimeout(3000);
 
-  // Scroll to show session cards one more time
   await page.evaluate(() => window.scrollBy({ top: 300, behavior: 'smooth' }));
   await page.waitForTimeout(2000);
 });
