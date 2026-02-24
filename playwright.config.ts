@@ -48,6 +48,16 @@ export default defineConfig({
       dependencies: ['auth'],
       use: { storageState: 'e2e/.auth/admin.json' },
     },
+    {
+      name: 'demo',
+      testDir: './e2e/demo',
+      use: {
+        storageState: { cookies: [], origins: [] },
+        video: 'on',
+        viewport: { width: 1920, height: 1080 },
+        launchOptions: { slowMo: 300 },
+      },
+    },
   ],
   globalSetup: './e2e/fixtures/auth.ts',
   ...(isLocal
