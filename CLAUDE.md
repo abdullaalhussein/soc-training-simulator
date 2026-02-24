@@ -342,6 +342,62 @@ Updated assessment after Phase 1 implementation. Board acknowledged 12 deliverab
 
 ---
 
+## Demo Video — Text Overlays (2-Minute Walkthrough)
+
+**Scene 1 — Landing Page (0:00-0:15)**
+```
+SOC Training Simulator
+Open-source | AI-powered | Self-hosted
+Prepares SOC analysts for real incidents before they face one.
+```
+
+**Scene 2 — Trainer Login + Console (0:15-0:30)**
+```
+TRAINER CONSOLE
+Create training sessions, assign scenarios, monitor trainees in real-time.
+13 built-in scenarios | Beginner to Advanced
+```
+
+**Scene 3 — Trainee Login + Dashboard (0:30-0:50)**
+```
+TRAINEE DASHBOARD
+Join sessions, track progress, review past attempts.
+One click to start investigating.
+```
+
+**Scene 4 — Investigation Workspace (0:50-1:15)**
+```
+INVESTIGATION WORKSPACE
+10 real log types: SIEM, EDR, Sysmon, Firewall, DNS, Proxy, and more.
+Search, filter, collect evidence, build your timeline.
+```
+
+**Scene 5 — Checkpoints + Scoring (1:15-1:35)**
+```
+8 CHECKPOINT TYPES
+True/False | Multiple Choice | Evidence Selection | YARA Rules | Incident Reports
+Instant feedback on every answer.
+```
+
+**Scene 6 — SOC Mentor (1:35-1:50)**
+```
+AI-POWERED SOC MENTOR
+Context-aware guidance using Socratic questioning.
+Never gives away answers — teaches you to think like an analyst.
+Bring Your Own Key (Anthropic Claude API)
+```
+
+**Scene 7 — Results Screen (1:50-2:00)**
+```
+5-DIMENSION SCORING
+Accuracy (35%) | Investigation (20%) | Evidence (20%) | Response (15%) | Report (10%)
+PDF & CSV reports for trainers.
+
+github.com/abdullaalhussein/soc-training-simulator
+```
+
+---
+
 ## Items Discussed But NOT Yet Implemented
 
 These were raised by board members but explicitly deferred or deprioritized:
