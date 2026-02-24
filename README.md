@@ -11,7 +11,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Anthropic](https://img.shields.io/badge/Anthropic-Claude_AI-D4A574?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
-[![Playwright](https://img.shields.io/badge/Playwright-66_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
+[![Playwright](https://img.shields.io/badge/Playwright-68_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 > If you find this project useful, please consider giving it a star — it helps others discover it and motivates continued development.
 
@@ -90,54 +90,59 @@ AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
 
 ## Screenshots
 
-### Landing Page
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Trainer Console</strong><br>
+      <em>Create sessions, assign scenarios, monitor trainees in real-time</em>
+      <br><br>
+      <img src="docs/screenshots/05-trainer-console.png" alt="Trainer Console" width="100%" />
+    </td>
+    <td width="50%">
+      <strong>Investigation Workspace</strong><br>
+      <em>3-panel layout: briefing, log viewer with filters, evidence collection</em>
+      <br><br>
+      <img src="docs/screenshots/09-trainee-investigation.png" alt="Investigation Workspace" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Scenario Management</strong><br>
+      <em>13 built-in scenarios with MITRE ATT&amp;CK mapping and difficulty levels</em>
+      <br><br>
+      <img src="docs/screenshots/03-admin-scenarios.png" alt="Scenario Management" width="100%" />
+    </td>
+    <td width="50%">
+      <strong>Trainee Dashboard</strong><br>
+      <em>Track assigned sessions, progress stats, and start investigations</em>
+      <br><br>
+      <img src="docs/screenshots/07-trainee-dashboard.png" alt="Trainee Dashboard" width="100%" />
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>More screenshots</strong> (landing page, dark mode, lesson view)</summary>
+
+#### Landing Page
 <p align="center">
   <img src="docs/screenshots/00-landing.png" alt="Landing Page" width="720" />
 </p>
 
-### Login
-<p align="center">
-  <img src="docs/screenshots/01-login.png" alt="Login Page" width="720" />
-</p>
-
-### Admin Panel — User Management
-<p align="center">
-  <img src="docs/screenshots/02-admin-users.png" alt="Admin User Management" width="720" />
-</p>
-
-### Admin Panel — Scenario Management
-<p align="center">
-  <img src="docs/screenshots/03-admin-scenarios.png" alt="Admin Scenario Management" width="720" />
-</p>
-
-### Trainer Console — Session Management
-<p align="center">
-  <img src="docs/screenshots/05-trainer-console.png" alt="Trainer Console" width="720" />
-</p>
-
-### Trainee Dashboard
-<p align="center">
-  <img src="docs/screenshots/07-trainee-dashboard.png" alt="Trainee Dashboard" width="720" />
-</p>
-
-### Pre-Investigation Lesson
+#### Pre-Investigation Lesson
 <p align="center">
   <img src="docs/screenshots/08-trainee-lesson.png" alt="Pre-Investigation Lesson" width="720" />
 </p>
 
-### Investigation Workspace — Log Viewer, Evidence Basket & Briefing
+#### Dark Mode
 <p align="center">
-  <img src="docs/screenshots/09-trainee-investigation.png" alt="Investigation Workspace" width="720" />
+  <img src="docs/screenshots/03-admin-scenarios-dark.png" alt="Scenarios — Dark Mode" width="720" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/07-trainee-dashboard-dark.png" alt="Dashboard — Dark Mode" width="720" />
 </p>
 
-### Dark Mode
-
-<p align="center">
-  <img src="docs/screenshots/03-admin-scenarios-dark.png" alt="Admin Scenarios — Dark Mode" width="720" />
-</p>
-<p align="center">
-  <img src="docs/screenshots/07-trainee-dashboard-dark.png" alt="Trainee Dashboard — Dark Mode" width="720" />
-</p>
+</details>
 
 ---
 
@@ -149,7 +154,7 @@ AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
 | **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
 | **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
 | **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
-| **Testing** | Vitest (unit), Playwright (66 E2E tests across 16 spec files) |
+| **Testing** | Vitest (unit), Playwright (68 E2E tests across 16 spec files) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
 
 ---
@@ -179,7 +184,7 @@ soc-training-simulator/
 │   ├── schema.prisma        # 13 models, 7 enums
 │   └── seed.ts              # Demo users & all 13 scenarios
 ├── scenarios/               # 8 importable scenario JSON files
-├── e2e/                     # Playwright E2E tests (66 tests)
+├── e2e/                     # Playwright E2E tests (68 tests)
 │   ├── auth/                # Login, RBAC, redirect tests
 │   ├── admin/               # User, scenario, audit, settings tests
 │   ├── trainer/             # Console, monitor, chat, notifications, reports tests
@@ -250,6 +255,18 @@ npm run dev
 | Trainee | `trainee@soc.local` | `Password123!` |
 
 > **SECURITY WARNING:** These are demo credentials for local development only. **Change all default passwords immediately** before deploying to any network-accessible environment. The server will log warnings on startup if default credentials are detected.
+
+### Production Security Checklist
+
+Before deploying to a network-accessible environment:
+
+- [ ] **Change all default passwords** — admin, trainer, and trainee accounts
+- [ ] **Set strong JWT secrets** — use cryptographically random 32+ character strings for `JWT_SECRET` and `JWT_REFRESH_SECRET`
+- [ ] **Configure CORS** — set `CORS_ORIGIN` to your exact client domain (not `*`)
+- [ ] **Use HTTPS** — required for secure cookie transport (refresh tokens use httpOnly cookies)
+- [ ] **Set `NODE_ENV=production`** — enables security hardening in Express
+- [ ] **Restrict database access** — ensure PostgreSQL is not publicly accessible
+- [ ] **Review AI rate limits** — adjust `AI_DAILY_LIMIT` based on your user count and budget
 
 ---
 
