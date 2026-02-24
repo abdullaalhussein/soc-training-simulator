@@ -15,6 +15,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 5): P
 }
 
 let sessionId: string | undefined;
+let sessionName: string;
 let setupError: string | undefined;
 
 test.beforeAll(async () => {
@@ -54,11 +55,12 @@ test.beforeAll(async () => {
     }
 
     // Create session with trainee assigned
+    sessionName = `E2E Monitor Session ${Date.now()}`;
     const sessionRes = await fetch(`${API_URL}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
-        name: `E2E Monitor Session ${Date.now()}`,
+        name: sessionName,
         scenarioId: scenarios[0].id,
         memberIds: [traineeUser.id],
       }),
@@ -80,6 +82,20 @@ test.beforeAll(async () => {
       setupError = `Launch session failed: ${launchRes.status}`;
       return;
     }
+
+    // Verify session is actually active
+    const verifyRes = await fetch(`${API_URL}/api/sessions/${sessionId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!verifyRes.ok) {
+      setupError = `Verify session failed: ${verifyRes.status}`;
+      return;
+    }
+    const verified = await verifyRes.json();
+    if (verified.status !== 'ACTIVE') {
+      setupError = `Session not ACTIVE after launch: ${verified.status}`;
+      return;
+    }
   } catch (e: any) {
     setupError = `Setup error: ${e.message}`;
   }
@@ -93,12 +109,14 @@ test.describe('Session Monitor', () => {
     }
     await page.goto(`/sessions/${sessionId}`);
     await page.waitForLoadState('networkidle');
+    // Wait for the actual session data to load (h1 shows session name, not fallback)
+    await expect(page.locator('h1')).toContainText(sessionName, { timeout: 15_000 });
   });
 
   test('Display session monitor', async ({ page }) => {
-    // Session name heading
-    await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
-    // Scenario name (paragraph below h1, may be empty text — check it exists)
+    // Session name heading (already verified in beforeEach)
+    await expect(page.locator('h1')).toBeVisible();
+    // Scenario name (paragraph below h1)
     await expect(page.locator('h1 + p')).toBeAttached();
     // Status badge
     await expect(page.locator('text=ACTIVE')).toBeVisible();
@@ -107,17 +125,12 @@ test.describe('Session Monitor', () => {
   });
 
   test('Show trainee in list', async ({ page }) => {
-    await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
-
     // The assigned trainee should appear in the trainee list
-    // The trainee name could vary depending on DB state, just check trainee count is shown
     await expect(page.getByRole('heading', { name: /Trainees/ })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('heading', { name: /Trainees \(\d+\)/ })).toBeVisible({ timeout: 10_000 });
   });
 
   test('Open send hint dialog', async ({ page }) => {
-    await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
-
     // Select a trainee first
     const traineeButton = page.locator('button').filter({ hasText: /SOC Analyst|trainee/ }).first();
     if (await traineeButton.isVisible()) {
@@ -135,7 +148,6 @@ test.describe('Session Monitor', () => {
   });
 
   test('Open broadcast alert dialog', async ({ page }) => {
-    await expect(page.locator('h1')).toBeVisible({ timeout: 15_000 });
     // Broadcast Alert only renders when session status is ACTIVE
     await expect(page.locator('text=ACTIVE')).toBeVisible({ timeout: 10_000 });
 
