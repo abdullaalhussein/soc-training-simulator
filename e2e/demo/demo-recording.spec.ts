@@ -14,53 +14,18 @@ import { API_URL, BASE_URL, USERS } from '../fixtures/test-data';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Login via API and inject auth into the browser's localStorage. */
-async function loginViaUI(
-  page: import('@playwright/test').Page,
-  user: (typeof USERS)[keyof typeof USERS],
-) {
-  await page.goto('/login');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1500);
-
-  // Type credentials visibly (character by character looks natural on video)
-  await page.locator('#email').pressSequentially(user.email, { delay: 60 });
-  await page.waitForTimeout(400);
-  await page.locator('#password').pressSequentially(user.password, { delay: 60 });
-  await page.waitForTimeout(800);
-
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(`**${user.defaultRoute}`, { timeout: 15_000 });
-  await page.waitForLoadState('networkidle');
-}
-
-/** Login via API and set localStorage directly (fast, no UI). */
-async function loginViaAPI(page: import('@playwright/test').Page, role: keyof typeof USERS) {
-  const user = USERS[role];
-  const res = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: user.email, password: user.password }),
-  });
-  if (!res.ok) throw new Error(`Login failed for ${role}: ${res.status}`);
-  const data = await res.json();
-
-  const origin = new URL(BASE_URL).origin;
-  await page.goto('/login'); // need a page loaded before we can set storage
-  await page.evaluate(
-    ({ token, userData, origin: _origin }) => {
-      localStorage.setItem('token', token);
-      localStorage.setItem(
-        'auth-storage',
-        JSON.stringify({
-          state: { user: userData, token, isAuthenticated: true },
-          version: 0,
-        }),
-      );
-    },
-    { token: data.token, userData: data.user, origin },
-  );
-  return data;
+/** Fetch with retry on 429 rate limiting. */
+async function fetchWithRetry(url: string, options: RequestInit, retries = 5): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    const response = await fetch(url, options);
+    if (response.status === 429) {
+      const wait = Math.min(30_000, 5_000 * (i + 1));
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
+    return response;
+  }
+  return fetch(url, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -73,11 +38,12 @@ let traineeToken: string;
 
 test.beforeAll(async () => {
   // 1. Login as trainer
-  const trainerRes = await fetch(`${API_URL}/api/auth/login`, {
+  const trainerRes = await fetchWithRetry(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: USERS.trainer.email, password: USERS.trainer.password }),
   });
+  if (!trainerRes.ok) throw new Error(`Trainer login failed: ${trainerRes.status}`);
   const trainerData = await trainerRes.json();
   const trainerToken = trainerData.token;
 
@@ -116,11 +82,12 @@ test.beforeAll(async () => {
   });
 
   // 6. Login as trainee and start attempt
-  const traineeRes = await fetch(`${API_URL}/api/auth/login`, {
+  const traineeRes = await fetchWithRetry(`${API_URL}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: USERS.trainee.email, password: USERS.trainee.password }),
   });
+  if (!traineeRes.ok) throw new Error(`Trainee login failed: ${traineeRes.status}`);
   const traineeData = await traineeRes.json();
   traineeToken = traineeData.token;
 
@@ -227,8 +194,7 @@ test('Demo walkthrough — 7 scenes', async ({ page }) => {
   // SCENE 4 — Investigation Workspace
   // =========================================================================
 
-  // Navigate directly to the attempt (created in beforeAll)
-  await loginViaAPI(page, 'trainee');
+  // Navigate directly to the attempt (trainee already logged in from Scene 3)
   await page.goto(`/scenario/${attemptId}`);
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(3000);
