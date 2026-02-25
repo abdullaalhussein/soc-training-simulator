@@ -128,7 +128,7 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (r
         await prisma.attempt.deleteMany({ where: { userId } });
       }
 
-      await prisma.trainerNote.deleteMany({ where: { userId } });
+      await prisma.trainerNote.deleteMany({ where: { trainerId: userId } });
       await prisma.sessionMessage.deleteMany({ where: { userId } });
       await prisma.sessionMember.deleteMany({ where: { userId } });
       await prisma.refreshToken.deleteMany({ where: { userId } });
