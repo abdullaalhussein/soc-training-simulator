@@ -1,20 +1,20 @@
 import React from "react";
-import { AbsoluteFill, Sequence, useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 import { VideoSceneContainer } from "../components/VideoSceneContainer";
 import { RoleBadge } from "../components/RoleBadge";
 import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [0, 200, "SCENARIO MANAGEMENT"],
-  [200, 450, "AI GENERATION"],
-  [450, 650, "AUDIT LOG"],
-  [650, 1050, "USER MANAGEMENT"],
+  [60,  170, "SCENARIO MANAGEMENT"],
+  [170, 450, "AI GENERATION"],
+  [460, 570, "AUDIT LOG"],
+  [580, 726, "USER MANAGEMENT"],
 ];
 
 /**
  * Act 1: Admin clip with role badge and timed sub-overlays.
- * ~35 seconds (1050 frames at 30fps).
+ * 726 frames (24.2s at 30fps).
  */
 export const Act1Admin: React.FC = () => {
   const frame = useCurrentFrame();

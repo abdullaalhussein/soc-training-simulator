@@ -9,11 +9,11 @@ import {
 } from './helpers';
 
 /**
- * Demo V2 — Act 3: Full trainee investigation walkthrough (~80s).
+ * Demo V3 — Act 3: Trainee investigation walkthrough (~22s).
  *
- * Story: A trainee opens their dashboard, starts an investigation, examines
- * logs, collects evidence, builds a timeline, answers a checkpoint, uses the
- * SOC Mentor, and reviews hints.
+ * Story: A trainee opens their dashboard, starts an investigation,
+ * toggles sidebar, collects evidence, builds timeline, answers a checkpoint,
+ * reveals a hint, and opens the SOC Mentor. Discussion is deferred to Act 4.
  *
  * Run with:
  *   npx playwright test --project=demo-v2 e2e/demo-v2/02-trainee.spec.ts --headed
@@ -39,7 +39,7 @@ test.beforeAll(async ({}, testInfo) => {
     [trainee.id]
   );
 
-  // Login as trainee (don't start attempt — trainee clicks "Start Investigation")
+  // Login as trainee
   const traineeAuth = await loginAs('trainee');
   traineeToken = traineeAuth.token;
   traineeUser = traineeAuth.user;
@@ -50,7 +50,7 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
   await injectAuth(page, traineeUser, traineeToken);
 
   // =========================================================================
-  // SCENE 1 — Dashboard
+  // SCENE 1 — Dashboard (~3s)
   // =========================================================================
   await page.goto('/dashboard');
   await page.waitForLoadState('networkidle');
@@ -71,48 +71,56 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 
   // =========================================================================
-  // SCENE 2 — Briefing page
+  // SCENE 2 — Briefing page (~3s)
   // =========================================================================
   await page.waitForTimeout(2000);
 
   const continueBtn = page
     .locator('text=Continue to Investigation')
     .or(page.locator('text=Begin Investigation'));
-  if (await continueBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await continueBtn.click();
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(2000);
-  }
-
-  // =========================================================================
-  // SCENE 3 — Investigation workspace
-  // =========================================================================
+  await expect(continueBtn.first()).toBeVisible({ timeout: 10_000 });
+  await continueBtn.first().click();
+  await page.waitForLoadState('networkidle');
   await page.waitForTimeout(2000);
 
-  // Handle onboarding popup if it appears
-  const nextBtn = page.getByRole('button', { name: /next/i }).first();
-  for (let i = 0; i < 2; i++) {
+  // =========================================================================
+  // SCENE 3 — Investigation workspace + sidebar toggle (~3s)
+  // =========================================================================
+
+  // Handle onboarding popup quickly
+  for (let i = 0; i < 4; i++) {
+    const nextBtn = page.getByRole('button', { name: /next/i }).first();
     if (await nextBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
       await nextBtn.click();
       await page.waitForTimeout(500);
     }
   }
   const closeOnboarding = page.getByRole('button', { name: /close|done|got it|skip/i }).first();
-  if (await closeOnboarding.isVisible({ timeout: 1500 }).catch(() => false)) {
+  if (await closeOnboarding.isVisible({ timeout: 2000 }).catch(() => false)) {
     await closeOnboarding.click();
     await page.waitForTimeout(500);
   }
 
+  await page.waitForTimeout(1500);
+
+  // Sidebar toggle (collapse/expand arrow near logo)
+  const sidebarToggle = page
+    .locator('button[aria-label*="sidebar" i], button[aria-label*="collapse" i], button[aria-label*="expand" i]')
+    .first();
+  if (await sidebarToggle.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await sidebarToggle.click();
+    await page.waitForTimeout(1000);
+  }
+
   // =========================================================================
-  // SCENE 4 — Log detail + evidence collection
+  // SCENE 4 — Evidence collection (~4s)
   // =========================================================================
-  // Click first log row → LogDetailModal
+  // Click first log row → LogDetailModal → Add to Evidence
   const firstRow = page.locator('tbody tr').first();
   if (await firstRow.isVisible({ timeout: 5000 }).catch(() => false)) {
     await firstRow.click();
     await page.waitForTimeout(1500);
 
-    // Add to Evidence from modal
     const addEvidenceModalBtn = page
       .locator('[role="dialog"]')
       .getByRole('button', { name: /Add to Evidence/i });
@@ -125,7 +133,7 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
     }
   }
 
-  // Add evidence via inline Plus buttons
+  // Inline "+" evidence buttons
   const addEvidenceBtns = page.locator('button[title="Add to Evidence"]');
   const btnCount = await addEvidenceBtns.count();
   for (let i = 0; i < Math.min(2, btnCount); i++) {
@@ -137,42 +145,16 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
   }
 
   // =========================================================================
-  // SCENE 5 — Timeline entry
+  // SCENE 5 — Timeline entry (~1.5s)
   // =========================================================================
-  // Click clock icon on a log row for timeline
   const timelineBtn = page.locator('button[title*="imeline"]').first();
   if (await timelineBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await timelineBtn.click();
-    await page.waitForTimeout(1000);
-  }
-
-  // =========================================================================
-  // SCENE 6 — Evidence tab
-  // =========================================================================
-  const evidenceTab = page.getByRole('tab', { name: /evidence/i });
-  if (await evidenceTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await evidenceTab.click();
     await page.waitForTimeout(1500);
   }
 
   // =========================================================================
-  // SCENE 7 — Timeline tab
-  // =========================================================================
-  const timelineTab = page.getByRole('tab', { name: /timeline/i });
-  if (await timelineTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await timelineTab.click();
-    await page.waitForTimeout(1500);
-  }
-
-  // Switch back to logs
-  const logsTab = page.getByRole('tab', { name: /logs/i }).or(page.getByRole('tab', { name: /feed/i }));
-  if (await logsTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await logsTab.click();
-    await page.waitForTimeout(500);
-  }
-
-  // =========================================================================
-  // SCENE 8 — Checkpoint
+  // SCENE 6 — Checkpoint (~4s)
   // =========================================================================
   const checkpointBtn = page
     .getByRole('button', { name: /checkpoint/i })
@@ -191,14 +173,14 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
         .locator('button, [role="radio"], label')
         .filter({ hasText: /.+/ })
         .first();
-      if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await option.isVisible({ timeout: 2000 }).catch(() => false)) {
         await option.scrollIntoViewIfNeeded();
         await option.click();
         await page.waitForTimeout(1000);
       }
 
       const submitBtn = modal.getByRole('button', { name: /submit/i });
-      if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      if (await submitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
         await submitBtn.scrollIntoViewIfNeeded();
         await submitBtn.click();
         await page.waitForTimeout(1500);
@@ -210,19 +192,9 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
   }
 
   // =========================================================================
-  // SCENE 9 — Discussion panel
+  // SCENE 7 — Hints & SOC Mentor (~4s)
   // =========================================================================
-  const chatBtn = page.getByRole('button', { name: /chat|discussion/i }).first();
-  if (await chatBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await chatBtn.click();
-    await page.waitForTimeout(1500);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
-  }
-
-  // =========================================================================
-  // SCENE 10 — Reveal Hint
-  // =========================================================================
+  // Reveal Hint
   const revealHintBtn = page.getByRole('button', { name: /reveal hint/i }).first();
   if (await revealHintBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await revealHintBtn.scrollIntoViewIfNeeded();
@@ -230,22 +202,20 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
     await page.waitForTimeout(1500);
   }
 
-  // =========================================================================
-  // SCENE 11 — SOC Mentor
-  // =========================================================================
+  // Open SOC Mentor
   const aiHelpBtn = page.getByRole('button', { name: /AI Help/i }).first();
   if (await aiHelpBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
     await aiHelpBtn.click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1500);
 
     const aiInput = page.getByPlaceholder(/ask for guidance/i).first();
     if (await aiInput.isVisible({ timeout: 3000 }).catch(() => false)) {
       await aiInput.scrollIntoViewIfNeeded();
       await aiInput.pressSequentially(
-        'What patterns should I look for in the email headers?',
+        'What TTL anomalies indicate C2 beaconing?',
         { delay: 60 }
       );
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1500);
     }
 
     await page.keyboard.press('Escape');
@@ -254,7 +224,7 @@ test('Act 3 — Trainee investigation', async ({ page }) => {
     const aiTab = page.getByRole('tab', { name: /ai/i });
     if (await aiTab.isVisible({ timeout: 3000 }).catch(() => false)) {
       await aiTab.click();
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1500);
     }
   }
 

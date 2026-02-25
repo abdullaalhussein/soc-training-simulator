@@ -1,15 +1,16 @@
 import React from "react";
 import { AbsoluteFill, Sequence } from "remotion";
-import { COLORS, COMBINED_COMP, CLIPS_V2, SCREENSHOTS } from "./lib/constants";
+import { COLORS, COMBINED_COMP } from "./lib/constants";
 import { SceneIntro } from "./scenes/SceneIntro";
-import { VideoSceneContainer } from "./components/VideoSceneContainer";
-import { RoleBadge } from "./components/RoleBadge";
+import { Act1Admin } from "./scenes/Act1Admin";
+import { Act2Trainer } from "./scenes/Act2Trainer";
+import { Act3Trainee } from "./scenes/Act3Trainee";
 import { Act4SplitScreen } from "./scenes/Act4SplitScreen";
 import { SceneOutro } from "./scenes/SceneOutro";
 
 /**
- * Combined demo — all roles back-to-back with intro + outro.
- * ~1:22 total (2444 frames at 30fps).
+ * Combined demo V3 — all roles back-to-back with intro + outro.
+ * ~90s total (2700 frames at 30fps).
  */
 export const DemoVideoV2: React.FC = () => (
   <AbsoluteFill style={{ backgroundColor: COLORS.darkBg }}>
@@ -18,21 +19,15 @@ export const DemoVideoV2: React.FC = () => (
     </Sequence>
 
     <Sequence from={COMBINED_COMP.admin.from} durationInFrames={COMBINED_COMP.admin.duration} name="Admin">
-      <VideoSceneContainer clipPath={CLIPS_V2.admin} fallbackScreenshot={SCREENSHOTS.scenarios}>
-        <RoleBadge role="ADMIN" />
-      </VideoSceneContainer>
+      <Act1Admin />
     </Sequence>
 
     <Sequence from={COMBINED_COMP.trainer.from} durationInFrames={COMBINED_COMP.trainer.duration} name="Trainer">
-      <VideoSceneContainer clipPath={CLIPS_V2.trainer} fallbackScreenshot={SCREENSHOTS.trainer}>
-        <RoleBadge role="TRAINER" />
-      </VideoSceneContainer>
+      <Act2Trainer />
     </Sequence>
 
     <Sequence from={COMBINED_COMP.trainee.from} durationInFrames={COMBINED_COMP.trainee.duration} name="Trainee">
-      <VideoSceneContainer clipPath={CLIPS_V2.trainee} fallbackScreenshot={SCREENSHOTS.investigation}>
-        <RoleBadge role="TRAINEE" />
-      </VideoSceneContainer>
+      <Act3Trainee />
     </Sequence>
 
     <Sequence from={COMBINED_COMP.split.from} durationInFrames={COMBINED_COMP.split.duration} name="Split Screen">

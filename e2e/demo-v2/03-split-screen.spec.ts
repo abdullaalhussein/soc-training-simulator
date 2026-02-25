@@ -1,4 +1,4 @@
-import { test, expect, Browser } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import {
   loginAs,
   cleanAllSessions,
@@ -10,11 +10,11 @@ import {
 } from './helpers';
 
 /**
- * Demo V2 — Act 4: Split-screen trainer + trainee real-time (~35s).
+ * Demo V3 — Act 4: Split-screen bi-directional real-time (~29s).
  *
- * Story: Two browser contexts run simultaneously — trainer monitors the
- * trainee's actions in real-time. Actions on one side produce visible
- * effects on the other.
+ * Story: Two browser contexts run simultaneously — trainee chats to trainer,
+ * trainer replies, trainer broadcasts, trainee uses hints & SOC Mentor while
+ * trainer watches the live activity feed.
  *
  * Produces two separate .webm files that Remotion composites side-by-side.
  *
@@ -114,7 +114,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
   );
 
   // =========================================================================
-  // SCENE 1 — Both navigate simultaneously
+  // SCENE 1 — Real-Time Monitoring: both navigate simultaneously (~6s)
   // =========================================================================
   await Promise.all([
     trainerPage.goto(`/sessions/${sessionId}`),
@@ -126,63 +126,125 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
     traineePage.waitForLoadState('networkidle'),
   ]);
 
-  await trainerPage.waitForTimeout(2000);
+  // Trainee: handle briefing page — must click "Continue to Investigation"
+  const continueBtn = traineePage
+    .locator('text=Continue to Investigation')
+    .or(traineePage.locator('text=Begin Investigation'));
+  if (await continueBtn.first().isVisible({ timeout: 5000 }).catch(() => false)) {
+    await traineePage.waitForTimeout(1000);
+    await continueBtn.first().click();
+    await traineePage.waitForLoadState('networkidle');
+    await traineePage.waitForTimeout(1500);
+  }
 
-  // Handle trainee onboarding popup
-  const nextBtn = traineePage.getByRole('button', { name: /next/i }).first();
-  for (let i = 0; i < 3; i++) {
+  // Trainee: handle onboarding popup
+  for (let i = 0; i < 4; i++) {
+    const nextBtn = traineePage.getByRole('button', { name: /next/i }).first();
     if (await nextBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
       await nextBtn.click();
       await traineePage.waitForTimeout(400);
     }
   }
   const closeOnboarding = traineePage.getByRole('button', { name: /close|done|got it|skip/i }).first();
-  if (await closeOnboarding.isVisible({ timeout: 1000 }).catch(() => false)) {
+  if (await closeOnboarding.isVisible({ timeout: 1500 }).catch(() => false)) {
     await closeOnboarding.click();
     await traineePage.waitForTimeout(500);
   }
 
-  // Handle trainee briefing
-  const continueBtn = traineePage
-    .locator('text=Continue to Investigation')
-    .or(traineePage.locator('text=Begin Investigation'));
-  if (await continueBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await continueBtn.click();
-    await traineePage.waitForLoadState('networkidle');
-    await traineePage.waitForTimeout(1500);
-  }
+  // Trainer: click the trainee name in the participants sidebar.
+  // Must target the <button> element directly — getByText returns the inner <span>
+  // which doesn't reliably bubble the click to the button's onClick handler.
+  await trainerPage.waitForTimeout(2000);
 
-  // =========================================================================
-  // SCENE 2 — Trainer selects trainee in participant list
-  // =========================================================================
+  // Trainee list buttons uniquely contain "Stage X/Y" text
   const traineeBtn = trainerPage
     .locator('button')
-    .filter({ hasText: /SOC Analyst|trainee/i })
+    .filter({ hasText: /Stage \d+\/\d+/ })
     .first();
-  if (await traineeBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await traineeBtn.click();
+
+  if (await traineeBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    await traineeBtn.click({ force: true });
+    await trainerPage.waitForTimeout(2000);
+  } else {
+    // JS fallback: click any button containing stage progress text
+    await trainerPage.evaluate(() => {
+      const buttons = document.querySelectorAll('button');
+      for (const btn of buttons) {
+        if (/Stage \d+\/\d+/.test(btn.textContent || '')) {
+          btn.click();
+          break;
+        }
+      }
+    });
+    await trainerPage.waitForTimeout(2000);
+  }
+
+  // Trainer: click Activity tab
+  const activityTab = trainerPage.getByRole('tab', { name: 'Activity' });
+  if (await activityTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await activityTab.click();
     await trainerPage.waitForTimeout(1500);
   }
 
-  // Show Activity tab
-  const activityTab = trainerPage.getByRole('tab', { name: 'Activity' });
-  if (await activityTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await activityTab.click();
-    await trainerPage.waitForTimeout(1000);
+  // =========================================================================
+  // SCENE 2 — Trainee Chat → Trainer (~6s)
+  // =========================================================================
+  // Trainee opens chat panel
+  const traineeChatBtn = traineePage.getByRole('button', { name: /chat|discussion/i }).first();
+  if (await traineeChatBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await traineeChatBtn.click();
+    await traineePage.waitForTimeout(1000);
+
+    // Trainee types and sends a message
+    const traineeMsgInput = traineePage.getByPlaceholder('Type a message...');
+    if (await traineeMsgInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await traineeMsgInput.scrollIntoViewIfNeeded();
+      await traineeMsgInput.pressSequentially(
+        'Found suspicious DNS query to 185.220.101.1',
+        { delay: 50 }
+      );
+      await traineePage.waitForTimeout(800);
+
+      // Send the message
+      const traineeSendBtn = traineeMsgInput.locator('..').locator('button').first();
+      if (await traineeSendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await traineeSendBtn.click();
+        await traineePage.waitForTimeout(1000);
+      }
+    }
   }
 
-  // =========================================================================
-  // SCENE 3 — Trainee adds evidence → trainer sees activity
-  // =========================================================================
-  const addEvidenceBtn = traineePage.locator('button[title="Add to Evidence"]').first();
-  if (await addEvidenceBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await addEvidenceBtn.click();
-    // Wait for activity to appear on trainer side
+  // Trainer switches to Discussion tab to see the message
+  const discussionTab = trainerPage.getByRole('tab', { name: 'Discussion' });
+  if (await discussionTab.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await discussionTab.click();
     await trainerPage.waitForTimeout(2000);
   }
 
   // =========================================================================
-  // SCENE 4 — Trainer broadcasts alert
+  // SCENE 3 — Trainer Reply → Trainee (~6s)
+  // =========================================================================
+  const trainerMsgInput = trainerPage.getByPlaceholder('Type a message...');
+  if (await trainerMsgInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await trainerMsgInput.scrollIntoViewIfNeeded();
+    await trainerMsgInput.pressSequentially(
+      'Good catch! Note the beacon interval timing.',
+      { delay: 50 }
+    );
+    await trainerPage.waitForTimeout(800);
+
+    const trainerSendBtn = trainerMsgInput.locator('..').locator('button').first();
+    if (await trainerSendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await trainerSendBtn.click();
+      await trainerPage.waitForTimeout(1500);
+    }
+  }
+
+  // Trainee sees reply in chat
+  await traineePage.waitForTimeout(2000);
+
+  // =========================================================================
+  // SCENE 4 — Broadcast Alert (~5s)
   // =========================================================================
   const broadcastBtn = trainerPage.getByRole('button', { name: /Broadcast Alert/i });
   if (await broadcastBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -192,7 +254,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
     // Type alert message
     const alertInput = trainerPage.locator('[role="dialog"]').locator('textarea, input[type="text"]').first();
     if (await alertInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await alertInput.pressSequentially('Priority: Check the DNS logs for C2 beaconing patterns', {
+      await alertInput.pressSequentially('PRIORITY: Investigate C2 callback in DNS logs', {
         delay: 50,
       });
       await trainerPage.waitForTimeout(800);
@@ -211,9 +273,8 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
       await trainerPage.keyboard.press('Escape');
     }
 
-    // Trainee sees broadcast overlay
+    // Trainee sees broadcast overlay → dismisses
     await traineePage.waitForTimeout(2000);
-    // Dismiss if visible
     const dismissBtn = traineePage.getByRole('button', { name: /dismiss|close|ok/i }).first();
     if (await dismissBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await dismissBtn.click();
@@ -222,37 +283,27 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
   }
 
   // =========================================================================
-  // SCENE 5 — Trainer sends discussion message
+  // SCENE 5 — Live Activity Log (~6s)
   // =========================================================================
-  const discussionTab = trainerPage.getByRole('tab', { name: 'Discussion' });
-  if (await discussionTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await discussionTab.click();
+  // Trainer switches to Activity tab
+  if (await activityTab.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await activityTab.click();
     await trainerPage.waitForTimeout(1000);
-
-    const msgInput = trainerPage.getByPlaceholder('Type a message...');
-    if (await msgInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await msgInput.scrollIntoViewIfNeeded();
-      await msgInput.pressSequentially(
-        'Good progress! Focus on the email sender domain.',
-        { delay: 50 }
-      );
-      await trainerPage.waitForTimeout(800);
-
-      const sendBtn = msgInput.locator('..').locator('button').first();
-      if (await sendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await sendBtn.click();
-        await trainerPage.waitForTimeout(1500);
-      }
-    }
   }
 
-  // =========================================================================
-  // SCENE 6 — Trainee opens chat panel to see message
-  // =========================================================================
-  const chatBtn = traineePage.getByRole('button', { name: /chat|discussion/i }).first();
-  if (await chatBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await chatBtn.click();
-    await traineePage.waitForTimeout(2000);
+  // Trainee reveals hint → trainer sees event in feed
+  const revealHintBtn = traineePage.getByRole('button', { name: /reveal hint/i }).first();
+  if (await revealHintBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await revealHintBtn.scrollIntoViewIfNeeded();
+    await revealHintBtn.click();
+    await trainerPage.waitForTimeout(1500);
+  }
+
+  // Trainee opens SOC Mentor → trainer sees event in feed
+  const aiHelpBtn = traineePage.getByRole('button', { name: /AI Help/i }).first();
+  if (await aiHelpBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await aiHelpBtn.click();
+    await trainerPage.waitForTimeout(1500);
   }
 
   // Final synchronized pause

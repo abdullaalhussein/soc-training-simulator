@@ -1,20 +1,20 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 import { VideoSceneContainer } from "../components/VideoSceneContainer";
 import { RoleBadge } from "../components/RoleBadge";
 import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [0, 250, "TRAINER CONSOLE"],
-  [250, 650, "SESSION CREATION"],
-  [650, 900, "SCENARIO GUIDE"],
-  [900, 1200, "SCENARIO DETAILS"],
+  [60,  190, "TRAINER CONSOLE"],
+  [200, 520, "SESSION CREATION"],
+  [530, 700, "LIVE MONITOR"],
+  [710, 879, "SCENARIO GUIDE"],
 ];
 
 /**
  * Act 2: Trainer clip with role badge and timed sub-overlays.
- * ~40 seconds (1200 frames at 30fps).
+ * 879 frames (29.3s at 30fps).
  */
 export const Act2Trainer: React.FC = () => {
   const frame = useCurrentFrame();

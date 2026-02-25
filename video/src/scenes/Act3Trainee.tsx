@@ -1,25 +1,22 @@
 import React from "react";
-import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+import { useCurrentFrame, interpolate } from "remotion";
 import { VideoSceneContainer } from "../components/VideoSceneContainer";
 import { RoleBadge } from "../components/RoleBadge";
 import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [0, 200, "TRAINEE DASHBOARD"],
-  [200, 400, "SCENARIO BRIEFING"],
-  [400, 700, "INVESTIGATION WORKSPACE"],
-  [700, 1000, "LOG ANALYSIS"],
-  [1000, 1300, "EVIDENCE COLLECTION"],
-  [1300, 1500, "TIMELINE CONSTRUCTION"],
-  [1500, 1700, "CHECKPOINT"],
-  [1700, 1900, "DISCUSSION & HINTS"],
-  [1900, 2400, "SOC MENTOR — AI GUIDANCE"],
+  [1,    270, "TRAINEE DASHBOARD"],
+  [271,  480, "SCENARIO BRIEFING"],
+  [481,  600, "INVESTIGATION WORKSPACE"],
+  [601,  810, "EVIDENCE COLLECTION"],
+  [811,  960, "CHECKPOINT"],
+  [961, 1260, "HINTS & SOC MENTOR"],
 ];
 
 /**
  * Act 3: Trainee investigation clip with role badge and timed sub-overlays.
- * ~80 seconds (2400 frames at 30fps).
+ * 1260 frames (42s at 30fps).
  */
 export const Act3Trainee: React.FC = () => {
   const frame = useCurrentFrame();

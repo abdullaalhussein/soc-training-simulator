@@ -73,7 +73,7 @@ export default defineConfig({
         viewport: { width: 1920, height: 1080 },
         deviceScaleFactor: 1,
         launchOptions: {
-          slowMo: 150,
+          slowMo: 80,
           args: ['--force-device-scale-factor=1', '--high-dpi-support=1'],
         },
       },
