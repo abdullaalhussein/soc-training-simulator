@@ -98,9 +98,11 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   const remainMinutes = elapsedMinutes % 60;
 
-  // Extract collected evidence and timeline from actions
-  const collectedEvidence: { summary: string; time: string }[] = [];
-  const timelineEntries: { timestamp: string; summary: string; time: string }[] = [];
+  // Extract collected evidence and timeline from actions, grouped by stage
+  type EvidenceItem = { summary: string; time: string };
+  type TimelineItem = { timestamp: string; summary: string; time: string };
+  const evidenceByStage: Record<number, EvidenceItem[]> = {};
+  const timelineByStage: Record<number, TimelineItem[]> = {};
   const removedEvidenceIds = new Set<string>();
   const removedTimelineIds = new Set<string>();
 
@@ -114,15 +116,20 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     }
   }
 
-  // Second pass: collect non-removed items (deduplicate by logId)
+  // Second pass: walk actions chronologically, track current stage, group items
+  let currentActionStage = 1;
   const seenEvidenceIds = new Set<string>();
   const seenTimelineLogIds = new Set<string>();
   for (const action of results.actions || []) {
+    if (action.actionType === 'STAGE_UNLOCKED' && action.details?.newStage) {
+      currentActionStage = action.details.newStage;
+    }
     if (action.actionType === 'EVIDENCE_ADDED' && action.details?.summary) {
       const logId = action.details.logId;
       if (logId && (removedEvidenceIds.has(logId) || seenEvidenceIds.has(logId))) continue;
       if (logId) seenEvidenceIds.add(logId);
-      collectedEvidence.push({
+      if (!evidenceByStage[currentActionStage]) evidenceByStage[currentActionStage] = [];
+      evidenceByStage[currentActionStage].push({
         summary: action.details.summary,
         time: new Date(action.createdAt).toLocaleTimeString(),
       });
@@ -131,10 +138,25 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
       const logId = action.details.logId;
       if (logId && (removedTimelineIds.has(logId) || seenTimelineLogIds.has(logId))) continue;
       if (logId) seenTimelineLogIds.add(logId);
-      timelineEntries.push({
+      if (!timelineByStage[currentActionStage]) timelineByStage[currentActionStage] = [];
+      timelineByStage[currentActionStage].push({
         timestamp: action.details.timestamp || '',
         summary: action.details.summary,
         time: new Date(action.createdAt).toLocaleTimeString(),
+      });
+    }
+  }
+
+  // Extract correct evidence per stage from EVIDENCE_SELECTION checkpoints
+  const correctEvidenceByStage: Record<number, { question: string; correctAnswer: string[] }[]> = {};
+  for (const answer of results.answers || []) {
+    const cp = answer.checkpoint;
+    if (cp?.checkpointType === 'EVIDENCE_SELECTION' && Array.isArray(cp.correctAnswer)) {
+      const stage = cp.stageNumber ?? 0;
+      if (!correctEvidenceByStage[stage]) correctEvidenceByStage[stage] = [];
+      correctEvidenceByStage[stage].push({
+        question: cp.question,
+        correctAnswer: cp.correctAnswer,
       });
     }
   }
@@ -239,76 +261,138 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
           )}
         </div>
 
-        {/* Per-Checkpoint Review */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Checkpoint Review</h2>
-          {sortedStages.map((stageNum) => (
-            <div key={stageNum} className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Stage {stageNum}
-              </h3>
-              {answersByStage[stageNum].map((answer: any) => {
-                const cp = answer.checkpoint;
-                return (
-                  <div
-                    key={answer.id}
-                    className="bg-card border rounded-lg p-4 space-y-3"
-                  >
-                    {/* Question header */}
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-medium flex-1">{cp?.question}</p>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {answer.isCorrect ? (
-                          <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-0">
-                            <CheckCircle className="h-3 w-3 mr-1" /> Correct
-                          </Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-0">
-                            <XCircle className="h-3 w-3 mr-1" /> Incorrect
-                          </Badge>
-                        )}
-                        <Badge variant="outline">{answer.pointsAwarded}/{cp?.points} pts</Badge>
-                      </div>
-                    </div>
+        {/* Per-Stage Review */}
+        <div className="space-y-6">
+          <h2 className="text-lg font-semibold">Stage-by-Stage Review</h2>
+          {sortedStages.map((stageNum) => {
+            const stageEvidence = evidenceByStage[stageNum] || [];
+            const stageTimeline = timelineByStage[stageNum] || [];
+            const stageCorrectEvidence = correctEvidenceByStage[stageNum] || [];
 
-                    {/* Answers comparison */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="bg-muted/50 rounded-md p-3">
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Your Answer</p>
-                        <p className="text-sm">{formatAnswer(answer)}</p>
-                      </div>
-                      <div className="bg-muted/50 rounded-md p-3">
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Correct Answer</p>
-                        <p className="text-sm">{formatCorrectAnswer(cp)}</p>
-                      </div>
-                    </div>
+            return (
+              <div key={stageNum} className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Stage {stageNum}
+                </h3>
 
-                    {/* AI Feedback */}
-                    {answer.feedback && (
-                      <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-md p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                          <p className="text-xs font-medium text-purple-800 dark:text-purple-400">AI Feedback</p>
+                {/* Checkpoint answers */}
+                {answersByStage[stageNum].map((answer: any) => {
+                  const cp = answer.checkpoint;
+                  return (
+                    <div
+                      key={answer.id}
+                      className="bg-card border rounded-lg p-4 space-y-3"
+                    >
+                      {/* Question header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium flex-1">{cp?.question}</p>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {answer.isCorrect ? (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-0">
+                              <CheckCircle className="h-3 w-3 mr-1" /> Correct
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-0">
+                              <XCircle className="h-3 w-3 mr-1" /> Incorrect
+                            </Badge>
+                          )}
+                          <Badge variant="outline">{answer.pointsAwarded}/{cp?.points} pts</Badge>
                         </div>
-                        <p className="text-sm text-purple-800 dark:text-purple-300">{answer.feedback}</p>
                       </div>
-                    )}
 
-                    {/* Explanation */}
-                    {cp?.explanation && (
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <p className="text-xs font-medium text-blue-800 dark:text-blue-400">Explanation</p>
+                      {/* Answers comparison */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-muted/50 rounded-md p-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Your Answer</p>
+                          <p className="text-sm">{formatAnswer(answer)}</p>
                         </div>
-                        <p className="text-sm text-blue-800 dark:text-blue-300">{cp.explanation}</p>
+                        <div className="bg-muted/50 rounded-md p-3">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Correct Answer</p>
+                          <p className="text-sm">{formatCorrectAnswer(cp)}</p>
+                        </div>
                       </div>
-                    )}
+
+                      {/* AI Feedback */}
+                      {answer.feedback && (
+                        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-md p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            <p className="text-xs font-medium text-purple-800 dark:text-purple-400">AI Feedback</p>
+                          </div>
+                          <p className="text-sm text-purple-800 dark:text-purple-300">{answer.feedback}</p>
+                        </div>
+                      )}
+
+                      {/* Explanation */}
+                      {cp?.explanation && (
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <p className="text-xs font-medium text-blue-800 dark:text-blue-400">Explanation</p>
+                          </div>
+                          <p className="text-sm text-blue-800 dark:text-blue-300">{cp.explanation}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Correct evidence for this stage (from EVIDENCE_SELECTION checkpoints) */}
+                {stageCorrectEvidence.map((ec, i) => (
+                  <div key={`correct-ev-${i}`} className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <p className="text-xs font-medium text-emerald-800 dark:text-emerald-400">Required Evidence</p>
+                    </div>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mb-2">{ec.question}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ec.correctAnswer.map((item, j) => (
+                        <Badge key={j} variant="outline" className="border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                ))}
+
+                {/* Collected evidence for this stage */}
+                {stageEvidence.length > 0 && (
+                  <div className="bg-card border rounded-lg p-4 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <Bookmark className="h-3.5 w-3.5" /> Collected Evidence ({stageEvidence.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {stageEvidence.map((ev, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          <span className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">{ev.time}</span>
+                          <p>{ev.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Timeline entries for this stage */}
+                {stageTimeline.length > 0 && (
+                  <div className="bg-card border rounded-lg p-4 space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                      <ClockIcon className="h-3.5 w-3.5" /> Timeline Entries ({stageTimeline.length})
+                    </p>
+                    <div className="space-y-1.5">
+                      {stageTimeline.map((entry, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm">
+                          {entry.timestamp && (
+                            <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{entry.timestamp}</span>
+                          )}
+                          <p>{entry.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Stats */}
@@ -340,42 +424,6 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
             </div>
           </div>
         </div>
-
-        {/* Collected Evidence */}
-        {collectedEvidence.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Bookmark className="h-5 w-5" /> Collected Evidence ({collectedEvidence.length})
-            </h2>
-            <div className="space-y-2">
-              {collectedEvidence.map((ev, i) => (
-                <div key={i} className="bg-card border rounded-lg p-3 flex items-start gap-3">
-                  <span className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">{ev.time}</span>
-                  <p className="text-sm">{ev.summary}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Timeline */}
-        {timelineEntries.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <ClockIcon className="h-5 w-5" /> Investigation Timeline ({timelineEntries.length})
-            </h2>
-            <div className="space-y-2">
-              {timelineEntries.map((entry, i) => (
-                <div key={i} className="bg-card border rounded-lg p-3 flex items-start gap-3">
-                  {entry.timestamp && (
-                    <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{entry.timestamp}</span>
-                  )}
-                  <p className="text-sm">{entry.summary}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Trainer Notes */}
         {results.notes?.length > 0 && (
