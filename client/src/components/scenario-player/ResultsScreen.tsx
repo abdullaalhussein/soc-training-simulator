@@ -20,6 +20,7 @@ import {
 
 interface ResultsScreenProps {
   attemptId: string;
+  embedded?: boolean;
 }
 
 const SCORE_CATEGORIES = [
@@ -30,7 +31,7 @@ const SCORE_CATEGORIES = [
   { key: 'reportScore', label: 'Reporting', max: 10, color: 'bg-rose-500' },
 ] as const;
 
-export function ResultsScreen({ attemptId }: ResultsScreenProps) {
+export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
   const { data: results, isLoading } = useQuery({
     queryKey: ['attempt-results', attemptId],
     queryFn: async () => {
@@ -41,7 +42,7 @@ export function ResultsScreen({ attemptId }: ResultsScreenProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-4 md:p-8">
+      <div className={`${embedded ? '' : 'min-h-screen'} bg-background p-4 md:p-8`}>
         <div className="max-w-4xl mx-auto space-y-6">
           <Skeleton className="h-10 w-64 mx-auto" />
           <Skeleton className="h-24 w-full" />
@@ -58,7 +59,7 @@ export function ResultsScreen({ attemptId }: ResultsScreenProps) {
 
   if (!results) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">
+      <div className={`${embedded ? '' : 'min-h-screen'} bg-background flex items-center justify-center text-muted-foreground`}>
         Results not found
       </div>
     );
@@ -126,7 +127,7 @@ export function ResultsScreen({ attemptId }: ResultsScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className={`${embedded ? '' : 'min-h-screen'} bg-background ${embedded ? 'p-2 md:p-4' : 'p-4 md:p-8'}`}>
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
         <div className="text-center space-y-3">
@@ -311,12 +312,14 @@ export function ResultsScreen({ attemptId }: ResultsScreenProps) {
         )}
 
         {/* Back to Dashboard */}
-        <div className="text-center pt-4 pb-8">
-          <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
-        </div>
+        {!embedded && (
+          <div className="text-center pt-4 pb-8">
+            <Button variant="outline" onClick={() => window.location.href = '/dashboard'}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

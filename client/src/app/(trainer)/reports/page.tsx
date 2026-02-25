@@ -10,11 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Download, Trophy, BarChart3, Target } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResultsScreen } from '@/components/scenario-player/ResultsScreen';
+import { Download, Eye, Trophy, BarChart3, Target } from 'lucide-react';
 
 export default function ReportsPage() {
   const { data: sessions } = useSessions();
   const [selectedSession, setSelectedSession] = useState('');
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
   const { data: summary } = useQuery({
     queryKey: ['session-summary', selectedSession],
@@ -143,6 +146,7 @@ export default function ReportsPage() {
                       <TableHead className="text-right hidden lg:table-cell">Report</TableHead>
                       <TableHead className="text-right hidden lg:table-cell">Penalty</TableHead>
                       <TableHead className="text-right font-bold">Total</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -165,6 +169,13 @@ export default function ReportsPage() {
                         <TableCell className="text-right hidden lg:table-cell">{entry.reportScore}</TableCell>
                         <TableCell className="text-right text-destructive hidden lg:table-cell">-{entry.hintPenalty}</TableCell>
                         <TableCell className="text-right font-bold text-lg">{entry.totalScore}</TableCell>
+                        <TableCell>
+                          {entry.status === 'COMPLETED' && entry.attemptId && (
+                            <Button variant="ghost" size="icon" title="View Answers" onClick={() => setSelectedAttemptId(entry.attemptId)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -176,6 +187,15 @@ export default function ReportsPage() {
           </Card>
         </>
       )}
+
+      <Dialog open={!!selectedAttemptId} onOpenChange={(open) => { if (!open) setSelectedAttemptId(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Trainee Answer Report</DialogTitle>
+          </DialogHeader>
+          {selectedAttemptId && <ResultsScreen attemptId={selectedAttemptId} embedded />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -90,6 +90,7 @@ router.get('/session/:id/leaderboard', async (req: Request, res: Response, next:
 
     const leaderboard = attempts.map((a, i) => ({
       rank: i + 1,
+      attemptId: a.id,
       userId: a.user.id,
       userName: a.user.name,
       email: a.user.email,
