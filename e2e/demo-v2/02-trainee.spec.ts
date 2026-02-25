@@ -34,7 +34,7 @@ test.beforeAll(async ({}, testInfo) => {
 
   await createAndLaunchSession(
     trainer.token,
-    'Onboarding — Week 1',
+    'Demo — Onboarding Week 1',
     scenarios[0].id,
     [trainee.id]
   );

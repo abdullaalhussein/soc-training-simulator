@@ -44,7 +44,7 @@ test.beforeAll(async ({}, testInfo) => {
 
   const session = await createAndLaunchSession(
     trainerToken,
-    'Real-Time Monitoring Demo',
+    'Demo — Real-Time Monitoring',
     scenarios[0].id,
     [trainee.id]
   );

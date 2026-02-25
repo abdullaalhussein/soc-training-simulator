@@ -2,6 +2,21 @@ import { Page } from '@playwright/test';
 import { API_URL, USERS } from '../fixtures/test-data';
 
 // ---------------------------------------------------------------------------
+// Production safety guard — block destructive operations on production
+// ---------------------------------------------------------------------------
+
+const isProduction = API_URL.includes('railway.app') || API_URL.includes('railway.com');
+
+function assertNotProduction(operation: string) {
+  if (isProduction && !process.env.ALLOW_PRODUCTION_DEMO) {
+    throw new Error(
+      `BLOCKED: "${operation}" cannot run against production (${API_URL}). ` +
+      `Set E2E_API_URL to localhost, or set ALLOW_PRODUCTION_DEMO=1 to override.`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Network helpers
 // ---------------------------------------------------------------------------
 
@@ -66,11 +81,18 @@ export async function injectAuth(
 // ---------------------------------------------------------------------------
 
 export async function cleanAllSessions(token: string) {
+  assertNotProduction('cleanAllSessions');
+  // SAFETY: Only clean sessions created by demo specs (prefixed "Demo —" or "YARA").
+  // Never delete all sessions — real user sessions (Yazed, Norah, Jori, etc.) must be preserved.
   const res = await fetch(`${API_URL}/api/sessions`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   const sessions = await res.json();
+  const DEMO_PREFIXES = ['Demo —', 'YARA Malware Hunt — Lab'];
   for (const s of sessions) {
+    const isDemoSession = DEMO_PREFIXES.some((p) => s.name?.startsWith(p));
+    if (!isDemoSession) continue;
+
     if (s.status === 'ACTIVE' || s.status === 'PAUSED') {
       await fetchWithRetry(`${API_URL}/api/sessions/${s.id}/status`, {
         method: 'PUT',
@@ -115,6 +137,7 @@ export async function createAndLaunchSession(
   scenarioId: string,
   memberIds: string[]
 ) {
+  assertNotProduction('createAndLaunchSession');
   const sessionRes = await fetch(`${API_URL}/api/sessions`, {
     method: 'POST',
     headers: {
@@ -138,6 +161,7 @@ export async function createAndLaunchSession(
 }
 
 export async function startAttempt(token: string, sessionId: string) {
+  assertNotProduction('startAttempt');
   const res = await fetch(`${API_URL}/api/attempts/start`, {
     method: 'POST',
     headers: {
