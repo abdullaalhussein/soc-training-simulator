@@ -103,6 +103,13 @@ export function ScenarioWizard({ onComplete, scenario: existingScenario }: Scena
   };
 
   const handleSubmit = async () => {
+    const missing = checkpoints.some(c => !c.explanation?.trim());
+    if (missing) {
+      setCheckpoints(checkpoints.map(c => ({ ...c, _showError: true })));
+      toast({ title: 'Every checkpoint needs an explanation for the trainer\'s Scenario Guide.', variant: 'destructive' });
+      setStep(2);
+      return;
+    }
     const payload = {
       ...basicInfo,
       mitreAttackIds,
@@ -114,7 +121,7 @@ export function ScenarioWizard({ onComplete, scenario: existingScenario }: Scena
         hints: s.hints,
         logs: s.logs,
       })),
-      checkpoints: checkpoints.map(c => ({
+      checkpoints: checkpoints.map(({ _showError, ...c }) => ({
         ...c,
         options: c.checkpointType === 'SHORT_ANSWER' || c.checkpointType === 'INCIDENT_REPORT'
           ? undefined : c.options?.filter((o: string) => o),
@@ -335,12 +342,16 @@ export function ScenarioWizard({ onComplete, scenario: existingScenario }: Scena
                   }} placeholder="Enter correct answer" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Explanation (shown to trainer as answer guide)</Label>
+                  <Label className="text-xs">Explanation (shown to trainer as answer guide) <span className="text-red-500">*</span></Label>
                   <Textarea value={cp.explanation || ''} onChange={(e) => {
                     const updated = [...checkpoints];
                     updated[i].explanation = e.target.value;
                     setCheckpoints(updated);
-                  }} rows={2} placeholder="Explain why this is the correct answer..." />
+                  }} rows={2} placeholder="Explain why this is the correct answer..."
+                    className={cp._showError && !cp.explanation?.trim() ? 'border-red-500 focus-visible:ring-red-500' : ''} />
+                  {cp._showError && !cp.explanation?.trim() && (
+                    <p className="text-xs text-red-500">Explanation is required for the trainer's Scenario Guide.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

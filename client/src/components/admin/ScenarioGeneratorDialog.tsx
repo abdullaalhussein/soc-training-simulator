@@ -89,6 +89,19 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
   const handleImport = async () => {
     try {
       const data = JSON.parse(jsonText);
+
+      // Validate every checkpoint has an explanation (required for trainer Scenario Guide)
+      const missing = (data.checkpoints || []).filter(
+        (cp: any, i: number) => !cp.explanation || !cp.explanation.trim()
+      );
+      if (missing.length > 0) {
+        toast({
+          title: `${missing.length} checkpoint${missing.length > 1 ? 's' : ''} missing an explanation. Add an "explanation" field to every checkpoint before importing.`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
       await importMutation.mutateAsync(data);
       toast({ title: 'Scenario imported successfully' });
       onOpenChange(false);

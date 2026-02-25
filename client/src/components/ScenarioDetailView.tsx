@@ -371,12 +371,21 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                             )}
 
                             {/* Explanation */}
-                            {cp.explanation && (
+                            {cp.explanation ? (
                               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
                                 <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase flex items-center gap-1">
                                   <AlertTriangle className="h-3 w-3" /> Explanation
                                 </span>
                                 <p className="text-sm mt-1">{cp.explanation}</p>
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
+                                <span className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase flex items-center gap-1">
+                                  <AlertTriangle className="h-3 w-3" /> Missing Explanation
+                                </span>
+                                <p className="text-sm mt-1 text-amber-700 dark:text-amber-400">
+                                  No explanation provided — contact admin to update this scenario.
+                                </p>
                               </div>
                             )}
 

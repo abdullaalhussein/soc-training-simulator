@@ -35,7 +35,7 @@ const checkpointSchema = z.object({
   correctAnswer: z.any(),
   points: z.number().int().min(0).optional(),
   category: z.string().nullable().optional(),
-  explanation: z.string().nullable().optional(),
+  explanation: z.string().min(1, 'Explanation is required'),
   sortOrder: z.number().int().min(0).optional(),
 });
 
