@@ -2,7 +2,7 @@
 
 **An open-source platform that prepares SOC analysts for real incidents before they face one.**
 
-<p dir="rtl" align="right"><strong>محاكي تدريب مركز العمليات الأمنية</strong> — منصة تدريب متعددة الأدوار لمحللي الأمن السيبراني</p>
+With a global shortage of 3.5 million cybersecurity professionals, most SOC training is either expensive, static, or disconnected from real investigation workflows. This platform closes that gap — free, self-hosted, and AI-powered.
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
 [![Express](https://img.shields.io/badge/Express-5-000?logo=express)](https://expressjs.com/)
@@ -12,8 +12,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Anthropic](https://img.shields.io/badge/Anthropic-Claude_AI-D4A574?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
 [![Playwright](https://img.shields.io/badge/Playwright-68_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
-
-> If you find this project useful, please consider giving it a star — it helps others discover it and motivates continued development.
 
 ---
 
@@ -27,64 +25,7 @@ SOC Training Simulator is a full-stack, multi-role platform for training cyberse
   <video src="demo.mp4" controls width="720"></video>
 </p>
 
-### Roles
-
-| Role | Capabilities |
-|------|-------------|
-| **Admin** | Manage users, scenarios, audit logs, system settings |
-| **Trainer** | Create sessions, monitor trainees live, send hints, adjust scores |
-| **Trainee** | Investigate scenarios, analyze logs, submit evidence & reports |
-
-### Key Features
-
-- **13 built-in scenarios** spanning Beginner to Advanced difficulty (phishing, brute force, lateral movement, DNS tunneling, APT campaigns, SQL injection, insider threat, YARA rules, SOC fundamentals)
-- **Multi-stage scenario investigation** with configurable unlock conditions
-- **10 realistic log types** — SIEM, EDR, Sysmon, Firewall, DNS, Network Flow, Proxy, Windows Event, Auth, Email Gateway
-- **8 checkpoint types** — True/False, Multiple Choice, Severity Classification, Recommended Action, Short Answer, Evidence Selection, Incident Report, YARA Rule
-- **AI-powered SOC Mentor** — context-aware assistant that guides trainees with Socratic questioning (never gives away answers)
-- **AI Scoring** — Claude grades Short Answer and Incident Report checkpoints with detailed feedback
-- **AI Scenario Generator** — create new scenarios from a text prompt
-- **Server-side AI output filter** — 4-layer filter prevents the AI from leaking answers
-- **YARA rule writing & testing** with real-time compilation against samples
-- **Real-time trainer monitoring** via Socket.io (hints, alerts, pause/resume, chat)
-- **5-dimension scoring system** — Accuracy (35%), Investigation (20%), Evidence (20%), Response (15%), Report (10%)
-- **PDF & CSV report generation** with detailed score breakdowns
-- **Scenario import/export** via JSON for sharing between instances
-- **Pre-investigation lessons** with markdown-rendered educational content
-- **Light/dark mode toggle** — optimized for SOC environments
-
-### How It Compares
-
-| Feature | SOC Training Simulator | LetsDefend | TryHackMe | CyberDefenders |
-|---------|----------------------|------------|-----------|----------------|
-| Open source | Yes (MIT) | No | No | No |
-| Self-hosted | Yes | No | No | No |
-| AI Mentor / Scoring | Yes (Claude) | No | No | No |
-| Custom scenarios | JSON import + AI generator | Limited | Community rooms | Limited |
-| Real-time trainer monitoring | Yes (Socket.io) | No | No | No |
-| YARA rule playground | Yes | No | No | No |
-| Multi-role (Admin/Trainer/Trainee) | Yes | Single user | Single user | Single user |
-| Cost | Free (BYOK for AI) | $25/mo+ | $14/mo+ | Free tier limited |
-
----
-
-## AI Features (Bring Your Own Key)
-
-SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anthropic.com/) for three optional AI features:
-
-| Feature | What it does | Works without API key? |
-|---------|-------------|----------------------|
-| **SOC Mentor** | Context-aware chat assistant that guides trainees using Socratic questioning | No (disabled) |
-| **AI Scoring** | Grades Short Answer and Incident Report checkpoints with detailed feedback | No (falls back to keyword matching) |
-| **AI Scenario Generator** | Creates new scenarios from a text description | No (disabled) |
-
-**To enable AI features**, set your API key in `.env`:
-```env
-ANTHROPIC_API_KEY=sk-ant-...
-AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
-```
-
-**Without an API key**, the platform is fully functional — all investigation, scoring (via deterministic methods), checkpoint, evidence, YARA, and reporting features work without AI. The SOC Mentor chat and AI scenario generator will simply be unavailable.
+> If the video doesn't load, [download demo.mp4](demo.mp4) or clone the repo to watch locally.
 
 ---
 
@@ -146,60 +87,58 @@ AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
 
 ---
 
-## Tech Stack
+## Key Features
 
-| Layer | Technologies |
-|-------|-------------|
-| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
-| **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
-| **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
-| **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
-| **Testing** | Vitest (unit), Playwright (68 E2E tests across 16 spec files) |
-| **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
+**Investigation & Training**
+- **13 built-in scenarios** spanning Beginner to Advanced difficulty (phishing, brute force, lateral movement, DNS tunneling, APT campaigns, SQL injection, insider threat, YARA rules, SOC fundamentals)
+- **Multi-stage scenario investigation** with configurable unlock conditions
+- **10 realistic log types** — SIEM, EDR, Sysmon, Firewall, DNS, Network Flow, Proxy, Windows Event, Auth, Email Gateway
+- **8 checkpoint types** — True/False, Multiple Choice, Severity Classification, Recommended Action, Short Answer, Evidence Selection, Incident Report, YARA Rule
+- **Pre-investigation lessons** with markdown-rendered educational content
 
----
+**AI-Powered (Bring Your Own Key)**
+- **AI SOC Mentor** — context-aware assistant that guides trainees with Socratic questioning (never gives away answers)
+- **AI Scoring** — Claude grades Short Answer and Incident Report checkpoints with detailed feedback
+- **AI Scenario Generator** — create new scenarios from a text prompt
+- **Server-side AI output filter** — 4-layer filter prevents the AI from leaking answers
 
-## Project Structure
+**Trainer Tools**
+- **Real-time trainer monitoring** via Socket.io (hints, alerts, pause/resume, chat)
+- **5-dimension scoring system** — Accuracy (35%), Investigation (20%), Evidence (20%), Response (15%), Report (10%)
+- **PDF & CSV report generation** with detailed score breakdowns
+- **Scenario import/export** via JSON for sharing between instances
 
-```
-soc-training-simulator/
-├── client/                  # Next.js 15 frontend
-│   ├── src/app/
-│   │   ├── (auth)/          # Login pages
-│   │   ├── (admin)/         # Admin panel (users, scenarios, audit)
-│   │   ├── (trainer)/       # Trainer console (sessions, monitoring, reports)
-│   │   └── (trainee)/       # Investigation UI (log viewer, evidence, checkpoints)
-│   ├── src/components/      # Reusable UI components
-│   ├── src/hooks/           # Custom React hooks
-│   └── src/stores/          # Zustand stores
-├── server/                  # Express 5 backend
-│   ├── src/routes/          # API route handlers
-│   ├── src/middleware/       # Auth, RBAC, audit logging
-│   ├── src/services/        # Scoring, AI, YARA, PDF reports
-│   ├── src/utils/           # Helpers (AI output filter, logger)
-│   └── src/socket/          # Socket.io namespaces (/trainer, /trainee)
-├── shared/                  # Shared TypeScript types & constants
-│   └── src/types/           # Enums, interfaces, validation
-├── prisma/                  # Database schema & seed data
-│   ├── schema.prisma        # 13 models, 7 enums
-│   └── seed.ts              # Demo users & all 13 scenarios
-├── scenarios/               # 8 importable scenario JSON files
-├── e2e/                     # Playwright E2E tests (68 tests)
-│   ├── auth/                # Login, RBAC, redirect tests
-│   ├── admin/               # User, scenario, audit, settings tests
-│   ├── trainer/             # Console, monitor, chat, notifications, reports tests
-│   ├── trainee/             # Dashboard, investigation tests
-│   ├── shared/              # Theme, navigation, logout tests
-│   ├── fixtures/            # Auth setup & test data
-│   └── pages/               # Page object models
-├── docker-compose.yml       # Local PostgreSQL + pgAdmin
-└── docs/
-    └── presentation.html    # Project architecture presentation
-```
+**Platform**
+- **YARA rule writing & testing** with real-time compilation against samples
+- **Light/dark mode toggle** — optimized for SOC environments
+- **Three roles** — Admin, Trainer, Trainee with full RBAC enforcement
+
+### Roles
+
+| Role | Capabilities |
+|------|-------------|
+| **Admin** | Manage users, scenarios, audit logs, system settings |
+| **Trainer** | Create sessions, monitor trainees live, send hints, adjust scores |
+| **Trainee** | Investigate scenarios, analyze logs, submit evidence & reports |
+
+### How It Compares
+
+| Feature | SOC Training Simulator | LetsDefend | TryHackMe | CyberDefenders |
+|---------|----------------------|------------|-----------|----------------|
+| Open source | Yes (MIT) | No | No | No |
+| Self-hosted | Yes | No | No | No |
+| AI Mentor / Scoring | Yes (Claude) | No | No | No |
+| Custom scenarios | JSON import + AI generator | Limited | Community rooms | Limited |
+| Real-time trainer monitoring | Yes (Socket.io) | No | No | No |
+| YARA rule playground | Yes | No | No | No |
+| Multi-role (Admin/Trainer/Trainee) | Yes | Single user | Single user | Single user |
+| Cost | Free (BYOK for AI) | $25/mo+ | $14/mo+ | Free tier limited |
 
 ---
 
 ## Quick Start
+
+> Setup takes approximately 5 minutes. Need help? Ask in [GitHub Discussions](https://github.com/abdullaalhussein/soc-training-simulator/discussions).
 
 ### Prerequisites
 
@@ -254,7 +193,8 @@ npm run dev
 | Trainer | `trainer@soc.local` | `Password123!` |
 | Trainee | `trainee@soc.local` | `Password123!` |
 
-> **SECURITY WARNING:** These are demo credentials for local development only. **Change all default passwords immediately** before deploying to any network-accessible environment. The server will log warnings on startup if default credentials are detected.
+> [!WARNING]
+> These are demo credentials for local development only. **Change all default passwords immediately** before deploying to any network-accessible environment. The server will log warnings on startup if default credentials are detected.
 
 ### Production Security Checklist
 
@@ -270,12 +210,85 @@ Before deploying to a network-accessible environment:
 
 ---
 
+## AI Features (Bring Your Own Key)
+
+SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anthropic.com/) for three optional AI features:
+
+| Feature | What it does | Works without API key? |
+|---------|-------------|----------------------|
+| **SOC Mentor** | Context-aware chat assistant that guides trainees using Socratic questioning | No (disabled) |
+| **AI Scoring** | Grades Short Answer and Incident Report checkpoints with detailed feedback | No (falls back to keyword matching) |
+| **AI Scenario Generator** | Creates new scenarios from a text description | No (disabled) |
+
+**To enable AI features**, set your API key in `.env`:
+```env
+ANTHROPIC_API_KEY=sk-ant-...
+AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
+```
+
+**Without an API key**, the platform is fully functional — all investigation, scoring (via deterministic methods), checkpoint, evidence, YARA, and reporting features work without AI. The SOC Mentor chat and AI scenario generator will simply be unavailable.
+
+---
+
+## Tech Stack
+
+| Layer | Technologies |
+|-------|-------------|
+| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
+| **Server** | Express 5, Socket.io, JWT Auth, RBAC, Prisma ORM, Zod, PDFKit, Winston, YARA |
+| **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
+| **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
+| **Testing** | Vitest (40 unit tests), Playwright (68 E2E tests across 18 spec files) |
+| **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
+
+---
+
+## Project Structure
+
+```
+soc-training-simulator/
+├── client/                  # Next.js 15 frontend
+│   ├── src/app/
+│   │   ├── (auth)/          # Login pages
+│   │   ├── (admin)/         # Admin panel (users, scenarios, audit)
+│   │   ├── (trainer)/       # Trainer console (sessions, monitoring, reports)
+│   │   └── (trainee)/       # Investigation UI (log viewer, evidence, checkpoints)
+│   ├── src/components/      # Reusable UI components
+│   ├── src/hooks/           # Custom React hooks
+│   └── src/stores/          # Zustand stores
+├── server/                  # Express 5 backend
+│   ├── src/routes/          # API route handlers
+│   ├── src/middleware/       # Auth, RBAC, audit logging
+│   ├── src/services/        # Scoring, AI, YARA, PDF reports
+│   ├── src/utils/           # Helpers (AI output filter, logger)
+│   └── src/socket/          # Socket.io namespaces (/trainer, /trainee)
+├── shared/                  # Shared TypeScript types & constants
+│   └── src/types/           # Enums, interfaces, validation
+├── prisma/                  # Database schema & seed data
+│   ├── schema.prisma        # 13 models, 7 enums
+│   └── seed.ts              # Demo users & all 13 scenarios
+├── scenarios/               # 8 importable scenario JSON files
+├── e2e/                     # Playwright E2E tests (68 tests)
+│   ├── auth/                # Login, RBAC, redirect tests
+│   ├── admin/               # User, scenario, audit, settings tests
+│   ├── trainer/             # Console, monitor, chat, notifications, reports tests
+│   ├── trainee/             # Dashboard, investigation tests
+│   ├── shared/              # Theme, navigation, logout tests
+│   ├── fixtures/            # Auth setup & test data
+│   └── pages/               # Page object models
+├── docker-compose.yml       # Local PostgreSQL + pgAdmin
+└── docs/
+    └── presentation.html    # Project architecture presentation
+```
+
+---
+
 ## Environment Variables
 
 Create a `.env` file from [`.env.example`](.env.example):
 
 ```env
-# Database
+# Database (local dev defaults — change in production)
 DATABASE_URL="postgresql://soc_admin:soc_password_2024@localhost:5433/soc_training?schema=public"
 
 # JWT Authentication
@@ -501,9 +514,20 @@ Open [`docs/presentation.html`](docs/presentation.html) in a browser for the ful
 
 ## Enterprise & Custom Deployments
 
-Need SSO, managed hosting, custom scenarios, or dedicated support for your organization? Reach out — we're happy to discuss enterprise options.
+For organizations that need more than the open-source edition:
+
+- **Managed cloud hosting** — fully provisioned instance, no setup required
+- **SSO / SAML integration** — connect to your organization's identity provider
+- **Custom scenario development** — tailored training content for your threat landscape
+- **Dedicated support & SLA** — priority response for your team
 
 **Contact:** [abdullaalhussein@gmail.com](mailto:abdullaalhussein@gmail.com)
+
+---
+
+## Vision
+
+Our goal is to become the open-source standard for SOC analyst training — free, extensible, and community-driven. We believe every security team deserves access to realistic, AI-powered training, regardless of budget.
 
 ---
 
@@ -523,3 +547,7 @@ Contributions are welcome! Please read the [Contributor License Agreement](CLA.m
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+<p dir="rtl" align="right"><strong>محاكي تدريب مركز العمليات الأمنية</strong> — منصة تدريب متعددة الأدوار لمحللي الأمن السيبراني</p>
+
+> If you find this project useful, please consider giving it a star — it helps others discover it and motivates continued development.
