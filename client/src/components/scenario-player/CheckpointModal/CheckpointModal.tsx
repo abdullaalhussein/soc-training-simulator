@@ -50,7 +50,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
       setResults(prev => ({ ...prev, [cp.id]: data }));
       onAnswered(cp.id);
 
-      // If correct answer is included (beginner wrong answer), don't auto-advance
+      // If correct answer is included (wrong answer), don't auto-advance
       const hasCorrectAnswer = data.correctAnswer !== undefined;
       const isLastCheckpoint = currentIndex === stableCheckpoints.length - 1;
       if (!hasCorrectAnswer) {
