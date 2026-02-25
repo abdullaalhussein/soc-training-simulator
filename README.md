@@ -507,6 +507,13 @@ Need SSO, managed hosting, custom scenarios, or dedicated support for your organ
 
 ---
 
+## Community
+
+Questions, ideas, or feedback? Join the conversation:
+
+- [GitHub Discussions](https://github.com/abdullaalhussein/soc-training-simulator/discussions) — ask questions, share setups, suggest features
+- [GitHub Issues](https://github.com/abdullaalhussein/soc-training-simulator/issues) — report bugs or request features
+
 ## Contributing
 
 Contributions are welcome! Please read the [Contributor License Agreement](CLA.md) before submitting a pull request.
