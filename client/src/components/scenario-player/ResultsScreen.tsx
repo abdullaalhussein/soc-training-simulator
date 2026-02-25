@@ -98,53 +98,56 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   const remainMinutes = elapsedMinutes % 60;
 
-  // Extract collected evidence and timeline from actions, grouped by stage
-  type EvidenceItem = { summary: string; time: string };
-  type TimelineItem = { timestamp: string; summary: string; time: string };
-  const evidenceByStage: Record<number, EvidenceItem[]> = {};
-  const timelineByStage: Record<number, TimelineItem[]> = {};
-  const removedEvidenceIds = new Set<string>();
-  const removedTimelineIds = new Set<string>();
-
-  // First pass: collect removed IDs
-  for (const action of results.actions || []) {
-    if (action.actionType === 'EVIDENCE_REMOVED' && action.details?.logId) {
-      removedEvidenceIds.add(action.details.logId);
-    }
-    if (action.actionType === 'TIMELINE_ENTRY_REMOVED' && action.details?.entryId) {
-      removedTimelineIds.add(action.details.entryId);
-    }
-  }
-
-  // Second pass: walk actions chronologically, track current stage, group items
+  // Extract collected evidence and timeline from actions, grouped by stage.
+  // Walk chronologically: track add/remove state per logId so re-adds work correctly.
+  type EvidenceItem = { summary: string; time: string; stage: number };
+  type TimelineItem = { timestamp: string; summary: string; time: string; stage: number };
+  const evidenceMap = new Map<string, EvidenceItem>(); // keyed by logId or summary
+  const timelineMap = new Map<string, TimelineItem>(); // keyed by logId or summary
   let currentActionStage = 1;
-  const seenEvidenceIds = new Set<string>();
-  const seenTimelineLogIds = new Set<string>();
+
   for (const action of results.actions || []) {
     if (action.actionType === 'STAGE_UNLOCKED' && action.details?.newStage) {
       currentActionStage = action.details.newStage;
     }
     if (action.actionType === 'EVIDENCE_ADDED' && action.details?.summary) {
-      const logId = action.details.logId;
-      if (logId && (removedEvidenceIds.has(logId) || seenEvidenceIds.has(logId))) continue;
-      if (logId) seenEvidenceIds.add(logId);
-      if (!evidenceByStage[currentActionStage]) evidenceByStage[currentActionStage] = [];
-      evidenceByStage[currentActionStage].push({
+      const key = action.details.logId || action.details.summary;
+      evidenceMap.set(key, {
         summary: action.details.summary,
         time: new Date(action.createdAt).toLocaleTimeString(),
+        stage: currentActionStage,
       });
     }
+    if (action.actionType === 'EVIDENCE_REMOVED' && action.details?.logId) {
+      evidenceMap.delete(action.details.logId);
+    }
     if (action.actionType === 'TIMELINE_ENTRY_ADDED' && action.details?.summary) {
-      const logId = action.details.logId;
-      if (logId && (removedTimelineIds.has(logId) || seenTimelineLogIds.has(logId))) continue;
-      if (logId) seenTimelineLogIds.add(logId);
-      if (!timelineByStage[currentActionStage]) timelineByStage[currentActionStage] = [];
-      timelineByStage[currentActionStage].push({
+      const key = action.details.logId || action.details.summary;
+      timelineMap.set(key, {
         timestamp: action.details.timestamp || '',
         summary: action.details.summary,
         time: new Date(action.createdAt).toLocaleTimeString(),
+        stage: currentActionStage,
       });
     }
+    if (action.actionType === 'TIMELINE_ENTRY_REMOVED') {
+      const entryId = action.details?.entryId;
+      const logId = action.details?.logId;
+      if (logId) timelineMap.delete(logId);
+      else if (entryId) timelineMap.delete(entryId);
+    }
+  }
+
+  // Group surviving items by stage
+  const evidenceByStage: Record<number, EvidenceItem[]> = {};
+  for (const ev of evidenceMap.values()) {
+    if (!evidenceByStage[ev.stage]) evidenceByStage[ev.stage] = [];
+    evidenceByStage[ev.stage].push(ev);
+  }
+  const timelineByStage: Record<number, TimelineItem[]> = {};
+  for (const entry of timelineMap.values()) {
+    if (!timelineByStage[entry.stage]) timelineByStage[entry.stage] = [];
+    timelineByStage[entry.stage].push(entry);
   }
 
   // Extract correct evidence per stage from EVIDENCE_SELECTION checkpoints
