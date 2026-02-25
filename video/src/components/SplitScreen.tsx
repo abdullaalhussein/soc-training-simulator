@@ -100,11 +100,11 @@ export const SplitScreen: React.FC<SplitScreenProps> = ({
     overflow: "hidden",
   };
 
+  // Clips are pre-cropped to 960x1080 by collect-clips.js — no CSS cropping needed
   const videoStyle: React.CSSProperties = {
-    width: "200%",
+    width: "100%",
     height: "100%",
     objectFit: "cover",
-    objectPosition: "center",
   };
 
   const labelStyle = (color: string, side: "left" | "right"): React.CSSProperties => ({

@@ -44,19 +44,19 @@ export const STAGGER_DELAY = 8;
 // ---------------------------------------------------------------------------
 
 export const CLIPS_V2 = {
-  admin: "/clips/act1-admin.webm",
-  trainer: "/clips/act2-trainer.webm",
-  trainee: "/clips/act3-trainee.webm",
-  splitTrainer: "/clips/act4-split-trainer.webm",
-  splitTrainee: "/clips/act4-split-trainee.webm",
+  admin: "/clips/act1-admin.mp4",
+  trainer: "/clips/act2-trainer.mp4",
+  trainee: "/clips/act3-trainee.mp4",
+  splitTrainer: "/clips/act4-split-trainer.mp4",
+  splitTrainee: "/clips/act4-split-trainee.mp4",
 } as const;
 
-// Actual clip durations in frames (from ffprobe, rounded up)
+// Actual clip durations in frames (V3 — from ffprobe, rounded up)
 const CLIP_FRAMES = {
-  admin: 558,     // 18.6s
-  trainer: 924,   // 30.8s
-  trainee: 422,   // 14.0s
-  split: 330,     // 11.0s (shorter of the two)
+  admin:   772,   // 25.7s
+  trainer: 900,   // 30.0s
+  trainee: 390,   // 13.0s
+  split:   327,   // 10.9s (shorter of the two)
 } as const;
 
 const TITLE_DUR = 60;  // 2s title card
@@ -105,4 +105,4 @@ function buildCombined() {
 }
 
 export const COMBINED_COMP = buildCombined();
-// total = 90+558+924+422+330+120 = 2444 frames = ~81.5s ≈ 1:22
+// total = 90+772+900+390+327+120 = 2599 frames = ~86.6s

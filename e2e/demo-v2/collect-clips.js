@@ -3,9 +3,9 @@
 /**
  * collect-clips.js
  *
- * Gathers recorded .webm clips from Playwright test-results/ and copies
- * them to video/public/clips/ where Remotion can reference them via
- * staticFile('/clips/...').
+ * Gathers recorded .webm clips from Playwright test-results/ and converts
+ * them to H.264 MP4 for optimal Remotion rendering performance.
+ * Split-screen clips are pre-cropped to 960x1080 to avoid dual full-res decoding.
  *
  * Usage:
  *   node e2e/demo-v2/collect-clips.js
@@ -21,11 +21,11 @@ const CLIPS_DIR = path.join(ROOT, 'video', 'public', 'clips');
 
 // Expected clip mapping: directory pattern → output filename
 const CLIP_MAP = [
-  { pattern: /Act-1.*Admin|00-admin/i, output: 'act1-admin.webm' },
-  { pattern: /Act-2.*Trainer|01-trainer/i, output: 'act2-trainer.webm' },
-  { pattern: /Act-3.*Trainee|02-trainee/i, output: 'act3-trainee.webm' },
-  { pattern: /split-trainer/i, output: 'act4-split-trainer.webm' },
-  { pattern: /split-trainee/i, output: 'act4-split-trainee.webm' },
+  { pattern: /Act-1.*Admin|00-admin/i, output: 'act1-admin' },
+  { pattern: /Act-2.*Trainer|01-trainer/i, output: 'act2-trainer' },
+  { pattern: /Act-3.*Trainee|02-trainee/i, output: 'act3-trainee' },
+  { pattern: /split-trainer/i, output: 'act4-split-trainer', crop: 'left' },
+  { pattern: /split-trainee/i, output: 'act4-split-trainee', crop: 'right' },
 ];
 
 function findWebmFiles(dir) {
@@ -61,6 +61,17 @@ function convertToMp4(webmPath, mp4Path) {
   );
 }
 
+function convertToMp4Cropped(webmPath, mp4Path, side) {
+  // Crop 1920x1080 → center 960x1080 (left half or right half)
+  const cropX = side === 'left' ? 0 : 960;
+  const cropFilter = `crop=960:1080:${cropX}:0`;
+  console.log(`  Converting to MP4 (${side}-cropped 960x1080): ${path.basename(mp4Path)}`);
+  execSync(
+    `ffmpeg -y -i "${webmPath}" -vf "${cropFilter}" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p "${mp4Path}"`,
+    { stdio: 'inherit' }
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -75,8 +86,9 @@ console.log(`Found ${allWebm.length} .webm file(s) in test-results/\n`);
 
 const canConvert = hasFFmpeg();
 if (!canConvert) {
-  console.log('Note: ffmpeg not found. Copying .webm files directly.');
-  console.log('If OffthreadVideo has codec issues, install ffmpeg and re-run.\n');
+  console.log('ERROR: ffmpeg is required for MP4 conversion.');
+  console.log('Install ffmpeg and re-run this script.\n');
+  console.log('Falling back to raw .webm copies (slower Remotion rendering).\n');
 }
 
 let copied = 0;
@@ -90,19 +102,28 @@ for (const clip of CLIP_MAP) {
     continue;
   }
 
-  const destWebm = path.join(CLIPS_DIR, clip.output);
-  fs.copyFileSync(match, destWebm);
-  console.log(`  COPY: ${path.relative(ROOT, match)} → clips/${clip.output}`);
+  const destMp4 = path.join(CLIPS_DIR, `${clip.output}.mp4`);
 
-  // Optionally convert to MP4 for better Remotion compatibility
   if (canConvert) {
-    const mp4Name = clip.output.replace('.webm', '.mp4');
-    const destMp4 = path.join(CLIPS_DIR, mp4Name);
     try {
-      convertToMp4(match, destMp4);
+      if (clip.crop) {
+        // Split-screen clips: pre-crop to 960x1080
+        convertToMp4Cropped(match, destMp4, clip.crop);
+      } else {
+        convertToMp4(match, destMp4);
+      }
     } catch (err) {
       console.log(`  WARN: MP4 conversion failed for ${clip.output}: ${err.message}`);
+      // Fallback: copy raw webm
+      const destWebm = path.join(CLIPS_DIR, `${clip.output}.webm`);
+      fs.copyFileSync(match, destWebm);
+      console.log(`  FALLBACK: Copied raw .webm for ${clip.output}`);
     }
+  } else {
+    // No ffmpeg — copy raw webm as fallback
+    const destWebm = path.join(CLIPS_DIR, `${clip.output}.webm`);
+    fs.copyFileSync(match, destWebm);
+    console.log(`  COPY: ${path.relative(ROOT, match)} → clips/${clip.output}.webm`);
   }
 
   copied++;
