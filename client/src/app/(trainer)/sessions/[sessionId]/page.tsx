@@ -19,16 +19,19 @@ import { api } from '@/lib/api';
 import { getTrainerSocket } from '@/lib/socket';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
+import { ResultsScreen } from '@/components/scenario-player/ResultsScreen';
 import {
   Play, Pause, Square, Send, Eye, Users, Activity, MessageSquare,
-  Search, FileText, Lightbulb, CheckCircle2, ArrowRight, Bookmark,
-  Clock, X, AlertTriangle, UserPlus, Trash2, RotateCcw,
+  Search, FileText, Lightbulb, CheckCircle2, XCircle, ArrowRight, Bookmark,
+  Clock, X, AlertTriangle, UserPlus, Trash2, RotateCcw, ClipboardList, Download,
 } from 'lucide-react';
 
 interface ActionEntry {
   type: string;
   detail: string;
   time: string;
+  isCorrect?: boolean;
+  pointsAwarded?: number;
 }
 
 interface TraineeState {
@@ -78,7 +81,7 @@ function formatActionDetail(actionType: string, details: any): string {
     case 'STAGE_UNLOCKED':
       return `Stage ${details.newStage}`;
     case 'CHECKPOINT_ANSWERED':
-      return details.question ? `"${details.question}"` : '';
+      return details.question || '';
     case 'LOG_VIEWED':
     case 'LOG_EXPANDED':
       return details.summary || '';
@@ -114,6 +117,8 @@ export default function SessionMonitorPage() {
   const [alertMessage, setAlertMessage] = useState('');
   const [retakeDialogOpen, setRetakeDialogOpen] = useState(false);
   const [retakeTargetTrainee, setRetakeTargetTrainee] = useState<TraineeState | null>(null);
+  const [viewReportAttemptId, setViewReportAttemptId] = useState<string | null>(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   // Auto-refresh session data every 3 seconds as fallback for socket
   useEffect(() => {
@@ -162,6 +167,10 @@ export default function SessionMonitorPage() {
           type: a.actionType,
           detail: formatActionDetail(a.actionType, a.details),
           time: new Date(a.createdAt).toLocaleTimeString(),
+          ...(a.actionType === 'CHECKPOINT_ANSWERED' && a.details ? {
+            isCorrect: a.details.isCorrect,
+            pointsAwarded: a.details.pointsAwarded,
+          } : {}),
         }));
 
         setTrainees(prev => {
@@ -202,7 +211,15 @@ export default function SessionMonitorPage() {
             lastAction: data.lastAction || existing.lastAction,
             elapsedMinutes: data.elapsedMinutes ?? existing.elapsedMinutes,
             actions: [
-              { type: data.lastAction, detail, time: new Date().toLocaleTimeString() },
+              {
+                type: data.lastAction,
+                detail,
+                time: new Date().toLocaleTimeString(),
+                ...(data.lastAction === 'CHECKPOINT_ANSWERED' && data.details ? {
+                  isCorrect: data.details.isCorrect,
+                  pointsAwarded: data.details.pointsAwarded,
+                } : {}),
+              },
               ...existing.actions.slice(0, 99),
             ],
           });
@@ -325,6 +342,24 @@ export default function SessionMonitorPage() {
     toast({ title: 'Alert broadcast to all trainees' });
     setAlertDialogOpen(false);
     setAlertMessage('');
+  };
+
+  const handleDownloadPdf = async (attemptId: string) => {
+    setDownloadingPdf(true);
+    try {
+      const { data } = await api.get(`/reports/attempt/${attemptId}/pdf`, { responseType: 'blob' });
+      const blob = new Blob([data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-${attemptId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: 'Failed to download PDF', variant: 'destructive' });
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   // Get predefined hints for the current stage
@@ -556,17 +591,25 @@ export default function SessionMonitorPage() {
                     <MessageSquare className="mr-1 h-3 w-3" /> Send Hint
                   </Button>
                   {['COMPLETED', 'TIMED_OUT'].includes(selectedTraineeData.status) && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20"
-                      onClick={() => {
-                        setRetakeTargetTrainee(selectedTraineeData);
-                        setRetakeDialogOpen(true);
-                      }}
-                    >
-                      <RotateCcw className="mr-1 h-3 w-3" /> Retake
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setViewReportAttemptId(selectedTraineeData.attemptId)}>
+                        <ClipboardList className="mr-1 h-3 w-3" /> View Report
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDownloadPdf(selectedTraineeData.attemptId)} disabled={downloadingPdf}>
+                        <Download className="mr-1 h-3 w-3" /> {downloadingPdf ? 'Downloading...' : 'PDF'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-orange-400 text-orange-700 hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/20"
+                        onClick={() => {
+                          setRetakeTargetTrainee(selectedTraineeData);
+                          setRetakeDialogOpen(true);
+                        }}
+                      >
+                        <RotateCcw className="mr-1 h-3 w-3" /> Retake
+                      </Button>
+                    </>
                   )}
                 </div>
               </CardHeader>
@@ -593,17 +636,28 @@ export default function SessionMonitorPage() {
                         ) : (
                           selectedTraineeData.actions.map((action, i) => {
                             const config = ACTION_CONFIG[action.type];
-                            const Icon = config?.icon || Activity;
+                            const isCheckpointAction = action.type === 'CHECKPOINT_ANSWERED' && action.isCorrect !== undefined;
+                            const Icon = isCheckpointAction
+                              ? (action.isCorrect ? CheckCircle2 : XCircle)
+                              : (config?.icon || Activity);
+                            const iconColor = isCheckpointAction
+                              ? (action.isCorrect ? 'text-green-600' : 'text-red-500')
+                              : (config?.color || 'text-muted-foreground');
                             return (
                               <div key={i} className="flex items-start gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50">
                                 <span className="text-xs text-muted-foreground font-mono w-16 shrink-0 mt-0.5">
                                   {action.time}
                                 </span>
-                                <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${config?.color || 'text-muted-foreground'}`} />
-                                <div className="min-w-0">
+                                <Icon className={`h-4 w-4 shrink-0 mt-0.5 ${iconColor}`} />
+                                <div className="min-w-0 flex-1">
                                   <span className="font-medium text-xs">
                                     {config?.label || action.type.replace(/_/g, ' ')}
                                   </span>
+                                  {isCheckpointAction && (
+                                    <Badge variant="outline" className={`ml-2 text-[10px] px-1.5 py-0 ${action.isCorrect ? 'border-green-300 text-green-700 dark:text-green-400' : 'border-red-300 text-red-700 dark:text-red-400'}`}>
+                                      {action.isCorrect ? 'Correct' : 'Incorrect'} {action.pointsAwarded !== undefined ? `+${action.pointsAwarded} pts` : ''}
+                                    </Badge>
+                                  )}
                                   {action.detail && (
                                     <p className="text-xs text-muted-foreground truncate">{action.detail}</p>
                                   )}
@@ -808,6 +862,16 @@ export default function SessionMonitorPage() {
               {retakeAttempt.isPending ? 'Starting...' : 'Confirm Retake'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Report Dialog */}
+      <Dialog open={!!viewReportAttemptId} onOpenChange={(open) => { if (!open) setViewReportAttemptId(null); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Trainee Answer Report</DialogTitle>
+          </DialogHeader>
+          {viewReportAttemptId && <ResultsScreen attemptId={viewReportAttemptId} embedded />}
         </DialogContent>
       </Dialog>
 

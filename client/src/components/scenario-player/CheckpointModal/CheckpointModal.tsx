@@ -18,7 +18,7 @@ interface CheckpointModalProps {
   attemptId: string;
   onComplete: () => void;
   onClose: () => void;
-  onAnswered: (checkpointId: string) => void;
+  onAnswered: (checkpointId: string, result?: { isCorrect: boolean; pointsAwarded: number; question: string }) => void;
 }
 
 export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, onAnswered }: CheckpointModalProps) {
@@ -48,7 +48,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
         answer,
       });
       setResults(prev => ({ ...prev, [cp.id]: data }));
-      onAnswered(cp.id);
+      onAnswered(cp.id, { isCorrect: data.isCorrect, pointsAwarded: data.pointsAwarded, question: cp.question });
 
       // If correct answer is included (wrong answer), don't auto-advance
       const hasCorrectAnswer = data.correctAnswer !== undefined;

@@ -321,8 +321,21 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
         setShowCheckpoint(false);
         queryClient.invalidateQueries({ queryKey: ['attempt', attemptId] });
       }}
-      onAnswered={(checkpointId) => {
+      onAnswered={(checkpointId, result) => {
         setLocalAnsweredIds(prev => new Set(prev).add(checkpointId));
+        // Emit socket progress-update so trainer sees checkpoint answer in real-time
+        // (action is already recorded server-side in the answers endpoint)
+        const socket = getTraineeSocket();
+        socket.emit('progress-update', {
+          attemptId,
+          sessionId: attempt?.sessionId,
+          userId: attempt?.userId,
+          currentStage: attempt?.currentStage,
+          lastAction: 'CHECKPOINT_ANSWERED',
+          details: result ? { question: result.question, isCorrect: result.isCorrect, pointsAwarded: result.pointsAwarded } : undefined,
+          currentScore: attempt?.totalScore,
+          elapsedMinutes: Math.floor(elapsedSeconds / 60),
+        });
       }}
     />
   );

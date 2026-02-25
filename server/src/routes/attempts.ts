@@ -269,6 +269,20 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     // Recalculate scores
     await ScoringService.recalculateScores(attemptId);
 
+    // Record CHECKPOINT_ANSWERED action for trainer activity feed
+    await prisma.investigationAction.create({
+      data: {
+        attemptId,
+        actionType: 'CHECKPOINT_ANSWERED',
+        details: {
+          question: checkpoint.question,
+          isCorrect,
+          pointsAwarded,
+          checkpointType: checkpoint.checkpointType,
+        },
+      },
+    });
+
     const response: any = { ...savedAnswer, feedback: savedAnswer.feedback || feedback || undefined };
 
     // Include correct answer + explanation on wrong answers for all difficulty levels
