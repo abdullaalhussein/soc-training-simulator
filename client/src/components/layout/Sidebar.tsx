@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import {
-  Shield, LayoutDashboard, Users, FileText, Settings, Activity,
+  LayoutDashboard, Users, FileText, Settings, Activity,
   Monitor, BarChart3, BookOpen, ClipboardList, ChevronLeft, ChevronRight,
 } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -92,7 +93,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange, defaultCollapsed = fal
         <SheetContent side="left" className="w-64 p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="flex items-center gap-2 text-sm">
-              <Shield className="h-5 w-5 text-primary" />
+              <Logo size={22} />
               SOC Simulator
             </SheetTitle>
           </SheetHeader>
@@ -110,7 +111,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange, defaultCollapsed = fal
       )}
     >
       <div className="flex h-16 items-center border-b px-4">
-        <Shield className="h-6 w-6 text-primary shrink-0" />
+        <Logo size={26} />
         {!collapsed && (
           <span className="ml-2 font-semibold text-sm">SOC Simulator</span>
         )}

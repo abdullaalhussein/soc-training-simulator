@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/Logo';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export default function TermsOfServicePage() {
       <nav className="sticky top-0 z-50 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-blue-400" />
+            <Logo size={28} />
             <span className="text-lg font-semibold">SOC Training Simulator</span>
           </Link>
           <Link href="/login">

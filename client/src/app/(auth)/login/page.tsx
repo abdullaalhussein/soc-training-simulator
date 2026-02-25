@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -53,7 +53,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Shield className="h-8 w-8 text-primary" />
+            <Logo size={36} />
           </div>
           <CardTitle className="text-2xl">SOC Training Simulator</CardTitle>
           <CardDescription>Sign in to your training account</CardDescription>
