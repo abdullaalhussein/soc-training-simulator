@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { AdminUsersPage } from '../pages/admin-users.page';
+import { API_URL, USERS } from '../fixtures/test-data';
 
 test.describe('User Management', () => {
   let usersPage: AdminUsersPage;
+
+  // Track e2e-test user IDs created during this run for cleanup
+  const createdUserIds: string[] = [];
 
   test.beforeEach(async ({ page }) => {
     usersPage = new AdminUsersPage(page);
@@ -10,6 +14,35 @@ test.describe('User Management', () => {
     await expect(usersPage.heading).toBeVisible({ timeout: 15_000 });
     // Wait for table data to load (not just "Loading...")
     await expect(usersPage.getRowByEmail('admin@soc.local')).toBeVisible({ timeout: 15_000 });
+  });
+
+  test.afterAll(async () => {
+    // Clean up e2e-test users: both from this run and any orphans from previous runs
+    try {
+      const login = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: USERS.admin.email, password: USERS.admin.password }),
+      });
+      const { token } = await login.json();
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Delete users tracked from this run
+      for (const id of createdUserIds) {
+        await fetch(`${API_URL}/api/users/${id}?force=true`, { method: 'DELETE', headers });
+      }
+
+      // Also clean up any orphaned e2e-test users from previous runs
+      const usersRes = await fetch(`${API_URL}/api/users`, { headers });
+      const users = await usersRes.json();
+      for (const user of users) {
+        if (user.email?.startsWith('e2e-test-')) {
+          await fetch(`${API_URL}/api/users/${user.id}?force=true`, { method: 'DELETE', headers });
+        }
+      }
+    } catch {
+      // Best-effort cleanup
+    }
   });
 
   test('Display user table with seeded users', async () => {
@@ -56,6 +89,11 @@ test.describe('User Management', () => {
     // Use unique email to avoid conflicts with previous runs
     const uniqueEmail = `e2e-test-${Date.now()}@soc.local`;
 
+    // Intercept the create-user API response to capture the new user's ID
+    const responsePromise = page.waitForResponse(
+      (res) => res.url().includes('/api/users') && res.request().method() === 'POST' && res.status() === 201
+    );
+
     await usersPage.addUserButton.click();
     await expect(usersPage.dialogTitle).toHaveText('Create User');
 
@@ -63,6 +101,15 @@ test.describe('User Management', () => {
     await usersPage.nameInput.fill('E2E Test User');
     await usersPage.passwordInput.fill('Password123!');
     await usersPage.createButton.click();
+
+    // Capture the created user ID for cleanup
+    try {
+      const response = await responsePromise;
+      const body = await response.json();
+      if (body?.id) createdUserIds.push(body.id);
+    } catch {
+      // Non-critical — cleanup will be best-effort
+    }
 
     // Wait for dialog to close and verify user appears
     await expect(page.locator('[role="dialog"]')).toBeHidden({ timeout: 10_000 });
