@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib/api';
 import { Lightbulb, AlertCircle, MessageSquare } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface BriefingPanelProps {
   briefing: string;
@@ -40,7 +41,7 @@ export function BriefingPanel({ briefing, stageTitle, stageDescription, hints, a
       <div className="p-4 space-y-4">
         <div>
           <h3 className="font-semibold text-sm mb-2">Briefing</h3>
-          <div className="text-sm text-muted-foreground whitespace-pre-wrap">{briefing}</div>
+          <MarkdownRenderer content={briefing} className="text-sm text-muted-foreground" />
         </div>
 
         <Separator />
@@ -50,7 +51,7 @@ export function BriefingPanel({ briefing, stageTitle, stageDescription, hints, a
             <AlertCircle className="h-4 w-4 text-primary" />
             <h3 className="font-semibold text-sm">Current Stage: {stageTitle}</h3>
           </div>
-          <p className="text-sm text-muted-foreground">{stageDescription}</p>
+          <MarkdownRenderer content={stageDescription} className="text-sm text-muted-foreground" />
         </div>
 
         <Separator />

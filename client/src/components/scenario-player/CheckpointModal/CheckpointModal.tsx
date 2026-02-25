@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { toast } from '@/components/ui/toaster';
 import { CheckCircle, XCircle, Info, ArrowRight, Sparkles } from 'lucide-react';
 import { YaraRuleEditor } from './YaraRuleEditor';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface CheckpointModalProps {
   checkpoints: any[];
@@ -263,7 +264,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
-          <p className="text-sm font-medium">{cp.question}</p>
+          <MarkdownRenderer content={cp.question} className="text-sm font-medium" />
 
           {result ? (
             <>
