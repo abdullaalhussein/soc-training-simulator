@@ -98,12 +98,13 @@ export const SplitScreen: React.FC<SplitScreenProps> = ({
     width: "100%",
     height: "50%",
     overflow: "hidden",
+    backgroundColor: COLORS.darkBg,
   };
 
   const videoStyle: React.CSSProperties = {
     width: "100%",
     height: "100%",
-    objectFit: "cover",
+    objectFit: "contain",
   };
 
   const labelStyle = (color: string): React.CSSProperties => ({
