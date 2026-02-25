@@ -18,6 +18,10 @@ import {
   Info,
   Bookmark,
   Clock as ClockIcon,
+  Search,
+  Filter,
+  FileText,
+  GitBranch,
 } from 'lucide-react';
 
 interface ResultsScreenProps {
@@ -78,16 +82,23 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     ? Math.round(((results[bestCategory.key] ?? 0) / bestCategory.max) * 100)
     : 0;
 
-  // Group answers by stage number
-  const answersByStage: Record<number, any[]> = {};
+  // Determine scoring category for a checkpoint (mirrors server scoring.service.ts logic)
+  const getCategory = (cp: any): string => {
+    if (cp?.category === 'accuracy' || ['TRUE_FALSE', 'MULTIPLE_CHOICE', 'SEVERITY_CLASSIFICATION'].includes(cp?.checkpointType)) return 'accuracy';
+    if (cp?.category === 'response' || cp?.checkpointType === 'RECOMMENDED_ACTION') return 'response';
+    if (cp?.category === 'report' || cp?.checkpointType === 'INCIDENT_REPORT') return 'report';
+    if (cp?.checkpointType === 'EVIDENCE_SELECTION') return 'evidence';
+    if (cp?.category) return cp.category;
+    return 'accuracy'; // fallback
+  };
+
+  // Group answers by scoring category
+  const answersByCategory: Record<string, any[]> = {};
   for (const answer of results.answers || []) {
-    const stageNum = answer.checkpoint?.stageNumber ?? 0;
-    if (!answersByStage[stageNum]) answersByStage[stageNum] = [];
-    answersByStage[stageNum].push(answer);
+    const cat = getCategory(answer.checkpoint);
+    if (!answersByCategory[cat]) answersByCategory[cat] = [];
+    answersByCategory[cat].push(answer);
   }
-  const sortedStages = Object.keys(answersByStage)
-    .map(Number)
-    .sort((a, b) => a - b);
 
   // Compute stats
   const totalActions = results.actions?.length ?? 0;
@@ -138,31 +149,24 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     }
   }
 
-  // Group surviving items by stage
-  const evidenceByStage: Record<number, EvidenceItem[]> = {};
-  for (const ev of evidenceMap.values()) {
-    if (!evidenceByStage[ev.stage]) evidenceByStage[ev.stage] = [];
-    evidenceByStage[ev.stage].push(ev);
-  }
-  const timelineByStage: Record<number, TimelineItem[]> = {};
-  for (const entry of timelineMap.values()) {
-    if (!timelineByStage[entry.stage]) timelineByStage[entry.stage] = [];
-    timelineByStage[entry.stage].push(entry);
-  }
+  // Flat lists of surviving evidence and timeline items
+  const collectedEvidence = Array.from(evidenceMap.values());
+  const timelineEntries = Array.from(timelineMap.values());
 
-  // Extract correct evidence per stage from EVIDENCE_SELECTION checkpoints
-  const correctEvidenceByStage: Record<number, { question: string; correctAnswer: string[] }[]> = {};
-  for (const answer of results.answers || []) {
-    const cp = answer.checkpoint;
-    if (cp?.checkpointType === 'EVIDENCE_SELECTION' && Array.isArray(cp.correctAnswer)) {
-      const stage = cp.stageNumber ?? 0;
-      if (!correctEvidenceByStage[stage]) correctEvidenceByStage[stage] = [];
-      correctEvidenceByStage[stage].push({
-        question: cp.question,
-        correctAnswer: cp.correctAnswer,
-      });
-    }
-  }
+  // Compute investigation sub-scores from actions (mirrors server scoring logic)
+  const searchActions = (results.actions || []).filter((a: any) => a.actionType === 'SEARCH_QUERY');
+  const filterActions = (results.actions || []).filter((a: any) => a.actionType === 'FILTER_APPLIED');
+  const logOpenedActions = (results.actions || []).filter((a: any) => a.actionType === 'LOG_OPENED');
+  const timelineAddActions = (results.actions || []).filter((a: any) => a.actionType === 'TIMELINE_ENTRY_ADDED');
+  const processNodeActions = (results.actions || []).filter((a: any) => a.actionType === 'PROCESS_NODE_ADDED');
+
+  const uniqueSearches = new Set(searchActions.map((s: any) => JSON.stringify(s.details))).size;
+  const investigationBreakdown = {
+    searchDiversity: { value: Math.min(uniqueSearches, 5), max: 5, label: 'Search Diversity', detail: `${uniqueSearches} unique searches` },
+    filterUsage: { value: Math.min(filterActions.length, 5), max: 5, label: 'Filter Usage', detail: `${filterActions.length} filters applied` },
+    logDepth: { value: Math.min(logOpenedActions.length, 10), max: 10, label: 'Log Depth', detail: `${logOpenedActions.length} logs opened` },
+    building: { value: Math.min(timelineAddActions.length + processNodeActions.length, 5), max: 5, label: 'Timeline & Process Building', detail: `${timelineAddActions.length} timeline + ${processNodeActions.length} process` },
+  };
 
   const formatAnswer = (answer: any) => {
     const val = answer.answer;
@@ -264,31 +268,52 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
           )}
         </div>
 
-        {/* Per-Stage Review */}
+        {/* Category-Based Review */}
         <div className="space-y-6">
-          <h2 className="text-lg font-semibold">Stage-by-Stage Review</h2>
-          {sortedStages.map((stageNum) => {
-            const stageEvidence = evidenceByStage[stageNum] || [];
-            const stageTimeline = timelineByStage[stageNum] || [];
-            const stageCorrectEvidence = correctEvidenceByStage[stageNum] || [];
+          <h2 className="text-lg font-semibold">Detailed Review by Category</h2>
+
+          {SCORE_CATEGORIES.map((cat) => {
+            const score = results[cat.key] ?? 0;
+            const pct = cat.max > 0 ? Math.round((score / cat.max) * 100) : 0;
+            const categoryKey = cat.key.replace('Score', '');
+            const catAnswers = answersByCategory[categoryKey] || [];
+            const isInvestigation = categoryKey === 'investigation';
+            const isEvidence = categoryKey === 'evidence';
+
+            // Skip categories with no content
+            if (!isInvestigation && !isEvidence && catAnswers.length === 0) return null;
 
             return (
-              <div key={stageNum} className="space-y-3">
-                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                  Stage {stageNum}
-                </h3>
+              <div key={cat.key} className="space-y-3">
+                {/* Category header with score */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                    {cat.label}
+                  </h3>
+                  <Badge variant="outline" className="text-xs">
+                    {score}/{cat.max} ({pct}%)
+                  </Badge>
+                </div>
 
-                {/* Checkpoint answers */}
-                {answersByStage[stageNum].map((answer: any) => {
+                {/* Checkpoint answers for this category */}
+                {catAnswers.map((answer: any) => {
                   const cp = answer.checkpoint;
                   return (
                     <div
                       key={answer.id}
                       className="bg-card border rounded-lg p-4 space-y-3"
                     >
-                      {/* Question header */}
                       <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm font-medium flex-1">{cp?.question}</p>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{cp?.question}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-muted-foreground">Stage {cp?.stageNumber}</span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                              {(cp?.checkpointType || '').replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                        </div>
                         <div className="flex items-center gap-2 shrink-0">
                           {answer.isCorrect ? (
                             <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-0">
@@ -303,7 +328,6 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                         </div>
                       </div>
 
-                      {/* Answers comparison */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="bg-muted/50 rounded-md p-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1">Your Answer</p>
@@ -315,7 +339,6 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                         </div>
                       </div>
 
-                      {/* AI Feedback */}
                       {answer.feedback && (
                         <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-md p-3">
                           <div className="flex items-center gap-2 mb-1">
@@ -326,7 +349,6 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                         </div>
                       )}
 
-                      {/* Explanation */}
                       {cp?.explanation && (
                         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
                           <div className="flex items-center gap-2 mb-1">
@@ -340,58 +362,71 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                   );
                 })}
 
-                {/* Correct evidence for this stage (from EVIDENCE_SELECTION checkpoints) */}
-                {stageCorrectEvidence.map((ec, i) => (
-                  <div key={`correct-ev-${i}`} className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                      <p className="text-xs font-medium text-emerald-800 dark:text-emerald-400">Required Evidence</p>
-                    </div>
-                    <p className="text-xs text-emerald-700 dark:text-emerald-300 mb-2">{ec.question}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ec.correctAnswer.map((item, j) => (
-                        <Badge key={j} variant="outline" className="border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-xs">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Collected evidence for this stage */}
-                {stageEvidence.length > 0 && (
-                  <div className="bg-card border rounded-lg p-4 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <Bookmark className="h-3.5 w-3.5" /> Collected Evidence ({stageEvidence.length})
-                    </p>
-                    <div className="space-y-1.5">
-                      {stageEvidence.map((ev, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          <span className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">{ev.time}</span>
-                          <p>{ev.summary}</p>
-                        </div>
-                      ))}
+                {/* Investigation category: show behavioral breakdown */}
+                {isInvestigation && (
+                  <div className="bg-card border rounded-lg p-4 space-y-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Investigation is scored based on your investigative actions, not checkpoint answers.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {Object.values(investigationBreakdown).map((item, i) => {
+                        const icons = [Search, Filter, FileText, GitBranch];
+                        const Icon = icons[i];
+                        const itemPct = item.max > 0 ? Math.round((item.value / item.max) * 100) : 0;
+                        return (
+                          <div key={i} className="bg-muted/50 rounded-md p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Icon className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                              <p className="text-xs font-medium">{item.label}</p>
+                            </div>
+                            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-secondary mt-1 mb-1">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${itemPct}%` }} />
+                            </div>
+                            <p className="text-xs text-muted-foreground">{item.detail} ({item.value}/{item.max})</p>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Timeline entries for this stage */}
-                {stageTimeline.length > 0 && (
-                  <div className="bg-card border rounded-lg p-4 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                      <ClockIcon className="h-3.5 w-3.5" /> Timeline Entries ({stageTimeline.length})
-                    </p>
-                    <div className="space-y-1.5">
-                      {stageTimeline.map((entry, i) => (
-                        <div key={i} className="flex items-start gap-2 text-sm">
-                          {entry.timestamp && (
-                            <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{entry.timestamp}</span>
-                          )}
-                          <p>{entry.summary}</p>
+                {/* Evidence category: show collected evidence and timeline */}
+                {isEvidence && (
+                  <>
+                    {/* Collected evidence */}
+                    {collectedEvidence.length > 0 && (
+                      <div className="bg-card border rounded-lg p-4 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                          <Bookmark className="h-3.5 w-3.5" /> Collected Evidence ({collectedEvidence.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {collectedEvidence.map((ev, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">{ev.time}</span>
+                              <p>{ev.summary}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    )}
+
+                    {/* Timeline entries */}
+                    {timelineEntries.length > 0 && (
+                      <div className="bg-card border rounded-lg p-4 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                          <ClockIcon className="h-3.5 w-3.5" /> Timeline Entries ({timelineEntries.length})
+                        </p>
+                        <div className="space-y-1.5">
+                          {timelineEntries.map((entry, i) => (
+                            <div key={i} className="flex items-start gap-2 text-sm">
+                              {entry.timestamp && (
+                                <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{entry.timestamp}</span>
+                              )}
+                              <p>{entry.summary}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
