@@ -23,27 +23,37 @@ export default function Image() {
         {/* Brand shield icon */}
         <svg
           width="120"
-          height="120"
-          viewBox="0 0 64 64"
+          height="133"
+          viewBox="0 0 180 200"
           style={{ marginBottom: 32 }}
         >
           <defs>
-            <linearGradient id="og-navy" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="og-fill" x1="90" y1="10" x2="90" y2="190" gradientUnits="userSpaceOnUse">
               <stop offset="0%" stopColor="#1A3660" />
               <stop offset="100%" stopColor="#0C1B30" />
             </linearGradient>
           </defs>
           <path
-            d="M32 4 L56 16 V34 C56 48 44 58 32 62 C20 58 8 48 8 34 V16 Z"
-            fill="url(#og-navy)"
+            d="M90 16 L162 50 L162 120 Q162 160 90 188 Q18 160 18 120 L18 50 Z"
+            fill="url(#og-fill)"
             stroke="#00CFFF"
             strokeWidth="1.5"
+            strokeOpacity="0.5"
           />
-          <path d="M32 30 A10 10 0 0 1 42 30" fill="none" stroke="#00CFFF" strokeWidth="2.5" strokeLinecap="round" />
-          <path d="M32 30 A16 16 0 0 1 48 30" fill="none" stroke="#00CFFF" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
-          <path d="M32 30 A22 22 0 0 1 54 30" fill="none" stroke="#00CFFF" strokeWidth="1.5" strokeLinecap="round" opacity="0.3" />
-          <line x1="32" y1="30" x2="46" y2="20" stroke="#00CFFF" strokeWidth="1.5" strokeLinecap="round" />
-          <circle cx="32" cy="30" r="3" fill="#00CFFF" />
+          <path
+            d="M90 32 L148 58 L148 116 Q148 148 90 172 Q32 148 32 116 L32 58 Z"
+            fill="none" stroke="#00CFFF" strokeWidth="0.5" opacity="0.15"
+          />
+          <circle cx="90" cy="92" r="18" stroke="#00CFFF" strokeWidth="0.6" fill="none" opacity="0.25" />
+          <circle cx="90" cy="92" r="32" stroke="#00CFFF" strokeWidth="0.5" fill="none" opacity="0.18" />
+          <circle cx="90" cy="92" r="46" stroke="#00CFFF" strokeWidth="0.4" fill="none" opacity="0.12" />
+          <line x1="90" y1="52" x2="90" y2="132" stroke="#00CFFF" strokeWidth="0.4" opacity="0.12" />
+          <line x1="50" y1="92" x2="130" y2="92" stroke="#00CFFF" strokeWidth="0.4" opacity="0.12" />
+          <circle cx="90" cy="92" r="3.5" fill="#00CFFF" opacity="0.95" />
+          <circle cx="90" cy="92" r="6" stroke="#00CFFF" strokeWidth="0.6" fill="none" opacity="0.4" />
+          <circle cx="108" cy="82" r="2" fill="#00CFFF" opacity="0.7" />
+          <circle cx="72" cy="104" r="1.5" fill="#00CFFF" opacity="0.5" />
+          <path d="M80 16 L90 10 L100 16" stroke="#00CFFF" strokeWidth="1.2" fill="none" opacity="0.6" />
         </svg>
         <div
           style={{

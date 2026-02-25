@@ -1,17 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 200">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="g" x1="90" y1="10" x2="90" y2="190" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#1A3660"/>
       <stop offset="100%" stop-color="#0C1B30"/>
     </linearGradient>
+    <linearGradient id="s" x1="90" y1="10" x2="90" y2="190" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00CFFF" stop-opacity="0.7"/>
+      <stop offset="40%" stop-color="#00CFFF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#00CFFF" stop-opacity="0.1"/>
+    </linearGradient>
+    <clipPath id="c">
+      <path d="M90 16 L162 50 L162 120 Q162 160 90 188 Q18 160 18 120 L18 50 Z"/>
+    </clipPath>
   </defs>
-  <!-- Shield body -->
-  <path d="M32 4 L56 16 V34 C56 48 44 58 32 62 C20 58 8 48 8 34 V16 Z" fill="url(#g)" stroke="#00CFFF" stroke-width="1.5" stroke-opacity="0.5"/>
-  <!-- Radar arcs -->
-  <path d="M32 30 A10 10 0 0 1 42 30" fill="none" stroke="#00CFFF" stroke-width="2.5" stroke-linecap="round"/>
-  <path d="M32 30 A16 16 0 0 1 48 30" fill="none" stroke="#00CFFF" stroke-width="2" stroke-linecap="round" stroke-opacity="0.6"/>
-  <!-- Sweep line -->
-  <line x1="32" y1="30" x2="46" y2="20" stroke="#00CFFF" stroke-width="2" stroke-linecap="round"/>
-  <!-- Center dot -->
-  <circle cx="32" cy="30" r="3.5" fill="#00CFFF"/>
+  <!-- Shield -->
+  <path d="M90 16 L162 50 L162 120 Q162 160 90 188 Q18 160 18 120 L18 50 Z" fill="url(#g)" stroke="url(#s)" stroke-width="1.5"/>
+  <!-- Radar (clipped) -->
+  <g clip-path="url(#c)">
+    <circle cx="90" cy="92" r="18" stroke="#00CFFF" stroke-width="0.8" fill="none" opacity="0.3"/>
+    <circle cx="90" cy="92" r="32" stroke="#00CFFF" stroke-width="0.6" fill="none" opacity="0.2"/>
+    <circle cx="90" cy="92" r="46" stroke="#00CFFF" stroke-width="0.5" fill="none" opacity="0.14"/>
+    <line x1="90" y1="52" x2="90" y2="132" stroke="#00CFFF" stroke-width="0.5" opacity="0.15"/>
+    <line x1="50" y1="92" x2="130" y2="92" stroke="#00CFFF" stroke-width="0.5" opacity="0.15"/>
+    <circle cx="90" cy="92" r="4" fill="#00CFFF" opacity="0.95"/>
+    <circle cx="90" cy="92" r="7" stroke="#00CFFF" stroke-width="0.8" fill="none" opacity="0.4"/>
+    <circle cx="108" cy="82" r="2.5" fill="#00CFFF" opacity="0.7"/>
+    <circle cx="72" cy="104" r="2" fill="#00CFFF" opacity="0.5"/>
+  </g>
+  <!-- Top notch -->
+  <path d="M80 16 L90 10 L100 16" stroke="#00CFFF" stroke-width="1.5" fill="none" opacity="0.6"/>
 </svg>
