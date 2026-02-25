@@ -63,6 +63,21 @@ export default defineConfig({
         },
       },
     },
+    {
+      name: 'demo-v2',
+      testDir: './e2e/demo-v2',
+      use: {
+        browserName: 'chromium',
+        storageState: { cookies: [], origins: [] },
+        video: { mode: 'on', size: { width: 1920, height: 1080 } },
+        viewport: { width: 1920, height: 1080 },
+        deviceScaleFactor: 1,
+        launchOptions: {
+          slowMo: 150,
+          args: ['--force-device-scale-factor=1', '--high-dpi-support=1'],
+        },
+      },
+    },
   ],
   globalSetup: './e2e/fixtures/auth.ts',
   ...(isLocal
