@@ -7,9 +7,9 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
   [1,    270, "TRAINEE DASHBOARD"],
-  [271,  480, "SCENARIO BRIEFING"],
-  [481,  600, "INVESTIGATION WORKSPACE"],
-  [601,  810, "EVIDENCE COLLECTION"],
+  [271,  335, "SCENARIO BRIEFING"],
+  [345,  620, "INVESTIGATION WORKSPACE"],
+  [630,  810, "EVIDENCE COLLECTION"],
   [811,  960, "CHECKPOINT"],
   [961, 1260, "HINTS & SOC MENTOR"],
 ];

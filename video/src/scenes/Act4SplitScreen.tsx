@@ -23,12 +23,12 @@ export const Act4SplitScreen: React.FC = () => {
   return (
     <AbsoluteFill>
       <SplitScreen
-        leftClip={CLIPS_V2.splitTrainer}
-        rightClip={CLIPS_V2.splitTrainee}
-        leftFallback={SCREENSHOTS.trainer}
-        rightFallback={SCREENSHOTS.dashboard}
-        leftLabel="TRAINER"
-        rightLabel="TRAINEE"
+        topClip={CLIPS_V2.splitTrainer}
+        bottomClip={CLIPS_V2.splitTrainee}
+        topFallback={SCREENSHOTS.trainer}
+        bottomFallback={SCREENSHOTS.dashboard}
+        topLabel="TRAINER"
+        bottomLabel="TRAINEE"
       />
 
       {/* Timed sub-labels at bottom center */}

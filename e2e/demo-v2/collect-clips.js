@@ -5,7 +5,7 @@
  *
  * Gathers recorded .webm clips from Playwright test-results/ and converts
  * them to H.264 MP4 for optimal Remotion rendering performance.
- * Split-screen clips are pre-cropped to 960x1080 to avoid dual full-res decoding.
+ * All clips are converted at full 1920x1080 resolution (top/bottom split layout).
  *
  * Usage:
  *   node e2e/demo-v2/collect-clips.js
@@ -24,8 +24,8 @@ const CLIP_MAP = [
   { pattern: /Act-1.*Admin|00-admin/i, output: 'act1-admin' },
   { pattern: /Act-2.*Trainer|01-trainer/i, output: 'act2-trainer' },
   { pattern: /Act-3.*Trainee|02-trainee/i, output: 'act3-trainee' },
-  { pattern: /split-trainer/i, output: 'act4-split-trainer', crop: 'left' },
-  { pattern: /split-trainee/i, output: 'act4-split-trainee', crop: 'right' },
+  { pattern: /split-trainer/i, output: 'act4-split-trainer' },
+  { pattern: /split-trainee/i, output: 'act4-split-trainee' },
 ];
 
 function findWebmFiles(dir) {
@@ -57,17 +57,6 @@ function convertToMp4(webmPath, mp4Path) {
   console.log(`  Converting to MP4: ${path.basename(mp4Path)}`);
   execSync(
     `ffmpeg -y -i "${webmPath}" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p "${mp4Path}"`,
-    { stdio: 'inherit' }
-  );
-}
-
-function convertToMp4Cropped(webmPath, mp4Path, side) {
-  // Crop 1920x1080 → center 960x1080 (left half or right half)
-  const cropX = side === 'left' ? 0 : 960;
-  const cropFilter = `crop=960:1080:${cropX}:0`;
-  console.log(`  Converting to MP4 (${side}-cropped 960x1080): ${path.basename(mp4Path)}`);
-  execSync(
-    `ffmpeg -y -i "${webmPath}" -vf "${cropFilter}" -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p "${mp4Path}"`,
     { stdio: 'inherit' }
   );
 }
@@ -106,12 +95,7 @@ for (const clip of CLIP_MAP) {
 
   if (canConvert) {
     try {
-      if (clip.crop) {
-        // Split-screen clips: pre-crop to 960x1080
-        convertToMp4Cropped(match, destMp4, clip.crop);
-      } else {
-        convertToMp4(match, destMp4);
-      }
+      convertToMp4(match, destMp4);
     } catch (err) {
       console.log(`  WARN: MP4 conversion failed for ${clip.output}: ${err.message}`);
       // Fallback: copy raw webm

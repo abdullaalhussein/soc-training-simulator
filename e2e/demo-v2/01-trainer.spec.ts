@@ -5,6 +5,7 @@ import {
   cleanAllSessions,
   getScenarios,
   getTrainee,
+  hideNonDemoUsers,
 } from './helpers';
 
 /**
@@ -35,13 +36,14 @@ test('Act 2 — Trainer session + monitor + guide', async ({ page }) => {
   await injectAuth(page, trainerUser, trainerToken);
 
   // =========================================================================
-  // SCENE 1 — Trainer Console overview
+  // SCENE 1 — Trainer Console overview (hide non-demo sessions)
   // =========================================================================
   await page.goto('/console');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('h1').filter({ hasText: /trainer.*console/i })).toBeVisible({
     timeout: 15_000,
   });
+  await hideNonDemoUsers(page);
   await page.waitForTimeout(1000);
 
   // =========================================================================

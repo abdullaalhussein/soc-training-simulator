@@ -70,21 +70,21 @@ export const ADMIN_COMP = {
   title:   { from: 0, duration: TITLE_DUR },
   clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.admin },
   outro:   { from: TITLE_DUR + CLIP_FRAMES.admin, duration: OUTRO_DUR },
-  total:   TITLE_DUR + CLIP_FRAMES.admin + OUTRO_DUR, // 708 = 23.6s
+  total:   TITLE_DUR + CLIP_FRAMES.admin + OUTRO_DUR, // 876 = 29.2s
 } as const;
 
 export const TRAINER_COMP = {
   title:   { from: 0, duration: TITLE_DUR },
   clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.trainer },
   outro:   { from: TITLE_DUR + CLIP_FRAMES.trainer, duration: OUTRO_DUR },
-  total:   TITLE_DUR + CLIP_FRAMES.trainer + OUTRO_DUR, // 1074 = 35.8s
+  total:   TITLE_DUR + CLIP_FRAMES.trainer + OUTRO_DUR, // 1029 = 34.3s
 } as const;
 
 export const TRAINEE_COMP = {
   title:   { from: 0, duration: TITLE_DUR },
   clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.trainee },
   outro:   { from: TITLE_DUR + CLIP_FRAMES.trainee, duration: OUTRO_DUR },
-  total:   TITLE_DUR + CLIP_FRAMES.trainee + OUTRO_DUR, // 572 = 19.1s
+  total:   TITLE_DUR + CLIP_FRAMES.trainee + OUTRO_DUR, // 1410 = 47.0s
 } as const;
 
 // ---------------------------------------------------------------------------

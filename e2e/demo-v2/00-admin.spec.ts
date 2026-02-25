@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, injectAuth } from './helpers';
+import { loginAs, injectAuth, hideNonDemoUsers } from './helpers';
 
 /**
  * Demo V3 — Act 1: Admin scenario creation + AI gen + audit + users (~15s).
@@ -83,29 +83,21 @@ test('Act 1 — Admin scenario creation', async ({ page }) => {
   }
 
   // =========================================================================
-  // SCENE 3 — Audit Log
+  // SCENE 3 — Audit Log (hide non-demo user entries)
   // =========================================================================
   await page.goto('/audit');
   await page.waitForLoadState('networkidle');
+  await hideNonDemoUsers(page);
   await page.waitForTimeout(1500);
 
   // =========================================================================
-  // SCENE 4 — User Management (hide non-default users)
+  // SCENE 4 — User Management (hide non-demo users)
   // =========================================================================
   await page.goto('/users');
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);
 
-  // Hide non-default users
-  await page.evaluate(() => {
-    const defaultEmails = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
-    document.querySelectorAll('tbody tr').forEach(row => {
-      const text = row.textContent || '';
-      if (!defaultEmails.some(email => text.includes(email))) {
-        (row as HTMLElement).style.display = 'none';
-      }
-    });
-  });
+  await hideNonDemoUsers(page);
   await page.waitForTimeout(800);
 
   // Click "Add User" dialog briefly

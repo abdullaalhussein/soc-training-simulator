@@ -173,4 +173,32 @@ export async function startAttempt(token: string, sessionId: string) {
   return res.json();
 }
 
+// ---------------------------------------------------------------------------
+// UI helpers — hide non-demo users in recordings
+// ---------------------------------------------------------------------------
+
+const DEMO_EMAILS = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
+const DEMO_NAMES = ['Admin User', 'Trainer User', 'Trainee User'];
+const DEMO_TOKENS = [...DEMO_EMAILS, ...DEMO_NAMES];
+
+/**
+ * Hides any table rows, list items, or card-like elements that contain
+ * non-demo user names/emails. Call after the page has loaded data.
+ */
+export async function hideNonDemoUsers(page: Page) {
+  await page.evaluate((tokens) => {
+    const selectors = 'tbody tr, li, [class*="card"], [class*="Card"]';
+    document.querySelectorAll(selectors).forEach((el) => {
+      const text = el.textContent || '';
+      const isDemoContent = tokens.some((t) => text.includes(t));
+      if (!isDemoContent && text.trim().length > 0) {
+        // Only hide rows that look like user/data rows (contain @ or names)
+        if (text.includes('@') || /\b[A-Z][a-z]+ [A-Z][a-z]+\b/.test(text)) {
+          (el as HTMLElement).style.display = 'none';
+        }
+      }
+    });
+  }, DEMO_TOKENS);
+}
+
 export { API_URL, USERS };

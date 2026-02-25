@@ -11,22 +11,22 @@ import { COLORS } from "../lib/constants";
 import { SafeVideo } from "./SafeVideo";
 
 interface SplitScreenProps {
-  /** Left video clip path (relative to public/) */
-  leftClip: string;
-  /** Right video clip path (relative to public/) */
-  rightClip: string;
-  /** Screenshot fallback for left side */
-  leftFallback: string;
-  /** Screenshot fallback for right side */
-  rightFallback: string;
-  /** Label for left side */
-  leftLabel?: string;
-  /** Label for right side */
-  rightLabel?: string;
-  /** Color for left label */
-  leftColor?: string;
-  /** Color for right label */
-  rightColor?: string;
+  /** Top video clip path (relative to public/) */
+  topClip: string;
+  /** Bottom video clip path (relative to public/) */
+  bottomClip: string;
+  /** Screenshot fallback for top half */
+  topFallback: string;
+  /** Screenshot fallback for bottom half */
+  bottomFallback: string;
+  /** Label for top half */
+  topLabel?: string;
+  /** Label for bottom half */
+  bottomLabel?: string;
+  /** Color for top label */
+  topColor?: string;
+  /** Color for bottom label */
+  bottomColor?: string;
 }
 
 /**
@@ -73,20 +73,20 @@ const HalfScreenFallback: React.FC<{ screenshotPath: string }> = ({
 };
 
 /**
- * Side-by-side split-screen of two video clips.
- * Each full 1920x1080 recording is center-cropped into a 960x1080 half.
- * A glowing cyan divider separates the two halves.
+ * Top/bottom split-screen of two video clips.
+ * Full 1920x1080 recordings are scaled to fit each half (1920x540).
+ * A glowing cyan horizontal divider separates the two halves.
  * Falls back to Ken Burns screenshots if clips haven't been recorded yet.
  */
 export const SplitScreen: React.FC<SplitScreenProps> = ({
-  leftClip,
-  rightClip,
-  leftFallback,
-  rightFallback,
-  leftLabel = "TRAINER",
-  rightLabel = "TRAINEE",
-  leftColor = COLORS.cyanAccent,
-  rightColor = COLORS.greenAccent,
+  topClip,
+  bottomClip,
+  topFallback,
+  bottomFallback,
+  topLabel = "TRAINER",
+  bottomLabel = "TRAINEE",
+  topColor = COLORS.cyanAccent,
+  bottomColor = COLORS.greenAccent,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
@@ -94,29 +94,28 @@ export const SplitScreen: React.FC<SplitScreenProps> = ({
 
   const halfStyle: React.CSSProperties = {
     position: "absolute",
-    top: 0,
-    width: "50%",
-    height: "100%",
+    left: 0,
+    width: "100%",
+    height: "50%",
     overflow: "hidden",
   };
 
-  // Clips are pre-cropped to 960x1080 by collect-clips.js — no CSS cropping needed
   const videoStyle: React.CSSProperties = {
     width: "100%",
     height: "100%",
     objectFit: "cover",
   };
 
-  const labelStyle = (color: string, side: "left" | "right"): React.CSSProperties => ({
+  const labelStyle = (color: string): React.CSSProperties => ({
     position: "absolute",
-    top: 20,
-    [side === "left" ? "left" : "right"]: 20,
-    padding: "6px 16px",
+    top: 8,
+    left: 20,
+    padding: "4px 14px",
     backgroundColor: `${COLORS.darkBg}cc`,
     border: `1px solid ${color}`,
     borderRadius: 6,
     color,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 700,
     letterSpacing: 2,
     fontFamily: "'Inter', 'SF Pro Display', sans-serif",
@@ -126,37 +125,37 @@ export const SplitScreen: React.FC<SplitScreenProps> = ({
 
   return (
     <AbsoluteFill style={{ opacity }}>
-      {/* Left half */}
-      <div style={{ ...halfStyle, left: 0 }}>
+      {/* Top half — Trainer */}
+      <div style={{ ...halfStyle, top: 0 }}>
         <SafeVideo
-          src={leftClip}
-          fallback={<HalfScreenFallback screenshotPath={leftFallback} />}
+          src={topClip}
+          fallback={<HalfScreenFallback screenshotPath={topFallback} />}
           style={videoStyle}
         />
-        <div style={labelStyle(leftColor, "left")}>{leftLabel}</div>
+        <div style={labelStyle(topColor)}>{topLabel}</div>
       </div>
 
-      {/* Right half */}
-      <div style={{ ...halfStyle, left: "50%" }}>
+      {/* Bottom half — Trainee */}
+      <div style={{ ...halfStyle, top: "50%" }}>
         <SafeVideo
-          src={rightClip}
-          fallback={<HalfScreenFallback screenshotPath={rightFallback} />}
+          src={bottomClip}
+          fallback={<HalfScreenFallback screenshotPath={bottomFallback} />}
           style={videoStyle}
         />
-        <div style={labelStyle(rightColor, "right")}>{rightLabel}</div>
+        <div style={labelStyle(bottomColor)}>{bottomLabel}</div>
       </div>
 
-      {/* Glowing center divider */}
+      {/* Glowing horizontal divider */}
       <div
         style={{
           position: "absolute",
-          left: "50%",
-          top: 0,
-          width: 2,
-          height: "100%",
+          top: "50%",
+          left: 0,
+          width: "100%",
+          height: 2,
           backgroundColor: COLORS.cyanAccent,
           boxShadow: `0 0 8px ${COLORS.cyanAccent}, 0 0 20px ${COLORS.cyanAccent}60`,
-          transform: "translateX(-50%)",
+          transform: "translateY(-50%)",
         }}
       />
     </AbsoluteFill>

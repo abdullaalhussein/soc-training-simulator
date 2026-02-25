@@ -6,8 +6,8 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [60,  190, "TRAINER CONSOLE"],
-  [200, 520, "SESSION CREATION"],
+  [60,  168, "TRAINER CONSOLE"],
+  [172, 520, "SESSION CREATION"],
   [530, 700, "LIVE MONITOR"],
   [710, 879, "SCENARIO GUIDE"],
 ];
