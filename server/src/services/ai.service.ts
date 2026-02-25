@@ -61,8 +61,8 @@ Grade this answer. A score of 1.0 means perfect, 0.0 means completely wrong. Con
         score: Math.max(0, Math.min(1, Number(parsed.score) || 0)),
         feedback: String(parsed.feedback || ''),
       };
-    } catch (err) {
-      logger.error('AI grading failed for short answer', { error: err });
+    } catch (err: any) {
+      logger.error('AI grading failed for short answer', { message: err?.message, status: err?.status });
       return null;
     }
   }
@@ -117,8 +117,8 @@ Grade this incident report.`,
         score: Math.max(0, Math.min(1, Number(parsed.score) || 0)),
         feedback: String(parsed.feedback || ''),
       };
-    } catch (err) {
-      logger.error('AI grading failed for incident report', { error: err });
+    } catch (err: any) {
+      logger.error('AI grading failed for incident report', { message: err?.message, status: err?.status });
       return null;
     }
   }
@@ -169,8 +169,8 @@ Progress: Stage ${progressStats.currentStage}/${progressStats.totalStages}, Hint
 
       const text = response.content[0].type === 'text' ? response.content[0].text : '';
       return text || null;
-    } catch (err) {
-      logger.error('AI assistant response failed', { error: err });
+    } catch (err: any) {
+      logger.error('AI assistant response failed', { message: err?.message, status: err?.status });
       return null;
     }
   }
@@ -280,8 +280,12 @@ Rules:
       if (!jsonMatch) return null;
 
       return JSON.parse(jsonMatch[0]);
-    } catch (err) {
-      logger.error('AI scenario generation failed', { error: err });
+    } catch (err: any) {
+      logger.error('AI scenario generation failed', {
+        message: err?.message,
+        status: err?.status,
+        type: err?.type || err?.name,
+      });
       return null;
     }
   }
