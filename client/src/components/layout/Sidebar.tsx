@@ -8,7 +8,7 @@ import {
   Shield, LayoutDashboard, Users, FileText, Settings, Activity,
   Monitor, BarChart3, BookOpen, ClipboardList, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useMobile } from '@/hooks/useMobile';
@@ -33,13 +33,19 @@ const navItems = {
 interface SidebarProps {
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
+  defaultCollapsed?: boolean;
 }
 
-export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
+export function Sidebar({ mobileOpen, onMobileOpenChange, defaultCollapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const isMobile = useMobile();
+
+  // Sync collapsed state when route changes (e.g., dashboard → investigation)
+  useEffect(() => {
+    setCollapsed(defaultCollapsed);
+  }, [defaultCollapsed]);
 
   if (!user) return null;
 
