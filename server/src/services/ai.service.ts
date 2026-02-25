@@ -175,34 +175,7 @@ Progress: Stage ${progressStats.currentStage}/${progressStats.totalStages}, Hint
     }
   }
 
-  /**
-   * Generate a complete scenario JSON from a description.
-   */
-  static async generateScenario(params: {
-    description: string;
-    difficulty?: string;
-    mitreAttackIds?: string[];
-    numStages?: number;
-    category?: string;
-  }): Promise<any | null> {
-    if (!this.isAvailable()) return null;
-
-    try {
-      // Build the user prompt — only include fields the admin provided
-      const paramLines = [`Description: ${params.description}`];
-      if (params.difficulty) paramLines.push(`Difficulty: ${params.difficulty}`);
-      if (params.mitreAttackIds && params.mitreAttackIds.length > 0) paramLines.push(`MITRE ATT&CK techniques: ${params.mitreAttackIds.join(', ')}`);
-      if (params.numStages) paramLines.push(`Number of stages: ${params.numStages}`);
-      if (params.category) paramLines.push(`Category: ${params.category}`);
-
-      const inferNote = (!params.difficulty || !params.category || !params.mitreAttackIds?.length || !params.numStages)
-        ? '\n\nFor any parameters not specified above, infer the most appropriate values based on the description. Choose realistic MITRE ATT&CK technique IDs that match the described attack.'
-        : '';
-
-      const response = await this.getClient().messages.create({
-        model: MODEL,
-        max_tokens: 8192,
-        system: `You are an expert SOC scenario designer. Generate a complete, realistic SOC training scenario as a JSON object.
+  private static readonly SCENARIO_SYSTEM_PROMPT = `You are an expert SOC scenario designer. Generate a complete, realistic SOC training scenario as a JSON object.
 
 The JSON must follow this exact schema:
 {
@@ -266,11 +239,49 @@ Rules:
 - Each stage should have 4-8 logs and 1-3 checkpoints
 - Include at least one SHORT_ANSWER and one INCIDENT_REPORT checkpoint in the final stage
 - rawLog fields should be realistic JSON representations of actual log sources
-- Return ONLY the JSON object, no markdown fences or explanation`,
+- Return ONLY the JSON object, no markdown fences or explanation`;
+
+  private static buildScenarioPromptParams(params: {
+    description: string;
+    difficulty?: string;
+    mitreAttackIds?: string[];
+    numStages?: number;
+    category?: string;
+  }) {
+    const paramLines = [`Description: ${params.description}`];
+    if (params.difficulty) paramLines.push(`Difficulty: ${params.difficulty}`);
+    if (params.mitreAttackIds && params.mitreAttackIds.length > 0) paramLines.push(`MITRE ATT&CK techniques: ${params.mitreAttackIds.join(', ')}`);
+    if (params.numStages) paramLines.push(`Number of stages: ${params.numStages}`);
+    if (params.category) paramLines.push(`Category: ${params.category}`);
+
+    const inferNote = (!params.difficulty || !params.category || !params.mitreAttackIds?.length || !params.numStages)
+      ? '\n\nFor any parameters not specified above, infer the most appropriate values based on the description. Choose realistic MITRE ATT&CK technique IDs that match the described attack.'
+      : '';
+
+    return `Generate a SOC training scenario with these parameters:\n\n${paramLines.join('\n')}${inferNote}\n\nGenerate the complete scenario JSON now.`;
+  }
+
+  /**
+   * Generate a complete scenario JSON from a description.
+   */
+  static async generateScenario(params: {
+    description: string;
+    difficulty?: string;
+    mitreAttackIds?: string[];
+    numStages?: number;
+    category?: string;
+  }): Promise<any | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const response = await this.getClient().messages.create({
+        model: MODEL,
+        max_tokens: 8192,
+        system: this.SCENARIO_SYSTEM_PROMPT,
         messages: [
           {
             role: 'user',
-            content: `Generate a SOC training scenario with these parameters:\n\n${paramLines.join('\n')}${inferNote}\n\nGenerate the complete scenario JSON now.`,
+            content: this.buildScenarioPromptParams(params),
           },
         ],
       });
@@ -288,5 +299,29 @@ Rules:
       });
       return null;
     }
+  }
+
+  /**
+   * Generate a complete scenario JSON via streaming.
+   * Returns an Anthropic MessageStream that the caller can consume.
+   */
+  static generateScenarioStream(params: {
+    description: string;
+    difficulty?: string;
+    mitreAttackIds?: string[];
+    numStages?: number;
+    category?: string;
+  }) {
+    return this.getClient().messages.stream({
+      model: MODEL,
+      max_tokens: 8192,
+      system: this.SCENARIO_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: this.buildScenarioPromptParams(params),
+        },
+      ],
+    });
   }
 }

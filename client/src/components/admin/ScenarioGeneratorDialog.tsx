@@ -7,10 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MitreAttackPicker } from './MitreAttackPicker';
-import { useGenerateScenario } from '@/hooks/useGenerateScenario';
+import { useGenerateScenarioStream } from '@/hooks/useGenerateScenario';
 import { useImportScenario } from '@/hooks/useScenarios';
 import { toast } from '@/components/ui/toaster';
-import { Sparkles, Loader2, Download, Upload, Copy, ChevronDown, Zap } from 'lucide-react';
+import { Sparkles, Loader2, Download, Upload, Copy, ChevronDown, Zap, Square } from 'lucide-react';
 
 interface ScenarioGeneratorDialogProps {
   open: boolean;
@@ -47,22 +47,39 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
   const [generatedJson, setGeneratedJson] = useState<any>(null);
   const [jsonText, setJsonText] = useState('');
 
-  const generateMutation = useGenerateScenario();
+  const { streamingText, isStreaming, error: streamError, startStreaming, abort } = useGenerateScenarioStream();
   const importMutation = useImportScenario();
 
   const handleGenerate = async () => {
-    try {
-      const params: any = { description };
-      if (difficulty) params.difficulty = difficulty;
-      if (mitreIds.length > 0) params.mitreAttackIds = mitreIds;
-      if (numStages) params.numStages = Number(numStages);
-      if (category) params.category = category;
+    const params: any = { description };
+    if (difficulty) params.difficulty = difficulty;
+    if (mitreIds.length > 0) params.mitreAttackIds = mitreIds;
+    if (numStages) params.numStages = Number(numStages);
+    if (category) params.category = category;
 
-      const result = await generateMutation.mutateAsync(params);
-      setGeneratedJson(result);
-      setJsonText(JSON.stringify(result, null, 2));
+    try {
+      const fullText = await startStreaming(params);
+      if (!fullText) return; // aborted with no text
+
+      // Try to extract JSON from the full response
+      const jsonMatch = fullText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          setGeneratedJson(parsed);
+          setJsonText(JSON.stringify(parsed, null, 2));
+          return;
+        } catch {
+          // JSON parse failed — fall through to raw text
+        }
+      }
+
+      // Fallback: show raw text for manual editing
+      setGeneratedJson({ _raw: true });
+      setJsonText(fullText);
+      toast({ title: 'AI returned text that could not be auto-parsed as JSON. You can edit it manually.', variant: 'destructive' });
     } catch {
-      toast({ title: 'Failed to generate scenario', variant: 'destructive' });
+      toast({ title: streamError || 'Failed to generate scenario', variant: 'destructive' });
     }
   };
 
@@ -127,8 +144,13 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
     setShowExpert(false);
   };
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next && isStreaming) abort();
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -138,7 +160,26 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4">
-          {!generatedJson ? (
+          {isStreaming ? (
+            /* ── Streaming state ── */
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                  Generating scenario...
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  {streamingText.length.toLocaleString()} chars
+                </span>
+              </div>
+              <Textarea
+                value={streamingText}
+                readOnly
+                rows={20}
+                className="font-mono text-xs"
+              />
+            </div>
+          ) : !generatedJson ? (
             <>
               {/* Description — the only required field */}
               <div>
@@ -267,16 +308,16 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
         </div>
 
         <DialogFooter className="flex-shrink-0">
-          {!generatedJson ? (
+          {isStreaming ? (
+            <Button variant="destructive" onClick={abort}>
+              <Square className="mr-2 h-4 w-4" /> Cancel
+            </Button>
+          ) : !generatedJson ? (
             <Button
               onClick={handleGenerate}
-              disabled={generateMutation.isPending || description.length < 10}
+              disabled={description.length < 10}
             >
-              {generateMutation.isPending ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</>
-              ) : (
-                <><Sparkles className="mr-2 h-4 w-4" /> Generate</>
-              )}
+              <Sparkles className="mr-2 h-4 w-4" /> Generate
             </Button>
           ) : (
             <div className="flex gap-2">

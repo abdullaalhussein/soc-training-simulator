@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler';
 import { AIService } from '../services/ai.service';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -46,6 +47,66 @@ router.post(
       }
 
       const params = generateScenarioSchema.parse(req.body);
+
+      // SSE streaming path — keeps Railway/proxy connections alive
+      if (req.headers.accept === 'text/event-stream') {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        });
+
+        const stream = AIService.generateScenarioStream(params);
+        let aborted = false;
+
+        req.on('close', () => {
+          aborted = true;
+          stream.abort();
+        });
+
+        stream.on('text', (text: string) => {
+          if (!aborted) {
+            res.write(`event: text\ndata: ${JSON.stringify(text)}\n\n`);
+          }
+        });
+
+        stream.on('error', (err: any) => {
+          if (!aborted) {
+            logger.error('AI scenario stream error', {
+              message: err?.message,
+              status: err?.status,
+              type: err?.type || err?.name,
+            });
+            res.write(`event: error\ndata: ${JSON.stringify({ message: 'Generation failed' })}\n\n`);
+            res.end();
+          }
+        });
+
+        stream.on('end', async () => {
+          if (!aborted) {
+            res.write(`event: done\ndata: {}\n\n`);
+            res.end();
+          }
+          // Log regardless of abort — the API call was made
+          try {
+            await prisma.auditLog.create({
+              data: {
+                userId: req.user!.userId,
+                action: 'AI_SCENARIO_GENERATE',
+                resource: 'SCENARIO',
+                details: { description: params.description.slice(0, 100), streamed: true },
+              },
+            });
+          } catch (logErr) {
+            logger.error('Failed to write audit log for streamed generation', logErr);
+          }
+        });
+
+        return;
+      }
+
+      // Non-streaming path (backward compatible)
       const scenario = await AIService.generateScenario(params);
 
       if (!scenario) {
