@@ -16,6 +16,8 @@ import {
   Lightbulb,
   ArrowLeft,
   Info,
+  Bookmark,
+  Clock as ClockIcon,
 } from 'lucide-react';
 
 interface ResultsScreenProps {
@@ -95,6 +97,47 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
   const elapsedMinutes = Math.floor(elapsedMs / 60000);
   const elapsedHours = Math.floor(elapsedMinutes / 60);
   const remainMinutes = elapsedMinutes % 60;
+
+  // Extract collected evidence and timeline from actions
+  const collectedEvidence: { summary: string; time: string }[] = [];
+  const timelineEntries: { timestamp: string; summary: string; time: string }[] = [];
+  const removedEvidenceIds = new Set<string>();
+  const removedTimelineIds = new Set<string>();
+
+  // First pass: collect removed IDs
+  for (const action of results.actions || []) {
+    if (action.actionType === 'EVIDENCE_REMOVED' && action.details?.logId) {
+      removedEvidenceIds.add(action.details.logId);
+    }
+    if (action.actionType === 'TIMELINE_ENTRY_REMOVED' && action.details?.entryId) {
+      removedTimelineIds.add(action.details.entryId);
+    }
+  }
+
+  // Second pass: collect non-removed items (deduplicate by logId)
+  const seenEvidenceIds = new Set<string>();
+  const seenTimelineLogIds = new Set<string>();
+  for (const action of results.actions || []) {
+    if (action.actionType === 'EVIDENCE_ADDED' && action.details?.summary) {
+      const logId = action.details.logId;
+      if (logId && (removedEvidenceIds.has(logId) || seenEvidenceIds.has(logId))) continue;
+      if (logId) seenEvidenceIds.add(logId);
+      collectedEvidence.push({
+        summary: action.details.summary,
+        time: new Date(action.createdAt).toLocaleTimeString(),
+      });
+    }
+    if (action.actionType === 'TIMELINE_ENTRY_ADDED' && action.details?.summary) {
+      const logId = action.details.logId;
+      if (logId && (removedTimelineIds.has(logId) || seenTimelineLogIds.has(logId))) continue;
+      if (logId) seenTimelineLogIds.add(logId);
+      timelineEntries.push({
+        timestamp: action.details.timestamp || '',
+        summary: action.details.summary,
+        time: new Date(action.createdAt).toLocaleTimeString(),
+      });
+    }
+  }
 
   const formatAnswer = (answer: any) => {
     const val = answer.answer;
@@ -297,6 +340,42 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
             </div>
           </div>
         </div>
+
+        {/* Collected Evidence */}
+        {collectedEvidence.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Bookmark className="h-5 w-5" /> Collected Evidence ({collectedEvidence.length})
+            </h2>
+            <div className="space-y-2">
+              {collectedEvidence.map((ev, i) => (
+                <div key={i} className="bg-card border rounded-lg p-3 flex items-start gap-3">
+                  <span className="text-xs text-muted-foreground font-mono shrink-0 mt-0.5">{ev.time}</span>
+                  <p className="text-sm">{ev.summary}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Timeline */}
+        {timelineEntries.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <ClockIcon className="h-5 w-5" /> Investigation Timeline ({timelineEntries.length})
+            </h2>
+            <div className="space-y-2">
+              {timelineEntries.map((entry, i) => (
+                <div key={i} className="bg-card border rounded-lg p-3 flex items-start gap-3">
+                  {entry.timestamp && (
+                    <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">{entry.timestamp}</span>
+                  )}
+                  <p className="text-sm">{entry.summary}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Trainer Notes */}
         {results.notes?.length > 0 && (
