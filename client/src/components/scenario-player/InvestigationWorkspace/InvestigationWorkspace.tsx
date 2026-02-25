@@ -47,7 +47,7 @@ export function InvestigationWorkspace({
           </div>
         </div>
       </div>
-      <Tabs defaultValue="evidence" className="flex-1 flex flex-col">
+      <Tabs defaultValue="evidence" className="flex-1 flex flex-col min-h-0">
         <TabsList className="mx-3 mt-2">
           <TabsTrigger value="evidence" className="text-xs">
             <Package className="h-3.5 w-3.5 mr-1" />

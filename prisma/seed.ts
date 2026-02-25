@@ -104,6 +104,11 @@ async function main() {
 
   console.log('Created scenario with 3 stages');
 
+  // Delete existing child records for idempotent re-seeding
+  await prisma.hint.deleteMany({ where: { stageId: { in: [stage1.id, stage2.id, stage3.id] } } });
+  await prisma.simulatedLog.deleteMany({ where: { stageId: { in: [stage1.id, stage2.id, stage3.id] } } });
+  await prisma.checkpoint.deleteMany({ where: { scenarioId: scenario1.id } });
+
   // Stage 1 Logs - Email Gateway
   const stage1Logs = [
     {
@@ -401,6 +406,11 @@ async function main() {
       create: scenarioFields,
     });
 
+    // Delete existing checkpoints for idempotent re-seeding
+    if (cpsData) {
+      await prisma.checkpoint.deleteMany({ where: { scenarioId: scenario.id } });
+    }
+
     for (const stageData of stagesData) {
       const { logs: logsData, hints: hintsData, ...stageFields } = stageData;
 
@@ -409,6 +419,10 @@ async function main() {
         update: {},
         create: { scenarioId: scenario.id, ...stageFields },
       });
+
+      // Delete existing child records for idempotent re-seeding
+      await prisma.hint.deleteMany({ where: { stageId: stage.id } });
+      await prisma.simulatedLog.deleteMany({ where: { stageId: stage.id } });
 
       if (logsData) {
         for (const logData of logsData) {
