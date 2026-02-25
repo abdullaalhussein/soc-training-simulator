@@ -40,12 +40,9 @@ export const FADE_FRAMES = 20;
 export const STAGGER_DELAY = 8;
 
 // ---------------------------------------------------------------------------
-// Demo V2 — Video clip composition (3:30 = 210s = 6300 frames)
+// Demo V2 — Clip paths (populated by collect-clips.js)
 // ---------------------------------------------------------------------------
 
-export const TOTAL_FRAMES_V2 = 6300;
-
-// Clip paths (relative to public/) — populated by collect-clips.js
 export const CLIPS_V2 = {
   admin: "/clips/act1-admin.webm",
   trainer: "/clips/act2-trainer.webm",
@@ -54,26 +51,58 @@ export const CLIPS_V2 = {
   splitTrainee: "/clips/act4-split-trainee.webm",
 } as const;
 
-// Scene timing for V2 (frame ranges)
-export const SCENES_V2 = {
-  // Opening title card — 4.0s
-  intro:       { from: 0,    duration: 120 },
-  // ACT 1 title — 2.5s
-  act1Title:   { from: 120,  duration: 75 },
-  // ACT 1 content (admin clip) — 35.0s
-  act1Content: { from: 195,  duration: 1050 },
-  // ACT 2 title — 2.5s
-  act2Title:   { from: 1245, duration: 75 },
-  // ACT 2 content (trainer clip) — 40.0s
-  act2Content: { from: 1320, duration: 1200 },
-  // ACT 3 title — 2.5s
-  act3Title:   { from: 2520, duration: 75 },
-  // ACT 3 content (trainee clip) — 80.0s
-  act3Content: { from: 2595, duration: 2400 },
-  // ACT 4 title — 2.5s
-  act4Title:   { from: 4995, duration: 75 },
-  // ACT 4 content (split-screen) — 35.0s
-  act4Content: { from: 5070, duration: 1050 },
-  // Closing card — 6.0s
-  outro:       { from: 6120, duration: 180 },
+// Actual clip durations in frames (from ffprobe, rounded up)
+const CLIP_FRAMES = {
+  admin: 558,     // 18.6s
+  trainer: 924,   // 30.8s
+  trainee: 422,   // 14.0s
+  split: 330,     // 11.0s (shorter of the two)
 } as const;
+
+const TITLE_DUR = 60;  // 2s title card
+const OUTRO_DUR = 90;  // 3s outro
+
+// ---------------------------------------------------------------------------
+// Per-role compositions (title + clip + outro)
+// ---------------------------------------------------------------------------
+
+export const ADMIN_COMP = {
+  title:   { from: 0, duration: TITLE_DUR },
+  clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.admin },
+  outro:   { from: TITLE_DUR + CLIP_FRAMES.admin, duration: OUTRO_DUR },
+  total:   TITLE_DUR + CLIP_FRAMES.admin + OUTRO_DUR, // 708 = 23.6s
+} as const;
+
+export const TRAINER_COMP = {
+  title:   { from: 0, duration: TITLE_DUR },
+  clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.trainer },
+  outro:   { from: TITLE_DUR + CLIP_FRAMES.trainer, duration: OUTRO_DUR },
+  total:   TITLE_DUR + CLIP_FRAMES.trainer + OUTRO_DUR, // 1074 = 35.8s
+} as const;
+
+export const TRAINEE_COMP = {
+  title:   { from: 0, duration: TITLE_DUR },
+  clip:    { from: TITLE_DUR, duration: CLIP_FRAMES.trainee },
+  outro:   { from: TITLE_DUR + CLIP_FRAMES.trainee, duration: OUTRO_DUR },
+  total:   TITLE_DUR + CLIP_FRAMES.trainee + OUTRO_DUR, // 572 = 19.1s
+} as const;
+
+// ---------------------------------------------------------------------------
+// Combined composition (intro + all clips + split + outro)
+// ---------------------------------------------------------------------------
+
+const INTRO_DUR = 90;  // 3s
+
+function buildCombined() {
+  let f = 0;
+  const intro = { from: f, duration: INTRO_DUR }; f += INTRO_DUR;
+  const admin = { from: f, duration: CLIP_FRAMES.admin }; f += CLIP_FRAMES.admin;
+  const trainer = { from: f, duration: CLIP_FRAMES.trainer }; f += CLIP_FRAMES.trainer;
+  const trainee = { from: f, duration: CLIP_FRAMES.trainee }; f += CLIP_FRAMES.trainee;
+  const split = { from: f, duration: CLIP_FRAMES.split }; f += CLIP_FRAMES.split;
+  const outro = { from: f, duration: 120 }; f += 120; // 4s outro
+  return { intro, admin, trainer, trainee, split, outro, total: f };
+}
+
+export const COMBINED_COMP = buildCombined();
+// total = 90+558+924+422+330+120 = 2444 frames = ~81.5s ≈ 1:22

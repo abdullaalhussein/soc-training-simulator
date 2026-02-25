@@ -1,7 +1,7 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
 import { SplitScreen } from "../components/SplitScreen";
-import { COLORS, CLIPS_V2 } from "../lib/constants";
+import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
@@ -24,6 +24,8 @@ export const Act4SplitScreen: React.FC = () => {
       <SplitScreen
         leftClip={CLIPS_V2.splitTrainer}
         rightClip={CLIPS_V2.splitTrainee}
+        leftFallback={SCREENSHOTS.trainer}
+        rightFallback={SCREENSHOTS.dashboard}
         leftLabel="TRAINER"
         rightLabel="TRAINEE"
       />

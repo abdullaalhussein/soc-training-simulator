@@ -2,7 +2,7 @@ import React from "react";
 import { AbsoluteFill, Sequence, useCurrentFrame, interpolate } from "remotion";
 import { VideoSceneContainer } from "../components/VideoSceneContainer";
 import { RoleBadge } from "../components/RoleBadge";
-import { COLORS, CLIPS_V2 } from "../lib/constants";
+import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
@@ -20,7 +20,7 @@ export const Act1Admin: React.FC = () => {
   const frame = useCurrentFrame();
 
   return (
-    <VideoSceneContainer clipPath={CLIPS_V2.admin}>
+    <VideoSceneContainer clipPath={CLIPS_V2.admin} fallbackScreenshot={SCREENSHOTS.scenarios}>
       <RoleBadge role="ADMIN" />
 
       {/* Timed sub-labels */}

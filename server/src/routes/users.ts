@@ -106,12 +106,41 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
 
 router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (req.params.id === req.user!.userId) {
-      throw new AppError('Cannot deactivate own account', 400);
-    }
     const userId = req.params.id as string;
-    await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
-    res.json({ message: 'User deactivated' });
+    if (userId === req.user!.userId) {
+      throw new AppError('Cannot delete own account', 400);
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError('User not found', 404);
+
+    const { force } = req.query;
+
+    if (force === 'true') {
+      // Hard delete: remove user and all related data
+      const attempts = await prisma.attempt.findMany({ where: { userId }, select: { id: true } });
+      const attemptIds = attempts.map(a => a.id);
+
+      if (attemptIds.length > 0) {
+        await prisma.aiAssistantMessage.deleteMany({ where: { attemptId: { in: attemptIds } } });
+        await prisma.investigationAction.deleteMany({ where: { attemptId: { in: attemptIds } } });
+        await prisma.answer.deleteMany({ where: { attemptId: { in: attemptIds } } });
+        await prisma.attempt.deleteMany({ where: { userId } });
+      }
+
+      await prisma.trainerNote.deleteMany({ where: { userId } });
+      await prisma.sessionMessage.deleteMany({ where: { userId } });
+      await prisma.sessionMember.deleteMany({ where: { userId } });
+      await prisma.refreshToken.deleteMany({ where: { userId } });
+      await prisma.auditLog.deleteMany({ where: { userId } });
+      await prisma.user.delete({ where: { id: userId } });
+
+      res.json({ message: 'User permanently deleted' });
+    } else {
+      // Soft delete: deactivate the user
+      await prisma.user.update({ where: { id: userId }, data: { isActive: false } });
+      res.json({ message: 'User deactivated' });
+    }
   } catch (error) {
     next(error);
   }

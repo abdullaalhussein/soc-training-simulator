@@ -37,6 +37,9 @@
     "video:render": "npx remotion render video/src/index.ts SOCDemo demo-remotion.mp4 --public-dir video/public",
     "demo:record": "npx playwright test --project=demo-v2 --headed",
     "demo:collect": "node e2e/demo-v2/collect-clips.js",
+    "demo:render:admin": "npx remotion render video/src/index.ts SOCAdmin demo-admin.mp4 --public-dir video/public",
+    "demo:render:trainer": "npx remotion render video/src/index.ts SOCTrainer demo-trainer.mp4 --public-dir video/public",
+    "demo:render:trainee": "npx remotion render video/src/index.ts SOCTrainee demo-trainee.mp4 --public-dir video/public",
     "demo:render": "npx remotion render video/src/index.ts SOCDemoV2 demo-v2.mp4 --public-dir video/public",
     "demo:all": "npm run demo:record && npm run demo:collect && npm run demo:render"
   },

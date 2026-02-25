@@ -208,17 +208,19 @@ router.post('/:id/members', requireRole('ADMIN', 'TRAINER'), async (req: Request
   }
 });
 
-// Delete a session (only COMPLETED or DRAFT sessions)
+// Delete a session (admins can delete any session; trainers only COMPLETED/DRAFT own sessions)
 router.delete('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('DELETE', 'SESSION'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.id as string;
     const session = await prisma.session.findUnique({ where: { id: sessionId } });
     if (!session) throw new AppError('Session not found', 404);
-    if (req.user!.role === 'TRAINER' && session.createdById !== req.user!.userId) {
-      throw new AppError('Access denied', 403);
-    }
-    if (!['COMPLETED', 'DRAFT'].includes(session.status)) {
-      throw new AppError('Only completed or draft sessions can be deleted', 400);
+    if (req.user!.role === 'TRAINER') {
+      if (session.createdById !== req.user!.userId) {
+        throw new AppError('Access denied', 403);
+      }
+      if (!['COMPLETED', 'DRAFT'].includes(session.status)) {
+        throw new AppError('Only completed or draft sessions can be deleted', 400);
+      }
     }
 
     // Delete in order to satisfy foreign key constraints
@@ -226,6 +228,7 @@ router.delete('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('DELETE', 'SESSI
     const attemptIds = attempts.map(a => a.id);
 
     if (attemptIds.length > 0) {
+      await prisma.aiAssistantMessage.deleteMany({ where: { attemptId: { in: attemptIds } } });
       await prisma.investigationAction.deleteMany({ where: { attemptId: { in: attemptIds } } });
       await prisma.answer.deleteMany({ where: { attemptId: { in: attemptIds } } });
       await prisma.trainerNote.deleteMany({ where: { attemptId: { in: attemptIds } } });
