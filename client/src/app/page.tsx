@@ -109,8 +109,8 @@ export default function LandingPage() {
         <Badge className="mb-6 bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/10">
           Cybersecurity Training Platform
         </Badge>
-        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-cyan-500/10">
-          <Logo size={56} />
+        <div className="mx-auto mb-6 flex h-28 w-28 items-center justify-center rounded-full bg-cyan-500/10">
+          <Logo size={64} />
         </div>
         <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
           Train Your SOC Team with{' '}
