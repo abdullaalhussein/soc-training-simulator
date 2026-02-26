@@ -129,7 +129,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
               <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Trainee Briefing
               </h3>
-              <p className="text-sm whitespace-pre-wrap">{scenario.briefing}</p>
+              <MarkdownRenderer content={scenario.briefing} className="text-sm" />
             </div>
           )}
         </CardContent>
@@ -185,7 +185,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                   {/* Stage Description */}
                   <div className="p-3 bg-muted/50 rounded-lg">
                     <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1">What the trainee should do</h4>
-                    <p className="text-sm">{stage.description || 'No description provided.'}</p>
+                    <MarkdownRenderer content={stage.description || 'No description provided.'} className="text-sm" />
                   </div>
 
                   {/* Stage Info: logs, hints */}
@@ -209,7 +209,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                           <div key={hint.id} className="text-sm flex items-start gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded">
                             <span className="text-muted-foreground font-mono text-xs mt-0.5">{hi + 1}.</span>
                             <div className="flex-1">
-                              <p>{hint.content}</p>
+                              <MarkdownRenderer content={hint.content} className="text-sm" />
                               <span className="text-xs text-muted-foreground">-{hint.pointsPenalty} pts penalty</span>
                             </div>
                           </div>
@@ -312,7 +312,8 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                   <HelpCircle className="h-4 w-4 text-blue-500 shrink-0" />
-                                  <span className="font-medium text-sm">Q{ci + 1}: {cp.question}</span>
+                                  <span className="font-medium text-sm">Q{ci + 1}:</span>
+                                  <MarkdownRenderer content={cp.question} className="text-sm" />
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
@@ -362,11 +363,15 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                                 <span className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase flex items-center gap-1">
                                   <CheckCircle2 className="h-3 w-3" /> Expected Answer
                                 </span>
-                                <p className="text-sm mt-1">
-                                  {typeof cp.correctAnswer === 'object'
-                                    ? JSON.stringify(cp.correctAnswer, null, 2)
-                                    : String(cp.correctAnswer)}
-                                </p>
+                                {cp.checkpointType === 'YARA_RULE' && typeof cp.correctAnswer === 'object' && cp.correctAnswer?.referenceRule ? (
+                                  <pre className="font-mono text-sm whitespace-pre-wrap bg-zinc-900 text-zinc-100 rounded-lg p-4 mt-2 overflow-x-auto">{cp.correctAnswer.referenceRule}</pre>
+                                ) : (
+                                  <p className="text-sm mt-1">
+                                    {typeof cp.correctAnswer === 'object'
+                                      ? JSON.stringify(cp.correctAnswer, null, 2)
+                                      : String(cp.correctAnswer)}
+                                  </p>
+                                )}
                               </div>
                             )}
 
@@ -376,7 +381,7 @@ export function ScenarioDetailView({ scenario, isLoading }: ScenarioDetailViewPr
                                 <span className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase flex items-center gap-1">
                                   <AlertTriangle className="h-3 w-3" /> Explanation
                                 </span>
-                                <p className="text-sm mt-1">{cp.explanation}</p>
+                                <MarkdownRenderer content={cp.explanation} className="text-sm mt-1" />
                               </div>
                             ) : (
                               <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
