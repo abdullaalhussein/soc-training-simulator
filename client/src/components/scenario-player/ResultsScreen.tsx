@@ -30,12 +30,12 @@ interface ResultsScreenProps {
   embedded?: boolean;
 }
 
-const SCORE_CATEGORIES = [
-  { key: 'accuracyScore', label: 'Accuracy', max: 35, color: 'bg-blue-500' },
-  { key: 'investigationScore', label: 'Investigation', max: 20, color: 'bg-emerald-500' },
-  { key: 'evidenceScore', label: 'Evidence Collection', max: 20, color: 'bg-violet-500' },
-  { key: 'responseScore', label: 'Incident Response', max: 15, color: 'bg-orange-500' },
-  { key: 'reportScore', label: 'Reporting', max: 10, color: 'bg-rose-500' },
+const BASE_SCORE_CATEGORIES = [
+  { key: 'accuracyScore', label: 'Accuracy', baseWeight: 35, color: 'bg-blue-500', checkpointBased: true, types: ['TRUE_FALSE', 'MULTIPLE_CHOICE', 'SEVERITY_CLASSIFICATION'], category: 'accuracy' },
+  { key: 'investigationScore', label: 'Investigation', baseWeight: 20, color: 'bg-emerald-500', checkpointBased: false, types: [] as string[], category: '' },
+  { key: 'evidenceScore', label: 'Evidence Collection', baseWeight: 20, color: 'bg-violet-500', checkpointBased: false, types: [] as string[], category: '' },
+  { key: 'responseScore', label: 'Incident Response', baseWeight: 15, color: 'bg-orange-500', checkpointBased: true, types: ['RECOMMENDED_ACTION'], category: 'response' },
+  { key: 'reportScore', label: 'Reporting', baseWeight: 10, color: 'bg-rose-500', checkpointBased: true, types: ['INCIDENT_REPORT'], category: 'report' },
 ] as const;
 
 export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
@@ -72,6 +72,23 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     );
   }
 
+  // Determine which checkpoint-based categories exist in this scenario
+  const allCheckpoints = (results.answers || []).map((a: any) => a.checkpoint).filter(Boolean);
+  const activeCategories = BASE_SCORE_CATEGORIES.map(cat => {
+    if (!cat.checkpointBased) return { ...cat, active: true };
+    const hasCheckpoints = allCheckpoints.some((cp: any) =>
+      cp.category === cat.category || (cat.types as readonly string[]).includes(cp.checkpointType)
+    );
+    return { ...cat, active: hasCheckpoints };
+  });
+
+  // Calculate dynamic weights — redistribute missing category weight proportionally
+  const totalActiveWeight = activeCategories.reduce((s, c) => s + (c.active ? c.baseWeight : 0), 0);
+  const scale = totalActiveWeight > 0 ? 100 / totalActiveWeight : 1;
+  const SCORE_CATEGORIES = activeCategories
+    .filter(c => c.active)
+    .map(c => ({ key: c.key, label: c.label, max: Math.round(c.baseWeight * scale * 10) / 10, color: c.color }));
+
   // Compute performance highlight (highest percentage category)
   const bestCategory = SCORE_CATEGORIES.reduce((best, cat) => {
     const score = results[cat.key] ?? 0;
@@ -79,7 +96,7 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     const bestPct = best.max > 0 ? (results[best.key] ?? 0) / best.max : 0;
     return pct > bestPct ? cat : best;
   }, SCORE_CATEGORIES[0]);
-  const bestPct = bestCategory.max > 0
+  const bestPct = bestCategory?.max > 0
     ? Math.round(((results[bestCategory.key] ?? 0) / bestCategory.max) * 100)
     : 0;
 

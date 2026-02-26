@@ -189,30 +189,54 @@ export class ScoringService {
     const scenario = attempt.session.scenario;
     const allCheckpoints = scenario.checkpoints;
 
-    // 1. Accuracy Score (35 points)
+    // Determine which checkpoint-based categories have checkpoints
     const accuracyCps = allCheckpoints.filter(c =>
       c.category === 'accuracy' || ['TRUE_FALSE', 'MULTIPLE_CHOICE', 'SEVERITY_CLASSIFICATION'].includes(c.checkpointType)
     );
+    const responseCps = allCheckpoints.filter(c => c.category === 'response' || c.checkpointType === 'RECOMMENDED_ACTION');
+    const reportCps = allCheckpoints.filter(c => c.category === 'report' || c.checkpointType === 'INCIDENT_REPORT');
+
+    // Base weights — investigation & evidence are always earnable (behavioral)
+    const baseWeights = {
+      accuracy: accuracyCps.length > 0 ? 35 : 0,
+      investigation: 20,
+      evidence: 20,
+      response: responseCps.length > 0 ? 15 : 0,
+      report: reportCps.length > 0 ? 10 : 0,
+    };
+    const totalActiveWeight = Object.values(baseWeights).reduce((a, b) => a + b, 0);
+    const scale = totalActiveWeight > 0 ? 100 / totalActiveWeight : 1;
+
+    const weights = {
+      accuracy: baseWeights.accuracy * scale,
+      investigation: baseWeights.investigation * scale,
+      evidence: baseWeights.evidence * scale,
+      response: baseWeights.response * scale,
+      report: baseWeights.report * scale,
+    };
+
+    // 1. Accuracy Score
     const accuracyMax = accuracyCps.reduce((s, c) => s + c.points, 0);
     const accuracyEarned = attempt.answers
       .filter(a => accuracyCps.some(c => c.id === a.checkpointId))
       .reduce((s, a) => s + a.pointsAwarded, 0);
-    const accuracyScore = accuracyMax > 0 ? (accuracyEarned / accuracyMax) * 35 : 0;
+    const accuracyScore = accuracyMax > 0 ? (accuracyEarned / accuracyMax) * weights.accuracy : 0;
 
-    // 2. Investigation Score (20 points)
+    // 2. Investigation Score (behavioral)
     const searches = attempt.actions.filter(a => a.actionType === 'SEARCH_QUERY');
     const filters = attempt.actions.filter(a => a.actionType === 'FILTER_APPLIED');
     const logsOpened = attempt.actions.filter(a => a.actionType === 'LOG_OPENED');
     const timelineEntries = attempt.actions.filter(a => a.actionType === 'TIMELINE_ENTRY_ADDED');
     const processNodes = attempt.actions.filter(a => a.actionType === 'PROCESS_NODE_ADDED');
 
-    const searchDiversity = Math.min(new Set(searches.map(s => JSON.stringify(s.details))).size / 5, 1) * 5;
-    const filterUsage = Math.min(filters.length / 5, 1) * 5;
-    const logDepth = Math.min(logsOpened.length / 10, 1) * 5;
-    const buildingScore = Math.min((timelineEntries.length + processNodes.length) / 5, 1) * 5;
-    const investigationScore = searchDiversity + filterUsage + logDepth + buildingScore;
+    const rawInvestigation =
+      Math.min(new Set(searches.map(s => JSON.stringify(s.details))).size / 5, 1) * 5 +
+      Math.min(filters.length / 5, 1) * 5 +
+      Math.min(logsOpened.length / 10, 1) * 5 +
+      Math.min((timelineEntries.length + processNodes.length) / 5, 1) * 5;
+    const investigationScore = (rawInvestigation / 20) * weights.investigation;
 
-    // 3. Evidence Score (20 points)
+    // 3. Evidence Score (behavioral)
     const evidenceActions = attempt.actions.filter(a => a.actionType === 'EVIDENCE_ADDED');
     const selectedEvidence = evidenceActions.map(a => (a.details as any)?.logId).filter(Boolean);
     const correctEvidence = scenario.stages.flatMap(s => s.logs.map(l => l.id));
@@ -221,23 +245,21 @@ export class ScoringService {
     const precision = selectedEvidence.length > 0 ? tp / selectedEvidence.length : 0;
     const recall = correctEvidence.length > 0 ? tp / correctEvidence.length : 0;
     const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-    const evidenceScore = f1 * 20;
+    const evidenceScore = f1 * weights.evidence;
 
-    // 4. Response Score (15 points)
-    const responseCps = allCheckpoints.filter(c => c.category === 'response' || c.checkpointType === 'RECOMMENDED_ACTION');
+    // 4. Response Score
     const responseMax = responseCps.reduce((s, c) => s + c.points, 0);
     const responseEarned = attempt.answers
       .filter(a => responseCps.some(c => c.id === a.checkpointId))
       .reduce((s, a) => s + a.pointsAwarded, 0);
-    const responseScore = responseMax > 0 ? (responseEarned / responseMax) * 15 : 0;
+    const responseScore = responseMax > 0 ? (responseEarned / responseMax) * weights.response : 0;
 
-    // 5. Report Score (10 points)
-    const reportCps = allCheckpoints.filter(c => c.category === 'report' || c.checkpointType === 'INCIDENT_REPORT');
+    // 5. Report Score
     const reportMax = reportCps.reduce((s, c) => s + c.points, 0);
     const reportEarned = attempt.answers
       .filter(a => reportCps.some(c => c.id === a.checkpointId))
       .reduce((s, a) => s + a.pointsAwarded, 0);
-    const reportScore = reportMax > 0 ? (reportEarned / reportMax) * 10 : 0;
+    const reportScore = reportMax > 0 ? (reportEarned / reportMax) * weights.report : 0;
 
     // Total
     const totalScore = Math.max(0, Math.round(
