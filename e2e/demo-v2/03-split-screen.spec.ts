@@ -215,11 +215,19 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
   }
 
   // Trainer switches to Discussion tab to see the message
-  const discussionTab = trainerPage.getByRole('tab', { name: 'Discussion' });
-  if (await discussionTab.isVisible({ timeout: 5000 }).catch(() => false)) {
-    await discussionTab.click();
-    await trainerPage.waitForTimeout(2000);
-  }
+  // Use JS click — Radix tabs re-render from socket events, causing Playwright
+  // actionability checks to hang indefinitely.
+  await trainerPage.waitForTimeout(1000);
+  await trainerPage.evaluate(() => {
+    const tabs = document.querySelectorAll('[role="tab"]');
+    for (const tab of tabs) {
+      if (tab.textContent?.trim() === 'Discussion') {
+        (tab as HTMLElement).click();
+        break;
+      }
+    }
+  });
+  await trainerPage.waitForTimeout(2000);
 
   // =========================================================================
   // SCENE 3 — Trainer Reply → Trainee (~6s)
@@ -235,7 +243,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
 
     const trainerSendBtn = trainerMsgInput.locator('..').locator('button').first();
     if (await trainerSendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await trainerSendBtn.click();
+      await trainerSendBtn.click({ force: true });
       await trainerPage.waitForTimeout(1500);
     }
   }
@@ -248,7 +256,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
   // =========================================================================
   const broadcastBtn = trainerPage.getByRole('button', { name: /Broadcast Alert/i });
   if (await broadcastBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await broadcastBtn.click();
+    await broadcastBtn.click({ force: true });
     await trainerPage.waitForTimeout(800);
 
     // Type alert message
@@ -264,7 +272,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
         .locator('[role="dialog"]')
         .getByRole('button', { name: /send|broadcast/i });
       if (await sendBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await sendBtn.click();
+        await sendBtn.click({ force: true });
         await trainerPage.waitForTimeout(1000);
       } else {
         await trainerPage.keyboard.press('Escape');
@@ -277,7 +285,7 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
     await traineePage.waitForTimeout(2000);
     const dismissBtn = traineePage.getByRole('button', { name: /dismiss|close|ok/i }).first();
     if (await dismissBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await dismissBtn.click();
+      await dismissBtn.click({ force: true });
       await traineePage.waitForTimeout(500);
     }
   }
@@ -285,24 +293,30 @@ test('Act 4 — Split-screen real-time', async ({ browser }) => {
   // =========================================================================
   // SCENE 5 — Live Activity Log (~6s)
   // =========================================================================
-  // Trainer switches to Activity tab
-  if (await activityTab.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await activityTab.click();
-    await trainerPage.waitForTimeout(1000);
-  }
+  // Trainer switches to Activity tab — use JS click to avoid Radix tab stability issues
+  await trainerPage.evaluate(() => {
+    const tabs = document.querySelectorAll('[role="tab"]');
+    for (const tab of tabs) {
+      if (tab.textContent?.trim() === 'Activity') {
+        (tab as HTMLElement).click();
+        break;
+      }
+    }
+  });
+  await trainerPage.waitForTimeout(1000);
 
   // Trainee reveals hint → trainer sees event in feed
   const revealHintBtn = traineePage.getByRole('button', { name: /reveal hint/i }).first();
   if (await revealHintBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await revealHintBtn.scrollIntoViewIfNeeded();
-    await revealHintBtn.click();
+    await revealHintBtn.click({ force: true });
     await trainerPage.waitForTimeout(1500);
   }
 
   // Trainee opens SOC Mentor → trainer sees event in feed
   const aiHelpBtn = traineePage.getByRole('button', { name: /AI Help/i }).first();
   if (await aiHelpBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await aiHelpBtn.click();
+    await aiHelpBtn.click({ force: true });
     await trainerPage.waitForTimeout(1500);
   }
 

@@ -5,17 +5,17 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [1,    660, "REAL-TIME MONITORING"],
-  [661,  750, "TRAINEE CHAT → TRAINER"],
-  [751,  990, "TRAINER REPLY → TRAINEE"],
-  [991, 1230, "BROADCAST ALERT"],
-  [1231, 1362, "LIVE ACTIVITY LOG"],
+  [1,   1087, "REAL-TIME MONITORING"],
+  [1089, 1235, "TRAINEE CHAT → TRAINER"],
+  [1237, 1631, "TRAINER REPLY → TRAINEE"],
+  [1632, 2026, "BROADCAST ALERT"],
+  [2027, 2244, "LIVE ACTIVITY LOG"],
 ];
 
 /**
  * Act 4: Split-screen view — trainer on left, trainee on right,
  * with timed sub-overlays describing the real-time interaction.
- * 1362 frames (45.4s at 30fps).
+ * 2244 frames (74.8s at 30fps).
  */
 export const Act4SplitScreen: React.FC = () => {
   const frame = useCurrentFrame();

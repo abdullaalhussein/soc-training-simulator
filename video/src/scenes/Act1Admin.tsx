@@ -6,15 +6,15 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [60,  170, "SCENARIO MANAGEMENT"],
-  [170, 455, "AI GENERATION"],
-  [468, 575, "AUDIT LOG"],
-  [585, 726, "USER MANAGEMENT"],
+  [80,  230, "SCENARIO MANAGEMENT"],
+  [230, 610, "AI GENERATION"],
+  [625, 770, "AUDIT LOG"],
+  [780, 971, "USER MANAGEMENT"],
 ];
 
 /**
  * Act 1: Admin clip with role badge and timed sub-overlays.
- * 726 frames (24.2s at 30fps).
+ * 971 frames (32.4s at 30fps).
  */
 export const Act1Admin: React.FC = () => {
   const frame = useCurrentFrame();

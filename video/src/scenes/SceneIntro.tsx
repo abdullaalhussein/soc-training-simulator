@@ -2,6 +2,7 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring } from "remotion";
 import { fadeEnvelope, pulseGlow, staggerFadeIn, slideUp } from "../lib/animations";
 import { COLORS } from "../lib/constants";
+import { BrandLogo } from "../components/BrandLogo";
 
 /**
  * Opening title card — "SOC Training Simulator" with animated
@@ -11,6 +12,12 @@ export const SceneIntro: React.FC = () => {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();
   const opacity = fadeEnvelope(frame, durationInFrames, 20);
+
+  const logoScale = spring({
+    frame: frame - 5,
+    fps,
+    config: { damping: 14, stiffness: 120, mass: 0.6 },
+  });
 
   const titleScale = spring({
     frame: frame - 10,
@@ -44,6 +51,18 @@ export const SceneIntro: React.FC = () => {
           backgroundSize: "60px 60px",
         }}
       />
+
+      {/* Brand Logo */}
+      <div
+        style={{
+          transform: `scale(${logoScale})`,
+          marginBottom: 24,
+          zIndex: 1,
+          filter: `drop-shadow(0 0 18px #00CFFF60)`,
+        }}
+      >
+        <BrandLogo size={120} idPrefix="intro-logo" />
+      </div>
 
       {/* Main title */}
       <div

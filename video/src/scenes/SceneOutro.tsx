@@ -2,6 +2,7 @@ import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring } from "remotion";
 import { fadeEnvelope, staggerFadeIn, slideUp, pulseGlow } from "../lib/animations";
 import { COLORS } from "../lib/constants";
+import { BrandLogo } from "../components/BrandLogo";
 
 const FEATURES = [
   { label: "13 Scenarios", color: COLORS.cyanAccent },
@@ -20,6 +21,12 @@ export const SceneOutro: React.FC = () => {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();
   const opacity = fadeEnvelope(frame, durationInFrames, 20);
+
+  const logoScale = spring({
+    frame: frame - 5,
+    fps,
+    config: { damping: 14, stiffness: 120, mass: 0.6 },
+  });
 
   const titleScale = spring({
     frame: frame - 8,
@@ -51,6 +58,18 @@ export const SceneOutro: React.FC = () => {
           backgroundSize: "60px 60px",
         }}
       />
+
+      {/* Brand Logo */}
+      <div
+        style={{
+          transform: `scale(${logoScale})`,
+          marginBottom: 20,
+          zIndex: 1,
+          filter: `drop-shadow(0 0 14px #00CFFF50)`,
+        }}
+      >
+        <BrandLogo size={80} idPrefix="outro-logo" />
+      </div>
 
       {/* Title */}
       <div

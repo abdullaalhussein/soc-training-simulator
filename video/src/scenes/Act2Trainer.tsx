@@ -6,15 +6,15 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [60,  168, "TRAINER CONSOLE"],
-  [172, 520, "SESSION CREATION"],
-  [530, 700, "LIVE MONITOR"],
-  [710, 879, "SCENARIO GUIDE"],
+  [68,  191, "TRAINER CONSOLE"],
+  [196, 591, "SESSION CREATION"],
+  [603, 796, "LIVE MONITOR"],
+  [807, 999, "SCENARIO GUIDE"],
 ];
 
 /**
  * Act 2: Trainer clip with role badge and timed sub-overlays.
- * 879 frames (29.3s at 30fps).
+ * 999 frames (33.3s at 30fps).
  */
 export const Act2Trainer: React.FC = () => {
   const frame = useCurrentFrame();

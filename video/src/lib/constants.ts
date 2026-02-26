@@ -51,12 +51,12 @@ export const CLIPS_V2 = {
   splitTrainee: "/clips/act4-split-trainee.mp4",
 } as const;
 
-// Actual clip durations in frames (V3 — from ffprobe, rounded up)
+// Actual clip durations in frames (V3 — from ffprobe, rounded up, at 30fps)
 const CLIP_FRAMES = {
-  admin:   726,   // 24.2s
-  trainer: 879,   // 29.3s
-  trainee: 1260,  // 42.0s
-  split:   1362,  // 45.4s (shorter of the two — trainer side)
+  admin:   971,   // 32.4s
+  trainer: 999,   // 33.3s
+  trainee: 1490,  // 49.7s
+  split:   2244,  // 74.8s (shorter of the two — trainee side)
 } as const;
 
 const TITLE_DUR = 60;  // 2s title card
@@ -105,4 +105,4 @@ function buildCombined() {
 }
 
 export const COMBINED_COMP = buildCombined();
-// total = 90+726+879+1260+1362+120 = 4437 frames = ~147.9s
+// total = 90+971+999+1490+2244+120 = 5914 frames = ~197.1s
