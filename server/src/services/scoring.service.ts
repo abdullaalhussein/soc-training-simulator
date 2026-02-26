@@ -15,13 +15,19 @@ export class ScoringService {
       case 'TRUE_FALSE':
       case 'SEVERITY_CLASSIFICATION': {
         const isCorrect = String(answer).toLowerCase() === String(correctAnswer).toLowerCase();
-        return { isCorrect, pointsAwarded: isCorrect ? points : 0 };
+        const feedback = await AIService.getCheckpointFeedback(
+          checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
+        );
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || undefined };
       }
 
       case 'MULTIPLE_CHOICE':
       case 'RECOMMENDED_ACTION': {
         const isCorrect = String(answer) === String(correctAnswer);
-        return { isCorrect, pointsAwarded: isCorrect ? points : 0 };
+        const feedback = await AIService.getCheckpointFeedback(
+          checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
+        );
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || undefined };
       }
 
       case 'EVIDENCE_SELECTION': {
@@ -33,7 +39,11 @@ export class ScoringService {
         const recall = correct.length > 0 ? truePositives / correct.length : 0;
         const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
 
-        return { isCorrect: f1 >= 0.8, pointsAwarded: Math.round(f1 * points * 10) / 10 };
+        const isCorrect = f1 >= 0.8;
+        const feedback = await AIService.getCheckpointFeedback(
+          checkpoint.question, checkpointType, selected.join(', '), correct.join(', '), isCorrect, scenarioContext,
+        );
+        return { isCorrect, pointsAwarded: Math.round(f1 * points * 10) / 10, feedback: feedback || undefined };
       }
 
       case 'SHORT_ANSWER': {

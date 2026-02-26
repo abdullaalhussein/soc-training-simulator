@@ -5,6 +5,8 @@ vi.mock('../services/ai.service', () => ({
   AIService: {
     gradeShortAnswer: vi.fn().mockResolvedValue(null),
     gradeIncidentReport: vi.fn().mockResolvedValue(null),
+    gradeYaraRule: vi.fn().mockResolvedValue(null),
+    getCheckpointFeedback: vi.fn().mockResolvedValue(null),
   },
 }));
 

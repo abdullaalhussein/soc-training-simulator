@@ -124,6 +124,42 @@ Grade this incident report.`,
   }
 
   /**
+   * Provide AI feedback on a checkpoint answer (works for all checkpoint types).
+   * The answer has already been graded algorithmically; this adds constructive feedback.
+   * Returns feedback string or null on failure.
+   */
+  static async getCheckpointFeedback(
+    question: string,
+    checkpointType: string,
+    traineeAnswer: string,
+    correctAnswer: string,
+    isCorrect: boolean,
+    scenarioContext?: string,
+  ): Promise<string | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const response = await this.getClient().messages.create({
+        model: MODEL,
+        max_tokens: 256,
+        system: `You are a SOC (Security Operations Center) training evaluator. The trainee answered a ${checkpointType.replace(/_/g, ' ')} checkpoint question. Their answer was ${isCorrect ? 'CORRECT' : 'INCORRECT'}. Provide brief constructive feedback (1-2 sentences) explaining why their answer is ${isCorrect ? 'right' : 'wrong'} and what they should learn from this. Be encouraging but educational. Return ONLY the feedback text, no JSON.`,
+        messages: [
+          {
+            role: 'user',
+            content: `${scenarioContext ? `Scenario context: ${scenarioContext}\n\n` : ''}Question: ${question}\n\nTrainee's answer: ${traineeAnswer}\n\nCorrect answer: ${correctAnswer}`,
+          },
+        ],
+      });
+
+      const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+      return text || null;
+    } catch (err: any) {
+      logger.error('AI feedback failed for checkpoint', { message: err?.message, status: err?.status });
+      return null;
+    }
+  }
+
+  /**
    * Grade a YARA rule using AI — analyse structure, logic, and effectiveness.
    * The algorithmic score (from sample testing) is provided; AI adds feedback.
    * Returns { score: 0-1, feedback: string } or null on failure.
