@@ -9,7 +9,16 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   return (
     <div className={`prose prose-sm dark:prose-invert max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          strong: ({ children }) => (
+            <strong className="font-bold text-foreground">{children}</strong>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
