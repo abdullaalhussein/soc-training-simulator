@@ -5,6 +5,8 @@ import { logger } from '../utils/logger';
 import { filterAiResponse } from '../utils/filterAiResponse';
 import { filterAiInput } from '../utils/filterAiInput';
 import { sanitizePromptContent } from '../utils/sanitizePrompt';
+import { acquireAiSlot, releaseAiSlot } from '../utils/aiSemaphore';
+import { env } from '../config/env';
 import prisma from '../lib/prisma';
 
 const MAX_MESSAGE_LENGTH = 5000;
@@ -14,6 +16,10 @@ const AI_MESSAGES_PER_ATTEMPT = 20; // max AI assistant messages per attempt
 const AI_DAILY_LIMIT_PER_USER = parseInt(process.env.AI_DAILY_LIMIT || '30', 10);
 const MAX_CONNECTIONS_PER_USER = 3; // H-2: max concurrent sockets per user
 const REAUTH_INTERVAL_MS = 5 * 60 * 1000; // H-9: re-verify token every 5 minutes
+
+// D-02: Server-wide socket connection cap
+const MAX_TOTAL_CONNECTIONS = env.SOCKET_MAX_CONNECTIONS;
+let totalConnectionCount = 0;
 
 /**
  * Check if a user has exceeded their daily AI message limit.
@@ -33,25 +39,64 @@ async function checkDailyAiLimit(userId: string): Promise<{ allowed: boolean; us
   return { allowed: used < AI_DAILY_LIMIT_PER_USER, used, limit: AI_DAILY_LIMIT_PER_USER };
 }
 
+/**
+ * D-03: Check organization-wide daily AI message limit.
+ */
+async function checkOrgDailyAiLimit(): Promise<{ allowed: boolean; used: number; limit: number }> {
+  if (env.AI_DAILY_ORG_LIMIT === 0) return { allowed: true, used: 0, limit: 0 };
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const used = await prisma.aiAssistantMessage.count({
+    where: {
+      role: 'user',
+      createdAt: { gte: startOfDay },
+    },
+  });
+
+  return { allowed: used < env.AI_DAILY_ORG_LIMIT, used, limit: env.AI_DAILY_ORG_LIMIT };
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-/** Simple per-socket sliding window rate limiter */
-function createRateLimiter() {
-  const timestamps: number[] = [];
-  return function isRateLimited(): boolean {
-    const now = Date.now();
+// D-02: Per-user shared rate limiting (replaces per-socket)
+const userRateLimiters = new Map<string, number[]>();
+
+function isUserRateLimited(userId: string): boolean {
+  const now = Date.now();
+  let timestamps = userRateLimiters.get(userId);
+  if (!timestamps) {
+    timestamps = [];
+    userRateLimiters.set(userId, timestamps);
+  }
+  // Remove expired timestamps
+  while (timestamps.length > 0 && timestamps[0] <= now - RATE_LIMIT_WINDOW_MS) {
+    timestamps.shift();
+  }
+  if (timestamps.length >= RATE_LIMIT_MAX_EVENTS) {
+    return true;
+  }
+  timestamps.push(now);
+  return false;
+}
+
+// D-02: Periodic cleanup of rate limiter entries for disconnected users
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, timestamps] of userRateLimiters.entries()) {
+    // Remove expired entries
     while (timestamps.length > 0 && timestamps[0] <= now - RATE_LIMIT_WINDOW_MS) {
       timestamps.shift();
     }
-    if (timestamps.length >= RATE_LIMIT_MAX_EVENTS) {
-      return true;
+    // If no active timestamps and user has no connections, clean up
+    if (timestamps.length === 0 && !userConnectionCounts.has(userId)) {
+      userRateLimiters.delete(userId);
     }
-    timestamps.push(now);
-    return false;
-  };
-}
+  }
+}, 60_000);
 
 // H-2: Track connections per user across both namespaces
 const userConnectionCounts = new Map<string, number>();
@@ -85,6 +130,30 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
   return cookies;
 }
 
+// D-02: Socket connection monitoring — log stats every 60 seconds
+setInterval(() => {
+  if (totalConnectionCount > 0) {
+    let maxPerUser = 0;
+    let uniqueUsers = 0;
+    for (const [, count] of userConnectionCounts) {
+      uniqueUsers++;
+      if (count > maxPerUser) maxPerUser = count;
+    }
+    logger.info('Socket connection stats', {
+      totalConnections: totalConnectionCount,
+      uniqueUsers,
+      maxPerUser,
+      serverCap: MAX_TOTAL_CONNECTIONS,
+    });
+    // Warn if any user is at max
+    for (const [userId, count] of userConnectionCounts) {
+      if (count >= MAX_CONNECTIONS_PER_USER) {
+        logger.warn(`User at max socket connections: ${userId} (${count}/${MAX_CONNECTIONS_PER_USER})`);
+      }
+    }
+  }
+}, 60_000);
+
 export function initializeSocket(io: SocketIOServer) {
   const trainerNsp = io.of('/trainer');
   const traineeNsp = io.of('/trainee');
@@ -92,6 +161,11 @@ export function initializeSocket(io: SocketIOServer) {
   // Authenticate sockets — C-1: read from cookie first, fall back to auth.token
   const authenticateSocket = async (socket: any, next: any) => {
     try {
+      // D-02: Check server-wide connection cap before per-user check
+      if (totalConnectionCount >= MAX_TOTAL_CONNECTIONS) {
+        return next(new Error('Server connection limit reached. Please try again later.'));
+      }
+
       // Try cookie first (C-1)
       const cookies = parseCookies(socket.handshake.headers?.cookie);
       let token = cookies['accessToken'];
@@ -112,6 +186,9 @@ export function initializeSocket(io: SocketIOServer) {
         return next(new Error('Too many concurrent connections'));
       }
 
+      // D-02: Increment server-wide count after successful auth
+      totalConnectionCount++;
+
       next();
     } catch {
       next(new Error('Authentication failed'));
@@ -125,7 +202,9 @@ export function initializeSocket(io: SocketIOServer) {
   trainerNsp.use((socket: any, next: any) => {
     const role = socket.data.user?.role;
     if (role !== 'TRAINER' && role !== 'ADMIN') {
+      // D-02: Decrement counts on role rejection
       decrementUserConnections(socket.data.user?.userId);
+      totalConnectionCount--;
       return next(new Error('Access denied: TRAINER or ADMIN role required'));
     }
     next();
@@ -219,9 +298,9 @@ export function initializeSocket(io: SocketIOServer) {
 
   // Trainer namespace
   trainerNsp.on('connection', (socket) => {
-    const isRateLimited = createRateLimiter();
+    // D-02: Per-user shared rate limiting
     socket.use((_event: any, next: any) => {
-      if (isRateLimited()) {
+      if (isUserRateLimited(socket.data.user.userId)) {
         logger.warn(`Rate limited trainer socket: ${socket.id} (${socket.data.user.email})`);
         return next(new Error('Rate limit exceeded'));
       }
@@ -330,15 +409,17 @@ export function initializeSocket(io: SocketIOServer) {
     socket.on('disconnect', () => {
       // H-2: Decrement user connection count
       decrementUserConnections(socket.data.user?.userId);
+      // D-02: Decrement server-wide count
+      totalConnectionCount--;
       logger.info(`Trainer disconnected: ${socket.id}`);
     });
   });
 
   // Trainee namespace
   traineeNsp.on('connection', (socket) => {
-    const isRateLimited = createRateLimiter();
+    // D-02: Per-user shared rate limiting
     socket.use((_event: any, next: any) => {
-      if (isRateLimited()) {
+      if (isUserRateLimited(socket.data.user.userId)) {
         logger.warn(`Rate limited trainee socket: ${socket.id} (${socket.data.user.email})`);
         return next(new Error('Rate limit exceeded'));
       }
@@ -523,6 +604,16 @@ export function initializeSocket(io: SocketIOServer) {
           return;
         }
 
+        // D-03: Organization-wide daily AI budget cap
+        const orgLimit = await checkOrgDailyAiLimit();
+        if (!orgLimit.allowed) {
+          socket.emit('ai-assistant-response', {
+            content: `The organization's daily AI message limit (${orgLimit.limit}) has been reached. Please try again tomorrow.`,
+            remaining: 0,
+          });
+          return;
+        }
+
         // Fetch conversation history
         const history = await prisma.aiAssistantMessage.findMany({
           where: { attemptId: data.attemptId },
@@ -545,19 +636,26 @@ export function initializeSocket(io: SocketIOServer) {
           ? `Stage ${currentStageData.stageNumber}: ${sanitizePromptContent(currentStageData.title)} — ${sanitizePromptContent(currentStageData.description)}`
           : `Stage ${attempt.currentStage}`;
 
-        // M-5: Call AI WITHOUT checkpoint answers — they are no longer in the context
-        const aiResponse = await AIService.getAssistantResponse(
-          data.message,
-          conversationHistory,
-          sanitizedBriefing,
-          stageInfo,
-          {
-            currentStage: attempt.currentStage,
-            totalStages: scenario.stages.length,
-            score: attempt.totalScore,
-            hintsUsed: attempt.hintsUsed,
-          },
-        );
+        // D-01: AI concurrency semaphore — limit parallel API calls
+        await acquireAiSlot();
+        let aiResponse: string | null;
+        try {
+          // M-5: Call AI WITHOUT checkpoint answers — they are no longer in the context
+          aiResponse = await AIService.getAssistantResponse(
+            data.message,
+            conversationHistory,
+            sanitizedBriefing,
+            stageInfo,
+            {
+              currentStage: attempt.currentStage,
+              totalStages: scenario.stages.length,
+              score: attempt.totalScore,
+              hintsUsed: attempt.hintsUsed,
+            },
+          );
+        } finally {
+          releaseAiSlot();
+        }
 
         if (!aiResponse) {
           socket.emit('ai-assistant-response', {
@@ -623,6 +721,8 @@ export function initializeSocket(io: SocketIOServer) {
     socket.on('disconnect', () => {
       // H-2: Decrement user connection count
       decrementUserConnections(socket.data.user?.userId);
+      // D-02: Decrement server-wide count
+      totalConnectionCount--;
       logger.info(`Trainee disconnected: ${socket.id}`);
     });
   });

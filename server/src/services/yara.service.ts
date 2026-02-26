@@ -7,6 +7,9 @@ import { logger } from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
+// D-05: Production timeout reduction (5s prod, 10s dev)
+const YARA_TIMEOUT_MS = process.env.NODE_ENV === 'production' ? 5000 : 10000;
+
 // H-7: Concurrency limiter — max 3 simultaneous YARA executions
 const MAX_CONCURRENT_YARA = 3;
 let activeYaraExecutions = 0;
@@ -64,6 +67,46 @@ export class YaraService {
   }
 
   /**
+   * D-05: Static analysis of YARA rule for ReDoS and complexity issues.
+   * Returns an error message string if dangerous, or null if safe.
+   */
+  static analyzeRuleComplexity(ruleText: string): string | null {
+    // Check for nested quantifiers that can cause catastrophic backtracking
+    // Pattern like (a+)+, (a*)+, (a+)*, etc.
+    if (/\([^)]*[+*]\)[+*]/.test(ruleText)) {
+      return 'Rule rejected: nested quantifiers detected (potential ReDoS). Simplify the regex pattern.';
+    }
+
+    // Check for excessive repetition counts {N,} where N > 10000
+    const repetitionMatch = ruleText.match(/\{(\d+),\}/g);
+    if (repetitionMatch) {
+      for (const match of repetitionMatch) {
+        const n = parseInt(match.replace(/[{}]/g, '').replace(',', ''), 10);
+        if (n > 10000) {
+          return `Rule rejected: excessive repetition count ({${n},}). Maximum allowed is {10000,}.`;
+        }
+      }
+    }
+
+    // Check for too many string definitions (>100)
+    const stringDefCount = (ruleText.match(/^\s*\$\w+\s*=/gm) || []).length;
+    if (stringDefCount > 100) {
+      return `Rule rejected: too many string definitions (${stringDefCount}). Maximum allowed is 100.`;
+    }
+
+    // Check for extreme alternation (>50 | in a single regex)
+    const regexBlocks = ruleText.match(/\/[^/]+\//g) || [];
+    for (const block of regexBlocks) {
+      const pipeCount = (block.match(/\|/g) || []).length;
+      if (pipeCount > 50) {
+        return `Rule rejected: excessive alternation in regex (${pipeCount} alternatives). Maximum allowed is 50.`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Test a YARA rule against a set of samples.
    */
   static async testRule(ruleText: string, samples: SampleInput[]): Promise<TestResult> {
@@ -72,6 +115,17 @@ export class YaraService {
       return {
         compiled: false,
         compileError: 'Rule text exceeds maximum allowed size of 50000 characters',
+        sampleResults: [],
+        accuracy: 0,
+      };
+    }
+
+    // D-05: Static complexity analysis before execution
+    const complexityError = this.analyzeRuleComplexity(ruleText);
+    if (complexityError) {
+      return {
+        compiled: false,
+        compileError: complexityError,
         sampleResults: [],
         accuracy: 0,
       };
@@ -97,7 +151,7 @@ export class YaraService {
       const emptyPath = path.join(tmpDir, '__empty');
       await fs.writeFile(emptyPath, '');
       try {
-        await execFileAsync('yara', [rulePath, emptyPath], { timeout: 10000 });
+        await execFileAsync('yara', [rulePath, emptyPath], { timeout: YARA_TIMEOUT_MS });
       } catch (compileErr: any) {
         // YARA exits non-zero on both compile errors and no-match.
         // Compile errors go to stderr; a clean no-match has empty stderr.
@@ -128,7 +182,7 @@ export class YaraService {
 
         let matchedRules: string[] = [];
         try {
-          const { stdout } = await execFileAsync('yara', [rulePath, samplePath], { timeout: 10000 });
+          const { stdout } = await execFileAsync('yara', [rulePath, samplePath], { timeout: YARA_TIMEOUT_MS });
           // YARA outputs "RuleName filepath" per match, one per line
           matchedRules = stdout
             .split('\n')

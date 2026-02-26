@@ -8,6 +8,18 @@ export interface TokenPayload {
   userId: string;
   email: string;
   role: string;
+  tokenVersion?: number;
+}
+
+// E-06: Role-based refresh token expiry — shorter for privileged roles
+function getRefreshExpiresIn(role: string): string {
+  if (role === 'ADMIN' || role === 'TRAINER') return '24h';
+  return '7d';
+}
+
+function getRefreshMaxAgeMs(role: string): number {
+  if (role === 'ADMIN' || role === 'TRAINER') return 24 * 60 * 60 * 1000;
+  return 7 * 24 * 60 * 60 * 1000;
 }
 
 export class AuthService {
@@ -26,10 +38,10 @@ export class AuthService {
     } as jwt.SignOptions);
   }
 
-  static generateRefreshToken(payload: TokenPayload): string {
+  static generateRefreshToken(payload: TokenPayload, expiresIn?: string): string {
     return jwt.sign(payload, env.JWT_REFRESH_SECRET, {
       algorithm: 'HS256' as const,
-      expiresIn: env.JWT_REFRESH_EXPIRES_IN,
+      expiresIn: expiresIn || env.JWT_REFRESH_EXPIRES_IN,
     } as jwt.SignOptions);
   }
 
@@ -48,6 +60,10 @@ export class AuthService {
       throw new AppError('Invalid or expired refresh token', 401);
     }
   }
+
+  // E-06: Expose role-based refresh helpers for use in auth routes
+  static getRefreshExpiresIn = getRefreshExpiresIn;
+  static getRefreshMaxAgeMs = getRefreshMaxAgeMs;
 
   static async login(email: string, password: string) {
     const user = await prisma.user.findUnique({ where: { email } });
@@ -73,17 +89,19 @@ export class AuthService {
       userId: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     };
 
     const token = this.generateToken(payload);
-    const refreshToken = this.generateRefreshToken(payload);
+    const refreshExpiresIn = getRefreshExpiresIn(user.role);
+    const refreshToken = this.generateRefreshToken(payload, refreshExpiresIn);
 
     // Store refresh token in DB for revocation support
     await prisma.refreshToken.create({
       data: {
         token: refreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        expiresAt: new Date(Date.now() + getRefreshMaxAgeMs(user.role)),
       },
     });
 
@@ -116,14 +134,23 @@ export class AuthService {
       throw new AppError('User not found or deactivated', 401);
     }
 
+    // E-06: Validate tokenVersion — if role/password changed, invalidate old tokens
+    if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
+      // Token was issued before a security event — delete it and reject
+      await prisma.refreshToken.delete({ where: { token: refreshToken } }).catch(() => {});
+      throw new AppError('Session invalidated due to security change. Please log in again.', 401);
+    }
+
     const newPayload: TokenPayload = {
       userId: user.id,
       email: user.email,
       role: user.role,
+      tokenVersion: user.tokenVersion,
     };
 
     const newToken = this.generateToken(newPayload);
-    const newRefreshToken = this.generateRefreshToken(newPayload);
+    const refreshExpiresIn = getRefreshExpiresIn(user.role);
+    const newRefreshToken = this.generateRefreshToken(newPayload, refreshExpiresIn);
 
     // Token rotation: delete old token and store new one
     await prisma.refreshToken.delete({ where: { token: refreshToken } });
@@ -131,13 +158,14 @@ export class AuthService {
       data: {
         token: newRefreshToken,
         userId: user.id,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        expiresAt: new Date(Date.now() + getRefreshMaxAgeMs(user.role)),
       },
     });
 
     return {
       token: newToken,
       refreshToken: newRefreshToken,
+      role: user.role,
     };
   }
 

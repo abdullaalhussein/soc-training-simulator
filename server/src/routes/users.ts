@@ -93,22 +93,25 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
     const userId = req.params.id as string;
     const data = updateUserSchema.parse(req.body);
 
-    // H-4: If role is being changed, revoke all refresh tokens for the user
+    // H-4 + E-06: If role is being changed, revoke refresh tokens and increment tokenVersion
+    const updateData: any = { ...data };
     if (data.role) {
       const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
       if (currentUser && currentUser.role !== data.role) {
         await prisma.refreshToken.deleteMany({ where: { userId } });
+        updateData.tokenVersion = { increment: 1 };
       }
     }
 
-    // H-4: If account is being deactivated, revoke all refresh tokens
+    // H-4 + E-06: If account is being deactivated, revoke refresh tokens and increment tokenVersion
     if (data.isActive === false) {
       await prisma.refreshToken.deleteMany({ where: { userId } });
+      updateData.tokenVersion = { increment: 1 };
     }
 
     const user = await prisma.user.update({
       where: { id: userId },
-      data,
+      data: updateData,
       select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
     });
     res.json(user);
@@ -169,7 +172,12 @@ router.post('/:id/reset-password', requireRole('ADMIN'), auditLog('RESET_PASSWOR
     const userId = req.params.id as string;
     const { password } = resetPasswordSchema.parse(req.body);
     const hashedPassword = await AuthService.hashPassword(password);
-    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+    // E-06: Increment tokenVersion + revoke refresh tokens on admin password reset
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } },
+    });
+    await prisma.refreshToken.deleteMany({ where: { userId } });
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
     if (error instanceof z.ZodError) {

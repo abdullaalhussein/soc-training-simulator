@@ -1,5 +1,6 @@
 import { PrismaClient, Role, Difficulty, LogType, UnlockCondition, CheckpointType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { scenario2, scenario3, scenario4, scenario5 } from './seed-data/scenarios';
@@ -9,8 +10,21 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Create default users
-  const hashedPassword = await bcrypt.hash('Password123!', 12);
+  // S-06: Production-safe seeding — generate random password in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  const demoPassword = isProduction
+    ? crypto.randomBytes(16).toString('hex') + '!A1'
+    : 'Password123!';
+  const hashedPassword = await bcrypt.hash(demoPassword, 12);
+
+  if (isProduction) {
+    console.log('');
+    console.log('='.repeat(70));
+    console.log('  PRODUCTION MODE: Random password generated for demo accounts.');
+    console.log('  An admin must set passwords manually via the Admin Panel.');
+    console.log('='.repeat(70));
+    console.log('');
+  }
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@soc.local' },

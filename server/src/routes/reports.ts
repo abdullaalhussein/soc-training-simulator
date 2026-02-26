@@ -377,4 +377,191 @@ router.get('/ai-conversations/:attemptId', async (req: Request, res: Response, n
   }
 });
 
+// D-03 / I-01: AI usage analytics (ADMIN only)
+router.get('/ai-analytics', requireRole('ADMIN'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const [totalMessages, todayMessages, uniqueUsersResult, securityEvents] = await Promise.all([
+      prisma.aiAssistantMessage.count(),
+      prisma.aiAssistantMessage.count({ where: { createdAt: { gte: startOfDay } } }),
+      prisma.aiAssistantMessage.findMany({
+        where: { role: 'user' },
+        select: { attempt: { select: { userId: true } } },
+        distinct: ['attemptId'],
+      }),
+      prisma.auditLog.count({
+        where: { action: { in: ['AI_JAILBREAK_BLOCKED', 'AI_OUTPUT_FILTERED'] } },
+      }),
+    ]);
+
+    // Count unique users from the results
+    const uniqueUserIds = new Set(uniqueUsersResult.map(m => m.attempt.userId));
+    const uniqueUsers = uniqueUserIds.size;
+
+    // Estimated cost (rough: avg 300 input tokens + 125 output tokens per exchange)
+    const userMessages = await prisma.aiAssistantMessage.count({ where: { role: 'user' } });
+    const estimatedCost = userMessages * ((300 * 0.003 + 125 * 0.015) / 1000);
+
+    // Per-user breakdown
+    const perUserCounts = await prisma.aiAssistantMessage.groupBy({
+      by: ['attemptId'],
+      where: { role: 'user' },
+      _count: true,
+    });
+
+    // Aggregate by userId
+    const attemptUserMap = new Map<string, string>();
+    if (perUserCounts.length > 0) {
+      const attempts = await prisma.attempt.findMany({
+        where: { id: { in: perUserCounts.map(p => p.attemptId) } },
+        select: { id: true, userId: true },
+      });
+      for (const a of attempts) attemptUserMap.set(a.id, a.userId);
+    }
+
+    const userTotals = new Map<string, number>();
+    for (const pc of perUserCounts) {
+      const uid = attemptUserMap.get(pc.attemptId);
+      if (uid) userTotals.set(uid, (userTotals.get(uid) || 0) + pc._count);
+    }
+
+    const avgPerUser = userTotals.size > 0
+      ? [...userTotals.values()].reduce((a, b) => a + b, 0) / userTotals.size
+      : 0;
+
+    // Anomalies: users with >3x average usage
+    const anomalies: string[] = [];
+    for (const [uid, count] of userTotals) {
+      if (avgPerUser > 0 && count > avgPerUser * 3) anomalies.push(uid);
+    }
+
+    res.json({
+      totalMessages,
+      todayMessages,
+      uniqueUsers,
+      estimatedCost: Math.round(estimatedCost * 100) / 100,
+      avgMessagesPerUser: Math.round(avgPerUser * 10) / 10,
+      anomalyUserIds: anomalies,
+      securityEvents,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// I-01: AI usage vs score correlation (ADMIN, TRAINER)
+router.get('/ai-score-correlation', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // Get all completed attempts
+    const attempts = await prisma.attempt.findMany({
+      where: { status: 'COMPLETED' },
+      select: {
+        id: true,
+        totalScore: true,
+        _count: { select: { aiMessages: true } },
+      },
+    });
+
+    // Count user messages per attempt
+    const attemptIds = attempts.map(a => a.id);
+    const userMessageCounts = await prisma.aiAssistantMessage.groupBy({
+      by: ['attemptId'],
+      where: { attemptId: { in: attemptIds }, role: 'user' },
+      _count: true,
+    });
+
+    const userMsgMap = new Map<string, number>();
+    for (const m of userMessageCounts) userMsgMap.set(m.attemptId, m._count);
+
+    // Split: >=3 user messages = "with AI", <3 = "without AI"
+    const withAi: number[] = [];
+    const withoutAi: number[] = [];
+    for (const attempt of attempts) {
+      const msgCount = userMsgMap.get(attempt.id) || 0;
+      if (msgCount >= 3) {
+        withAi.push(attempt.totalScore);
+      } else {
+        withoutAi.push(attempt.totalScore);
+      }
+    }
+
+    const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+    res.json({
+      withAiAssistant: {
+        count: withAi.length,
+        avgScore: Math.round(avg(withAi) * 10) / 10,
+      },
+      withoutAiAssistant: {
+        count: withoutAi.length,
+        avgScore: Math.round(avg(withoutAi) * 10) / 10,
+      },
+      threshold: '>=3 user messages',
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// S-05: Login anomaly report (ADMIN only)
+router.get('/security/login-anomalies', requireRole('ADMIN'), async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Users with >2 distinct IPs in last 7 days
+    const loginHistory = await prisma.userLoginHistory.findMany({
+      where: {
+        createdAt: { gte: sevenDaysAgo },
+        success: true,
+      },
+      select: { userId: true, ipAddress: true },
+    });
+
+    const userIps = new Map<string, Set<string>>();
+    for (const entry of loginHistory) {
+      if (!userIps.has(entry.userId)) userIps.set(entry.userId, new Set());
+      userIps.get(entry.userId)!.add(entry.ipAddress);
+    }
+
+    const multiIpUsers: { userId: string; distinctIps: number }[] = [];
+    for (const [userId, ips] of userIps) {
+      if (ips.size > 2) {
+        multiIpUsers.push({ userId, distinctIps: ips.size });
+      }
+    }
+
+    // Total failed logins in last 7 days
+    const totalFailedLogins = await prisma.userLoginHistory.count({
+      where: {
+        createdAt: { gte: sevenDaysAgo },
+        success: false,
+      },
+    });
+
+    // Get user details for multi-IP users
+    const userDetails = multiIpUsers.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: multiIpUsers.map(u => u.userId) } },
+          select: { id: true, email: true, name: true },
+        })
+      : [];
+
+    const userMap = new Map(userDetails.map(u => [u.id, u]));
+
+    res.json({
+      multiIpUsers: multiIpUsers.map(u => ({
+        ...u,
+        email: userMap.get(u.userId)?.email,
+        name: userMap.get(u.userId)?.name,
+      })),
+      totalFailedLogins,
+      periodDays: 7,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as reportsRouter };

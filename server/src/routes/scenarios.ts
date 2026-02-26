@@ -5,6 +5,7 @@ import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AppError } from '../middleware/errorHandler';
 import { scanScenarioContent } from '../utils/sanitizePrompt';
+import { AIService } from '../services/ai.service';
 import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
 
@@ -206,6 +207,29 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
       });
     }
 
+    // T-03: Non-blocking AI-powered injection risk scoring
+    const allContent = [
+      scenarioData.briefing || '',
+      ...(stages || []).map((s: any) => `${s.title} ${s.description}`),
+    ].join('\n');
+    AIService.scoreInjectionRisk(allContent).then(result => {
+      if (result && result.riskScore > 0.5) {
+        logger.warn('AI injection risk scoring flagged scenario', {
+          scenarioId: scenario.id,
+          riskScore: result.riskScore,
+          explanation: result.explanation,
+        });
+        prisma.auditLog.create({
+          data: {
+            action: 'SCENARIO_INJECTION_RISK',
+            resource: 'scenario',
+            resourceId: scenario.id,
+            details: { riskScore: result.riskScore, explanation: result.explanation },
+          },
+        }).catch(() => {});
+      }
+    }).catch(() => {});
+
     res.status(201).json({ ...scenario, contentWarnings: scanResult.safe ? undefined : scanResult.flaggedFields });
   } catch (error) {
     next(error);
@@ -285,12 +309,58 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
           },
         });
       });
+      // T-03: Non-blocking AI injection risk scoring on update
+      const allContent = [
+        ...(stages || []).map((s: any) => `${s.title} ${s.description}`),
+      ].join('\n');
+      if (allContent.trim()) {
+        AIService.scoreInjectionRisk(allContent).then(result => {
+          if (result && result.riskScore > 0.5) {
+            logger.warn('AI injection risk scoring flagged scenario update', {
+              scenarioId,
+              riskScore: result.riskScore,
+              explanation: result.explanation,
+            });
+            prisma.auditLog.create({
+              data: {
+                action: 'SCENARIO_INJECTION_RISK',
+                resource: 'scenario',
+                resourceId: scenarioId,
+                details: { riskScore: result.riskScore, explanation: result.explanation },
+              },
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
       res.json(scenario);
     } else {
       const scenario = await prisma.scenario.update({
         where: { id: scenarioId },
         data: { ...scenarioData },
       });
+
+      // T-03: Non-blocking AI injection risk scoring for metadata-only updates
+      if (scenarioData.briefing) {
+        AIService.scoreInjectionRisk(scenarioData.briefing).then(result => {
+          if (result && result.riskScore > 0.5) {
+            logger.warn('AI injection risk scoring flagged scenario update', {
+              scenarioId,
+              riskScore: result.riskScore,
+              explanation: result.explanation,
+            });
+            prisma.auditLog.create({
+              data: {
+                action: 'SCENARIO_INJECTION_RISK',
+                resource: 'scenario',
+                resourceId: scenarioId,
+                details: { riskScore: result.riskScore, explanation: result.explanation },
+              },
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
       res.json(scenario);
     }
   } catch (error) {

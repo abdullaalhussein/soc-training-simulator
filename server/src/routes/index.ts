@@ -9,6 +9,7 @@ import { reportsRouter } from './reports';
 import { yaraRouter } from './yara';
 import { messagesRouter } from './messages';
 import { aiRouter } from './ai';
+import { securityRouter } from './security';
 
 export const apiRouter = Router();
 
@@ -22,3 +23,4 @@ apiRouter.use('/reports', reportsRouter);
 apiRouter.use('/yara', yaraRouter);
 apiRouter.use('/sessions', messagesRouter);
 apiRouter.use('/ai', aiRouter);
+apiRouter.use('/security', securityRouter);

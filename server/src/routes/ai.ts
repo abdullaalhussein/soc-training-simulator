@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { AppError } from '../middleware/errorHandler';
 import { AIService } from '../services/ai.service';
+import { acquireAiSlot, releaseAiSlot } from '../utils/aiSemaphore';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
@@ -57,6 +58,8 @@ router.post(
           'X-Accel-Buffering': 'no',
         });
 
+        // D-01: Acquire AI concurrency slot
+        await acquireAiSlot();
         const stream = AIService.generateScenarioStream(params);
         let aborted = false;
 
@@ -72,6 +75,7 @@ router.post(
         });
 
         stream.on('error', (err: any) => {
+          releaseAiSlot();
           if (!aborted) {
             logger.error('AI scenario stream error', {
               message: err?.message,
@@ -84,6 +88,7 @@ router.post(
         });
 
         stream.on('end', async () => {
+          releaseAiSlot();
           if (!aborted) {
             res.write(`event: done\ndata: {}\n\n`);
             res.end();
@@ -106,8 +111,14 @@ router.post(
         return;
       }
 
-      // Non-streaming path (backward compatible)
-      const scenario = await AIService.generateScenario(params);
+      // Non-streaming path (backward compatible) — D-01: with concurrency semaphore
+      await acquireAiSlot();
+      let scenario;
+      try {
+        scenario = await AIService.generateScenario(params);
+      } finally {
+        releaseAiSlot();
+      }
 
       if (!scenario) {
         throw new AppError('Failed to generate scenario. Please try again.', 500);

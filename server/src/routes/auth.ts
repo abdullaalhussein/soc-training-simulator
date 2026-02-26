@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
+import { env } from '../config/env';
 
 const router = Router();
 
@@ -22,13 +23,16 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-const REFRESH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: '/api/auth',
-};
+// E-06: Dynamic refresh cookie options based on role (shorter for privileged roles)
+function getRefreshCookieOptions(role?: string) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: role ? AuthService.getRefreshMaxAgeMs(role) : 7 * 24 * 60 * 60 * 1000,
+    path: '/api/auth',
+  };
+}
 
 // C-1: Access token cookie — path '/' so it's sent on all requests including Socket.io handshake
 const ACCESS_COOKIE_OPTIONS = {
@@ -86,12 +90,25 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
       return next(new AppError(`Account temporarily locked. Try again in ${minutes} minute(s).`, 429));
     }
 
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    const userAgent = req.headers['user-agent'] || undefined;
+
     let result;
     try {
       result = await AuthService.login(email, password);
     } catch (error) {
       // Record failed login for lockout tracking
       recordFailedLogin(email);
+
+      // S-05: Record failed login in history (non-blocking)
+      try {
+        const failedUser = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+        if (failedUser) {
+          await prisma.userLoginHistory.create({
+            data: { userId: failedUser.id, ipAddress: clientIp, userAgent, success: false },
+          });
+        }
+      } catch { /* non-fatal */ }
 
       // Audit log failed login attempt
       try {
@@ -100,7 +117,7 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
             action: 'LOGIN_FAILED',
             resource: 'auth',
             details: { email, method: req.method, path: req.path },
-            ipAddress: req.ip || req.socket.remoteAddress,
+            ipAddress: clientIp,
           },
         });
       } catch {
@@ -113,16 +130,50 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
     // Clear lockout on successful login
     clearFailedLogins(email);
 
-    // C-3: Check for default demo credentials in production
-    if (process.env.NODE_ENV === 'production' && DEFAULT_DEMO_EMAILS.includes(email)) {
+    // S-06: Block demo credentials unless explicitly allowed
+    if (DEFAULT_DEMO_EMAILS.includes(email)) {
       const isDefault = await bcrypt.compare(DEFAULT_DEMO_PASSWORD, (await prisma.user.findUnique({ where: { email }, select: { password: true } }))?.password || '');
       if (isDefault) {
-        return res.status(200).json({
-          mustChangePassword: true,
-          user: result.user,
-          message: 'Default credentials detected. You must change your password before continuing.',
-        });
+        if (!env.ALLOW_DEMO_CREDENTIALS && env.NODE_ENV === 'production') {
+          return res.status(403).json({
+            error: { message: 'Demo credentials are disabled in production. Set ALLOW_DEMO_CREDENTIALS=true or change the password.' },
+          });
+        } else if (env.NODE_ENV === 'production') {
+          return res.status(200).json({
+            mustChangePassword: true,
+            user: result.user,
+            message: 'Default credentials detected. You must change your password before continuing.',
+          });
+        }
       }
+    }
+
+    // S-05: Record successful login in history + anomaly detection (non-blocking)
+    try {
+      await prisma.userLoginHistory.create({
+        data: { userId: result.user.id, ipAddress: clientIp, userAgent, success: true },
+      });
+
+      // Check if this is a new IP for this user
+      const previousFromIp = await prisma.userLoginHistory.count({
+        where: { userId: result.user.id, ipAddress: clientIp, success: true, createdAt: { lt: new Date() } },
+      });
+      if (previousFromIp <= 1) {
+        // This is effectively a new IP — check if user has logged in from other IPs
+        const otherIpLogins = await prisma.userLoginHistory.count({
+          where: { userId: result.user.id, success: true, ipAddress: { not: clientIp } },
+        });
+        if (otherIpLogins > 0) {
+          logger.warn('Login from new IP detected', {
+            userId: result.user.id,
+            email,
+            newIp: clientIp,
+            previousIpCount: otherIpLogins,
+          });
+        }
+      }
+    } catch {
+      // Don't fail the login if tracking fails
     }
 
     // Audit log successful login
@@ -133,15 +184,15 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
           action: 'LOGIN',
           resource: 'auth',
           details: { email, method: req.method, path: req.path },
-          ipAddress: req.ip || req.socket.remoteAddress,
+          ipAddress: clientIp,
         },
       });
     } catch {
       // Don't fail the login if audit logging fails
     }
 
-    // Set refresh token as httpOnly cookie
-    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+    // Set refresh token as httpOnly cookie (E-06: role-based expiry)
+    res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions(result.user.role));
 
     // C-1: Set access token as httpOnly cookie
     res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
@@ -176,8 +227,8 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
 
     const result = await AuthService.refresh(refreshToken);
 
-    // Set new refresh token cookie (rotation)
-    res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
+    // Set new refresh token cookie (rotation, E-06: role-based expiry)
+    res.cookie('refreshToken', result.refreshToken, getRefreshCookieOptions(result.role));
 
     // C-1: Set new access token as httpOnly cookie
     res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
@@ -251,9 +302,10 @@ router.post('/change-password', authenticate, async (req: Request, res: Response
     }
 
     const hashedPassword = await AuthService.hashPassword(newPassword);
+    // E-06: Increment tokenVersion to invalidate all existing tokens
     await prisma.user.update({
       where: { id: userId },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, tokenVersion: { increment: 1 } },
     });
 
     // Invalidate all refresh tokens so the user must re-login

@@ -19,6 +19,14 @@ export const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:3000',
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+  // S-06: Must be explicitly 'true' to allow demo credential login
+  ALLOW_DEMO_CREDENTIALS: process.env.ALLOW_DEMO_CREDENTIALS === 'true',
+  // D-02: Server-wide socket connection cap
+  SOCKET_MAX_CONNECTIONS: parseInt(process.env.SOCKET_MAX_CONNECTIONS || '500', 10),
+  // D-03: Organization-wide daily AI message cap (0 = unlimited)
+  AI_DAILY_ORG_LIMIT: parseInt(process.env.AI_DAILY_ORG_LIMIT || '500', 10),
+  // D-01: Max concurrent AI API calls
+  AI_MAX_CONCURRENT: parseInt(process.env.AI_MAX_CONCURRENT || '5', 10),
 };
 
 // Validate JWT secrets
