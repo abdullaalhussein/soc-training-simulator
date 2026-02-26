@@ -2,10 +2,10 @@
 
 | Field   | Value                                      |
 |---------|--------------------------------------------|
-| Version | 1.0                                        |
+| Version | 1.1                                        |
 | Date    | February 26, 2026                          |
 | Author  | Abdullah Al-Hussein                        |
-| Status  | Released                                   |
+| Status  | Released (updated post-security hardening)  |
 
 ---
 
@@ -67,11 +67,13 @@ soc-training-simulator/
 │   │   ├── socket/                  # Socket.io handlers
 │   │   │   └── index.ts
 │   │   ├── config/                  # Environment, CORS
-│   │   ├── utils/                   # Logger, filterAiResponse
+│   │   ├── utils/                   # Logger, filterAiResponse, filterAiInput, sanitizePrompt
 │   │   ├── __tests__/              # Unit tests
 │   │   └── index.ts                 # Server entry point
 │   └── package.json
 ├── shared/                          # Shared TypeScript types
+│   │   │   ├── (trainer)/           # Trainer/Admin routes
+│   │   │   │   └── ai-review/      # AI Conversation Review page
 ├── prisma/
 │   ├── schema.prisma                # Database schema (16 models, 7 enums)
 │   └── seed.ts                      # Seed 13 scenarios + demo users
@@ -375,6 +377,18 @@ soc-training-simulator/
 | expiresAt | DateTime |                                |
 | createdAt | DateTime | default: now()                 |
 
+#### RateLimitEntry
+| Field       | Type     | Constraints                    |
+|-------------|----------|--------------------------------|
+| id          | String   | PK, cuid()                     |
+| key         | String   | IP address or userId           |
+| endpoint    | String   | Route group (e.g., "auth", "yara", "global") |
+| count       | Int      | default: 1                     |
+| windowStart | DateTime | default: now()                 |
+| expiresAt   | DateTime |                                |
+
+**Constraints:** unique(key, endpoint) | **Indexes:** `expiresAt`
+
 ### 2.3 Enums
 
 | Enum             | Values                                                                                                   |
@@ -392,7 +406,7 @@ soc-training-simulator/
 
 ## 3. API Design
 
-All endpoints are prefixed with `/api`. Authentication is via `Authorization: Bearer <token>` header unless noted.
+All endpoints are prefixed with `/api`. Authentication is via httpOnly `accessToken` cookie (primary) or `Authorization: Bearer <token>` header (fallback). State-changing requests require `X-CSRF-Token` header matching the `csrf` cookie.
 
 ### 3.1 Authentication (`/api/auth`)
 
@@ -414,7 +428,12 @@ Rate limit: 15 requests / 15 minutes per IP.
 
 // Response 200
 { token: string, user: { id, email, name, role, isActive, lastLogin, createdAt } }
+// + Set-Cookie: accessToken (httpOnly, secure, sameSite=lax, 4h)
 // + Set-Cookie: refreshToken (httpOnly, secure, sameSite=lax, 7d)
+// + Set-Cookie: csrf (readable by client JS, sameSite=lax)
+
+// Account lockout: After 5 failed attempts, account locked for 15 minutes (exponential backoff)
+// Default credentials: In production, returns { mustChangePassword: true } for demo accounts
 ```
 
 **POST /auth/refresh**
@@ -423,7 +442,7 @@ Rate limit: 15 requests / 15 minutes per IP.
 // Request: none (reads refreshToken from cookie)
 // Response 200
 { token: string }
-// + Set-Cookie: new refreshToken
+// + Set-Cookie: new accessToken + new refreshToken
 ```
 
 **POST /auth/change-password**
@@ -633,6 +652,8 @@ All routes require ADMIN or TRAINER role.
 | GET    | /reports/session/:id/csv          | Yes  | A, T | Download CSV export      |
 | GET    | /reports/scenario/:id/analytics   | Yes  | A, T | Scenario-wide analytics  |
 | GET    | /reports/audit                    | Yes  | A    | Admin audit log          |
+| GET    | /reports/ai-conversations         | Yes  | A, T | AI conversations by session |
+| GET    | /reports/ai-conversations/:attemptId | Yes | A, T | Full AI conversation + anomaly flags |
 
 **GET /reports/session/:id/leaderboard**
 
@@ -726,15 +747,21 @@ Rate limit: 5 per day per user (database-backed via AuditLog count).
 
 ```
 1. Login → AuthService.login(email, password)
+   ├── Check account lockout (5 failed → 15min lock, exponential backoff)
+   ├── Check default credentials in production (mustChangePassword flag)
    ├── Validate credentials (bcrypt.compare)
    ├── Generate access token (JWT, HS256, 4h expiry)
    ├── Generate refresh token (JWT, HS256, 7d expiry)
    ├── Store refresh token in RefreshToken table
-   └── Return { token } + Set-Cookie: refreshToken (httpOnly)
+   ├── Generate CSRF token (crypto.randomBytes(32))
+   └── Return { token } + Set-Cookie: accessToken + refreshToken + csrf
 
 2. API Request → authenticate middleware
-   ├── Extract Bearer token from Authorization header
+   ├── Read accessToken from httpOnly cookie (primary)
+   ├── Fallback: extract Bearer token from Authorization header
    ├── jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] })
+   ├── CSRF middleware: validate X-CSRF-Token header matches csrf cookie
+   │   (skipped for GET/HEAD/OPTIONS, login, refresh, non-cookie-auth)
    └── Set req.user = { userId, email, role }
 
 3. Token Expired (401) → Axios interceptor
@@ -742,13 +769,21 @@ Rate limit: 5 per day per user (database-backed via AuditLog count).
    ├── Server: validate old refresh token from cookie
    ├── Delete old refresh token from DB
    ├── Issue new access token + new refresh token
-   ├── Set-Cookie: new refresh token
+   ├── Set-Cookie: new accessToken + new refreshToken
+   ├── Reconnect active WebSocket connections
    └── Retry original request with new access token
 
 4. Logout → POST /auth/logout
    ├── Delete all refresh tokens for user
-   ├── Clear refresh token cookie
+   ├── Clear accessToken + refreshToken + csrf cookies
    └── Client: clear Zustand store + localStorage
+
+5. Role Change → PUT /users/:id (role modified)
+   ├── Delete all refresh tokens for user
+   └── Next token refresh will fail → forces re-login with new role
+
+6. Account Deactivation → PUT /users/:id (isActive=false)
+   └── Delete all refresh tokens for user
 ```
 
 ### 4.2 Token Payload
@@ -766,12 +801,31 @@ interface JwtPayload {
 ### 4.3 Cookie Configuration
 
 ```typescript
+// Access Token Cookie (primary auth credential)
+{
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  maxAge: 4 * 60 * 60 * 1000,  // 4 hours
+  path: '/'
+}
+
+// Refresh Token Cookie
 {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000,  // 7 days
   path: '/api/auth'
+}
+
+// CSRF Cookie (readable by client JS for double-submit pattern)
+{
+  httpOnly: false,  // must be readable by JavaScript
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  maxAge: 4 * 60 * 60 * 1000,  // matches access token
+  path: '/'
 }
 ```
 
@@ -809,9 +863,30 @@ const requireRole = (...roles: string[]) => (req, res, next) => {
 | `session:{sessionId}`   | Trainer + all trainees in session         | Session-wide events          |
 | `attempt:{attemptId}`   | Trainee owning attempt                   | Attempt-specific events      |
 
-### 5.3 Per-Socket Rate Limiting
+### 5.3 Socket Security
 
-Sliding window: **30 events per 10 seconds** per socket connection. In-memory (resets on server restart).
+**Authentication:**
+- Reads `accessToken` from httpOnly cookie (parses `socket.handshake.headers.cookie`) as primary auth
+- Falls back to `socket.handshake.auth.token` for backward compatibility
+- JWT verified on connection with algorithm pinning
+
+**Per-User Connection Limiting:**
+- Maximum 3 concurrent WebSocket connections per userId
+- Excess connections rejected with error message
+- Connection count tracked via `userConnectionCounts` Map, decremented on disconnect
+
+**Per-Socket Rate Limiting:**
+- Sliding window: **30 events per 10 seconds** per socket connection
+- In-memory (resets on server restart)
+
+**Periodic Re-Authentication:**
+- Every 5 minutes, active socket connections re-verify JWT validity
+- Expired tokens trigger immediate disconnect
+- Ensures revoked/expired tokens don't maintain persistent connections
+
+**Session Membership Validation:**
+- `progress-update` events verify the emitting user belongs to the session
+- Prevents injection of false progress data into trainer monitoring views
 
 ### 5.4 Event Reference
 
@@ -855,13 +930,22 @@ Sliding window: **30 events per 10 seconds** per socket connection. In-memory (r
    b. Ownership: trainee owns attempt
    c. Per-attempt limit: <20 messages (DB count)
    d. Per-day limit: <30 messages (DB count, configurable)
-3. Server fetches:
+3. Server applies filterAiInput(message):
+   a. Scans for ~30 jailbreak patterns (role overrides, prompt extraction, DAN, etc.)
+   b. If matched: rejects message, logs AI_JAILBREAK_BLOCKED audit entry, returns error
+   c. If safe: proceeds
+4. Server fetches:
    a. Conversation history (up to 50 messages)
    b. Scenario context (briefing, stage info, progress stats)
-4. Server calls AIService.getAssistantResponse()
-5. Server applies filterAiResponse() on AI output
-6. Server saves user + assistant messages to AiAssistantMessage table
-7. Server emits 'ai-assistant-response' { content, remaining }
+5. Server sanitizes scenario content via sanitizePromptContent():
+   a. Strips prompt injection patterns from briefing and stage descriptions
+   b. Prevents indirect injection via malicious scenario content
+6. Server calls AIService.getAssistantResponse()
+7. Server applies filterAiResponse() on AI output:
+   a. If leak detected: replaces with Socratic redirect, logs AI_OUTPUT_FILTERED
+   b. Logs estimated token usage and cost
+8. Server saves user + assistant messages to AiAssistantMessage table
+9. Server emits 'ai-assistant-response' { content, remaining }
 ```
 
 ---
@@ -891,7 +975,41 @@ Sliding window: **30 events per 10 seconds** per socket connection. In-memory (r
 7. Teach general SOC methodology: log analysis, triage, correlation, MITRE ATT&CK
 8. Keep responses concise (2-3 sentences max)
 
-### 6.3 AI Output Filter (4 Layers)
+### 6.3 AI Input Filter (Jailbreak Detection)
+
+**Location:** `server/src/utils/filterAiInput.ts`
+
+```
+Input: User message string
+Output: null (safe) or rejection message string (jailbreak detected)
+
+~30 pattern categories:
+  - Role overrides: "you are now", "act as", "pretend to be"
+  - System prompt extraction: "repeat instructions", "show system prompt", "what are your rules"
+  - Answer extraction: "tell me the correct answer", "list all answers", "reveal the solution"
+  - DAN / jailbreak: "DAN mode", "do anything now", "ignore all restrictions"
+  - Bypass attempts: "hypothetically", "in a fictional scenario", "for educational purposes"
+
+On match: returns rejection message, caller logs AI_JAILBREAK_BLOCKED audit entry
+```
+
+### 6.4 AI Prompt Sanitization
+
+**Location:** `server/src/utils/sanitizePrompt.ts`
+
+```
+sanitizePromptContent(text: string): string
+  - Strips ~30 prompt injection patterns from scenario content before AI system prompt
+  - Patterns: "ignore previous instructions", "enter debug mode", "you are a", etc.
+  - Returns sanitized text with injection patterns removed
+
+scanScenarioContent(scenario): string[]
+  - Scans briefing + all stage titles/descriptions for injection patterns
+  - Called during scenario creation to warn trainers about suspicious content
+  - Returns array of warning messages
+```
+
+### 6.5 AI Output Filter (4 Layers)
 
 **Location:** `server/src/utils/filterAiResponse.ts`
 
@@ -917,7 +1035,7 @@ Layer 4: JSON STRUCTURED DATA LEAK
   → "I can help you think through this. What is your current hypothesis?"
 ```
 
-### 6.4 Rate Limiting
+### 6.6 AI Rate Limiting
 
 | Scope              | Limit          | Storage    | Configurable Via          |
 |--------------------|----------------|------------|---------------------------|
@@ -1066,6 +1184,7 @@ src/app/
 │   ├── console/page.tsx          # Session management
 │   ├── sessions/[sessionId]/page.tsx  # Real-time monitor
 │   ├── reports/page.tsx          # Leaderboards + PDF/CSV
+│   ├── ai-review/page.tsx        # AI Conversation Review + anomaly flags
 │   └── scenario-guide/           # Scenario browser
 └── (admin)/
     ├── layout.tsx                # Sidebar + useRequireAuth(['ADMIN'])
@@ -1103,9 +1222,12 @@ const api = axios.create({
   withCredentials: true       // sends httpOnly cookies
 });
 
-// Request interceptor: attach Bearer token from localStorage
+// Request interceptor:
+//   1. Attach Bearer token from localStorage (fallback for backward compat)
+//   2. Read 'csrf' cookie and send as X-CSRF-Token header
 // Response interceptor: on 401 → POST /auth/refresh → retry original request
 //   on refresh failure → logout + redirect to /login
+//   on refresh success → reconnect active WebSocket connections
 ```
 
 **Next.js rewrites** proxy `/api/*` to the server URL (dev: localhost:3001, prod: Railway URL).
@@ -1154,11 +1276,14 @@ ScenarioPlayer                          # Orchestrator (state, socket, callbacks
 
 ```typescript
 // Singleton pattern with lazy initialization
-getTrainerSocket()  → io(`${WS_URL}/trainer`, { autoConnect: false, auth: { token } })
-getTraineeSocket()  → io(`${WS_URL}/trainee`, { autoConnect: false, auth: { token } })
+getTrainerSocket()  → io(`${WS_URL}/trainer`, { autoConnect: false, withCredentials: true, auth: { token } })
+getTraineeSocket()  → io(`${WS_URL}/trainee`, { autoConnect: false, withCredentials: true, auth: { token } })
+
+// reconnectAll() — Force reconnect all active sockets after token refresh
+//   Disconnects, updates auth token, reconnects
 ```
 
-Manual connect/disconnect tied to component lifecycle (React `useEffect` cleanup).
+Manual connect/disconnect tied to component lifecycle (React `useEffect` cleanup). `withCredentials: true` ensures httpOnly cookies are sent on WebSocket handshake.
 
 ---
 
@@ -1275,45 +1400,95 @@ z.object({
 
 ### 10.2 Rate Limiting
 
-| Target              | Window     | Limit          | Key          | Library/Impl          |
-|---------------------|------------|----------------|--------------|-----------------------|
-| Auth endpoints      | 15 min     | 15 requests    | IP address   | express-rate-limit    |
-| Log endpoints       | 60 sec     | 100 requests   | User ID      | express-rate-limit    |
-| YARA testing        | 60 sec     | 10 requests    | User ID / IP | express-rate-limit    |
-| Socket events       | 10 sec     | 30 events      | Socket ID    | Custom sliding window |
-| AI Mentor (attempt) | Lifetime   | 20 messages    | Attempt ID   | DB count              |
-| AI Mentor (daily)   | Calendar day| 30 messages   | User ID      | DB count              |
-| AI Scenario gen     | Calendar day| 5 requests    | User ID      | AuditLog count        |
+| Target              | Window       | Limit            | Key          | Library/Impl          |
+|---------------------|--------------|------------------|--------------|-----------------------|
+| **Global (all)**    | **60 sec**   | **200 requests** | **IP**       | **express-rate-limit** |
+| Auth endpoints      | 15 min       | 15 requests      | IP address   | express-rate-limit    |
+| Log endpoints       | 60 sec       | 100 requests     | User ID      | express-rate-limit    |
+| YARA testing        | 60 sec       | 10 requests      | User ID / IP | express-rate-limit    |
+| **Actions tracking**| **60 sec**   | **60 requests**  | **User ID**  | **express-rate-limit** |
+| Socket events       | 10 sec       | 30 events        | Socket ID    | Custom sliding window |
+| **Socket conns**    | **Per-user** | **3 concurrent** | **User ID**  | **In-memory Map**     |
+| AI Mentor (attempt) | Lifetime     | 20 messages      | Attempt ID   | DB count              |
+| AI Mentor (daily)   | Calendar day | 30 messages      | User ID      | DB count              |
+| AI Scenario gen     | Calendar day | 5 requests       | User ID      | AuditLog count        |
+| **YARA concurrent** | **Server**   | **3 simultaneous**| **Global**   | **Semaphore**         |
 
-### 10.3 YARA Rule Sandboxing
+### 10.3 CSRF Protection
+
+```typescript
+// Double-submit cookie pattern
+// 1. Server sets non-httpOnly 'csrf' cookie on login (crypto.randomBytes(32))
+// 2. Client reads 'csrf' cookie and sends as X-CSRF-Token header
+// 3. Server middleware validates header matches cookie value
+// Skipped for: GET/HEAD/OPTIONS, login, refresh, non-cookie-auth requests
+```
+
+### 10.4 Account Lockout
+
+```typescript
+// Progressive lockout after repeated failed login attempts
+const LOCKOUT_THRESHOLD = 5;       // failed attempts before lock
+const LOCKOUT_DURATION_MS = 900000; // 15 minutes (exponential backoff)
+
+// In-memory tracking via loginAttempts Map keyed by email
+// Resets on successful login
+// Audit logged as LOGIN_FAILED with IP address
+```
+
+### 10.5 YARA Rule Sandboxing
 
 1. Strip `include` and `import` directives (replace with security comment)
 2. Create isolated temp directory: `/tmp/yara-{uuid}`
 3. Validate sample filenames: `/^[a-zA-Z0-9._-]+$/`
 4. Max limits: 10 samples, 1MB each, 50KB rule text
 5. Execute via `child_process.execFile()` with 10-second timeout
-6. Clean up temp directory (recursive, force) after execution
+6. **Semaphore-based concurrency limit: max 3 simultaneous YARA executions**
+7. Clean up temp directory (recursive, force) after execution
+8. **YARA executions audit-logged with rule length, sample count, accuracy**
 
-### 10.4 Audit Logging
+### 10.6 Audit Logging
 
 ```typescript
 // Middleware: auditLog('ACTION_NAME', 'RESOURCE_TYPE')
 // Automatically captures: userId, action, resource, resourceId, details, ipAddress, createdAt
+
+// Expanded audit coverage (post-hardening):
+// - ATTEMPT_START, ATTEMPT_COMPLETE — attempt lifecycle
+// - YARA_TEST — YARA rule execution with accuracy
+// - AI_JAILBREAK_BLOCKED — jailbreak input detected
+// - AI_OUTPUT_FILTERED — answer leak detected in AI response
+// - SEND_HINT — trainer hint sent to trainee
 
 // Sensitive field redaction
 const SENSITIVE_FIELDS = ['password', 'token', 'refreshToken', 'secret', 'authorization'];
 // All sensitive values replaced with '[REDACTED]' before storage
 ```
 
-### 10.5 Security Headers (Helmet)
+### 10.7 Prisma Error Sanitization
+
+```typescript
+// Catches PrismaClientKnownRequestError and maps to generic messages:
+// P2002 → 409 "A record with that value already exists"
+// P2025 → 404 "The requested record was not found"
+// P2003 → 400 "Invalid reference to related record"
+// P2014 → 400 "The operation violates a required constraint"
+// Other → 500 "A database operation failed"
+// Model names, field names, and query details NEVER leaked to clients
+```
+
+### 10.8 Security Headers (Helmet)
 
 ```
 Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:
+  report-uri: /api/csp-report (when CSP_REPORT_URI env var is set)
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 X-XSS-Protection: 1; mode=block
 Strict-Transport-Security: max-age=31536000 (production)
 ```
+
+**CSP Reporting:** When `CSP_REPORT_URI` environment variable is configured, CSP violations are reported to `/api/csp-report` endpoint and logged via Winston. `'unsafe-inline'` in `styleSrc` is retained for Tailwind CSS / Radix UI compatibility and documented for future removal.
 
 ---
 
@@ -1391,6 +1566,8 @@ class AppError extends Error {
 // Catches all errors from route handlers
 // - AppError: returns { error: message } with statusCode
 // - Zod validation errors: returns 400 with formatted messages
+// - Prisma errors: sanitized to generic messages (P2002→409, P2025→404, etc.)
+//   Model names, field names, and query details NEVER leaked to clients
 // - Unknown errors: returns 500 with generic message
 // - Stack traces: included in development only
 // - All errors logged via Winston
@@ -1423,12 +1600,14 @@ class AppError extends Error {
 | `ANTHROPIC_API_KEY`       | No       | (empty, AI disabled)              | Anthropic Claude API key (BYOK)   |
 | `AI_DAILY_LIMIT`          | No       | `30`                              | Max SOC Mentor messages/user/day  |
 | `AI_DAILY_SCENARIO_LIMIT` | No       | `5`                               | Max scenario generations/user/day |
+| `CSP_REPORT_URI`          | No       | (empty, reporting disabled)       | CSP violation report endpoint URL |
 
 ### 13.2 Startup Validation
 
 - JWT secrets must be ≥32 characters and not contain "change-in-production" (throws error in production, warns in development)
 - Logs warning if ANTHROPIC_API_KEY not set
 - Logs warning if default demo credentials detected (admin/trainer/trainee@soc.local)
+- Default credentials blocked at login in production mode (returns `mustChangePassword` flag)
 
 ---
 

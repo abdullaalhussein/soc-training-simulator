@@ -2,10 +2,10 @@
 
 | Field   | Value                                      |
 |---------|--------------------------------------------|
-| Version | 1.0                                        |
+| Version | 1.1                                        |
 | Date    | February 26, 2026                          |
 | Author  | Abdullah Al-Hussein                        |
-| Status  | Released                                   |
+| Status  | Released (updated post-security hardening)  |
 
 ---
 
@@ -173,11 +173,12 @@ Self-hosted or cloud-deployed. Current production runs on **Railway** with autom
 │                                                                      │
 │  ┌──────────────────────────────────────────────────────────────┐    │
 │  │                      Middleware Stack                         │    │
-│  │  ┌────────┐ ┌──────┐ ┌──────┐ ┌────────┐ ┌──────────────┐  │    │
-│  │  │Helmet  │ │ CORS │ │ Rate │ │  Auth  │ │  RBAC        │  │    │
-│  │  │(CSP,   │ │      │ │Limit │ │  (JWT) │ │  (Role       │  │    │
-│  │  │ HSTS)  │ │      │ │      │ │        │ │   Check)     │  │    │
-│  │  └────────┘ └──────┘ └──────┘ └────────┘ └──────────────┘  │    │
+│  │  ┌────────┐ ┌──────┐ ┌────────┐ ┌──────┐ ┌──────┐ ┌──────┐ │    │
+│  │  │Helmet  │ │ CORS │ │Global  │ │ CSRF │ │ Auth │ │ RBAC │ │    │
+│  │  │(CSP,   │ │      │ │Rate   │ │Double│ │(JWT  │ │(Role │ │    │
+│  │  │ HSTS,  │ │      │ │Limit  │ │Submit│ │Cookie│ │Check)│ │    │
+│  │  │ Report)│ │      │ │200/min│ │Cookie│ │+Hdr) │ │      │ │    │
+│  │  └────────┘ └──────┘ └────────┘ └──────┘ └──────┘ └──────┘ │    │
 │  └──────────────────────────────────────────────────────────────┘    │
 │                                                                      │
 │  ┌──────────────────────────────────────────────────────────────┐    │
@@ -203,10 +204,10 @@ Self-hosted or cloud-deployed. Current production runs on **Railway** with autom
 │  │  │ Auth     │  │ Scoring  │  │ AI       │  │ YARA     │    │    │
 │  │  │ Service  │  │ Service  │  │ Service  │  │ Service  │    │    │
 │  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │    │
-│  │  ┌──────────┐  ┌──────────┐                                  │    │
-│  │  │ PDF      │  │ Filter   │                                  │    │
-│  │  │ Report   │  │ AI Resp  │                                  │    │
-│  │  └──────────┘  └──────────┘                                  │    │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │    │
+│  │  │ PDF      │  │ Filter   │  │ Filter   │  │ Sanitize │    │    │
+│  │  │ Report   │  │ AI Resp  │  │ AI Input │  │ Prompt   │    │    │
+│  │  └──────────┘  └──────────┘  └──────────┘  └──────────┘    │    │
 │  └──────────────────────────────────────────────────────────────┘    │
 │                                                                      │
 │  ┌──────────────┐                                                    │
@@ -250,13 +251,17 @@ Self-hosted or cloud-deployed. Current production runs on **Railway** with autom
    │                  │◄────────────────────│                     │
    │  200 {token,user}│                     │                     │
    │  Set-Cookie:     │                     │                     │
+   │  accessToken     │                     │                     │
+   │  (httpOnly,4h)   │                     │                     │
    │  refreshToken    │                     │                     │
-   │  (httpOnly,secure│                     │                     │
-   │   sameSite=lax)  │                     │                     │
+   │  (httpOnly,7d)   │                     │                     │
+   │  csrf (readable) │                     │                     │
    │◄─────────────────│                     │                     │
    │                  │                     │                     │
    │  Store JWT in    │                     │                     │
    │  Zustand/memory  │                     │                     │
+   │  (+ httpOnly     │                     │                     │
+   │   cookie primary)│                     │                     │
    │                  │                     │                     │
    │  ── Later (401 on any request) ──      │                     │
    │                  │                     │                     │
@@ -377,14 +382,18 @@ Self-hosted or cloud-deployed. Current production runs on **Railway** with autom
 
 ### 7.1 Authentication
 
-| Mechanism          | Implementation                                          |
-|--------------------|---------------------------------------------------------|
-| Password Hashing   | bcryptjs with 12 salt rounds                            |
-| Access Token       | JWT HS256, 4-hour expiry, stored in memory              |
-| Refresh Token      | JWT HS256, 7-day expiry, httpOnly secure cookie          |
-| Token Rotation     | Old refresh token deleted on each refresh               |
-| Session Revocation | Logout deletes all user's refresh tokens from DB         |
-| Password Change    | Invalidates all active sessions (logoutAll)              |
+| Mechanism               | Implementation                                          |
+|-------------------------|---------------------------------------------------------|
+| Password Hashing        | bcryptjs with 12 salt rounds                            |
+| Access Token            | JWT HS256, 4-hour expiry, httpOnly cookie + Bearer header fallback |
+| Refresh Token           | JWT HS256, 7-day expiry, httpOnly secure cookie          |
+| CSRF Protection         | Double-submit cookie pattern (non-httpOnly `csrf` cookie validated against `X-CSRF-Token` header) |
+| Token Rotation          | Old refresh token deleted on each refresh               |
+| Session Revocation      | Logout deletes all user's refresh tokens + clears cookies |
+| Password Change         | Invalidates all active sessions (logoutAll)              |
+| Role Change Revocation  | All refresh tokens deleted when user's role is modified  |
+| Account Lockout         | Progressive lockout after 5 failed login attempts (15-min exponential backoff) |
+| Default Credential Guard| Blocks login with demo credentials in production (`mustChangePassword` flag) |
 
 ### 7.2 Authorization
 
@@ -393,39 +402,64 @@ Self-hosted or cloud-deployed. Current production runs on **Railway** with autom
 | Route Level       | `requireRole('ADMIN', 'TRAINER')` middleware               |
 | Resource Level    | Ownership checks (trainer owns session, trainee owns attempt) |
 | Data Level        | Sensitive fields stripped for TRAINEE role (correctAnswer, explanation, isEvidence) |
-| Socket Level      | Per-namespace role checks + per-event ownership validation  |
+| Socket Level      | Per-namespace role checks + per-event ownership validation + session membership checks |
+| Token Revocation  | Refresh tokens invalidated on role change or account deactivation |
 
 ### 7.3 Rate Limiting
 
-| Target              | Window    | Limit          | Storage     |
-|---------------------|-----------|----------------|-------------|
-| Auth endpoints      | 15 min    | 15 requests    | In-memory   |
-| Log endpoints       | 60 sec    | 100 requests   | In-memory   |
-| YARA testing        | 60 sec    | 10 requests    | In-memory   |
-| Socket events       | 10 sec    | 30 events      | In-memory   |
-| AI Mentor (attempt) | Lifetime  | 20 messages    | Database    |
-| AI Mentor (daily)   | Calendar day | 30 messages | Database    |
-| AI Scenario Gen     | Calendar day | 5 generations | Database   |
+| Target              | Window       | Limit          | Storage     |
+|---------------------|--------------|----------------|-------------|
+| **Global (all routes)** | **60 sec** | **200 requests** | **In-memory** |
+| Auth endpoints      | 15 min       | 15 requests    | In-memory   |
+| Log endpoints       | 60 sec       | 100 requests   | In-memory   |
+| YARA testing        | 60 sec       | 10 requests    | In-memory   |
+| **Actions tracking** | **60 sec**  | **60 requests** | **In-memory** |
+| Socket events       | 10 sec       | 30 events      | In-memory   |
+| AI Mentor (attempt) | Lifetime     | 20 messages    | Database    |
+| AI Mentor (daily)   | Calendar day | 30 messages    | Database    |
+| AI Scenario Gen     | Calendar day | 5 generations  | Database    |
+| **Socket connections** | **Per-user** | **3 concurrent** | **In-memory** |
+| **YARA concurrency** | **Server-wide** | **3 simultaneous** | **Semaphore** |
 
-### 7.4 AI Output Filtering
+### 7.4 AI Security (5-Layer Defense)
 
-A 4-layer server-side filter prevents the AI mentor from leaking answers:
+**Input Filtering** (`server/src/utils/filterAiInput.ts`):
+- Detects and rejects ~30 jailbreak patterns before forwarding to AI (role overrides, system prompt extraction, DAN, bypass attempts)
+- Blocked messages logged to audit trail with `AI_JAILBREAK_BLOCKED` action
 
+**Prompt Sanitization** (`server/src/utils/sanitizePrompt.ts`):
+- Strips prompt injection patterns from scenario content before AI system prompt injection
+- Scans scenario briefing, stage titles, and descriptions for ~30 injection patterns
+- Flags suspicious content during scenario creation with `contentWarnings`
+
+**Output Filtering** (`server/src/utils/filterAiResponse.ts`) — 4-layer server-side filter:
 1. **Phrase Detection** — Blocks answer-giving patterns ("the correct answer is", "you should select", etc.)
 2. **Exact Answer Match** — Scans for checkpoint correctAnswer strings in response
 3. **Explanation Overlap** — Flags if >60% of explanation words appear in response
 4. **JSON Leak Detection** — Catches structured data containing correctAnswer/isEvidence fields
 
-When triggered, the response is replaced with a Socratic redirect.
+When triggered, the response is replaced with a Socratic redirect and an `AI_OUTPUT_FILTERED` audit log is created.
+
+**AI Conversation Review** (`/ai-review` page):
+- Trainer-facing dashboard for reviewing all AI conversations per session
+- Anomaly flags (jailbreak blocked, output filtered) visible per trainee
+- Full conversation transcript viewable with anomaly indicators
+
+**Cost Tracking:**
+- Estimated token usage and cost logged per AI call
+- Checkpoint answers excluded from AI context to reduce unnecessary exposure
 
 ### 7.5 Additional Security
 
 - **Helmet** security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)
+- **CSP Violation Reporting** — `/api/csp-report` endpoint logs Content-Security-Policy violations (enabled via `CSP_REPORT_URI` env var)
 - **CORS** with explicit origin whitelist and credentials support
-- **Zod** schema validation on all API request bodies
-- **YARA sandboxing** — include/import directives stripped, 10s execution timeout, temp directory isolation
-- **Audit logging** — all write operations logged with user ID, IP, action, and sanitized details
+- **Zod** schema validation on all API request bodies (including chat messages)
+- **YARA sandboxing** — include/import directives stripped, 10s execution timeout, temp directory isolation, semaphore-based concurrency limit (max 3 simultaneous)
+- **Audit logging** — all write operations + attempt start/complete + YARA executions + AI filter triggers + hints sent, with user ID, IP, action, and sanitized details
 - **Sensitive field redaction** — passwords, tokens, secrets auto-redacted in audit logs
+- **Prisma error sanitization** — database errors mapped to generic messages; model/field names never leaked to clients
+- **WebSocket re-authentication** — periodic JWT verification (every 5 minutes) on active connections; disconnects expired sessions
 
 ---
 
@@ -523,12 +557,12 @@ When triggered, the response is replaced with a Socratic redirect.
 | **Socket.io over plain WebSockets** | Built-in rooms, namespaces, reconnection, and fallback transport for real-time monitoring       |
 | **Anthropic Claude (BYOK)**        | Socratic mentoring requires strong instruction-following; BYOK keeps platform free to host      |
 | **Prisma ORM**                     | Type-safe database access, auto-generated client, migration tooling, and PostgreSQL optimization |
-| **JWT dual-token auth**            | Short-lived access tokens (4h) + httpOnly refresh cookies balance security and UX               |
+| **JWT dual-token httpOnly auth**   | Both access (4h) and refresh (7d) tokens in httpOnly cookies + CSRF double-submit pattern       |
 | **Zustand over Redux**             | Minimal boilerplate for simple auth state; TanStack Query handles server state                  |
 | **Monorepo with npm workspaces**   | Shared types between client/server; single repo for simpler CI/CD and contribution              |
 | **MIT License**                    | Maximizes adoption in the open-source SOC training space; CLA preserves commercial optionality  |
 | **5-dimension scoring**            | Measures distinct analyst competencies rather than a single score, enabling targeted improvement |
-| **AI output filter**               | Board-mandated security layer preventing AI mentor from leaking checkpoint answers               |
+| **AI 5-layer security**            | Input filtering + prompt sanitization + 4-layer output filter + conversation review + cost tracking |
 
 ---
 
@@ -539,7 +573,7 @@ When triggered, the response is replaced with a Socratic redirect.
 | **Scalability**  | Supports concurrent training sessions; stateless server allows horizontal scaling  |
 | **Performance**  | Log pagination (50/page), TanStack Query caching (30s stale), Socket.io rooms     |
 | **Availability** | Railway auto-restart; graceful error handling with AppError class                  |
-| **Security**     | JWT + RBAC + rate limiting + CSP headers + Zod validation + AI output filtering    |
+| **Security**     | JWT httpOnly + CSRF + RBAC + rate limiting (global + per-route) + CSP + Zod + AI 5-layer defense + account lockout + Prisma error sanitization |
 | **Extensibility**| Modular service architecture; scenario JSON format for community contributions     |
 | **Accessibility**| Radix UI primitives provide ARIA attributes; WCAG audit deferred                  |
 | **Observability**| Winston structured logging; audit log table; AI conversation storage               |
@@ -584,10 +618,11 @@ Items discussed by the advisory board but not yet implemented:
 | Gamification                            | Phase 3 | Badges, leaderboards, streaks, team competitions               |
 | Collaborative investigation mode        | Phase 3 | Multi-trainee real-time investigation                          |
 | Threat intel feed integration           | Future  | Auto-generate scenarios from real-world incidents              |
-| CSRF token protection                   | Next    | Add CSRF tokens for cookie-based auth hardening                |
 | Integration tests                       | Next    | Tests hitting actual API routes with a test database           |
 | Accessibility audit                     | Next    | WCAG compliance check for the investigation workspace          |
 | Monitoring & observability              | Next    | Structured logging dashboards, health checks, error tracking   |
+| Remove `unsafe-inline` from CSP         | Next    | Use CSS nonces/hashes instead of blanket unsafe-inline          |
+| Semantic AI response analysis           | Future  | Embedding-based similarity check between AI responses and answers |
 
 ---
 
