@@ -204,6 +204,7 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
     if (typeof correct === 'boolean') return correct ? 'True' : 'False';
     if (Array.isArray(correct)) return correct.join(', ');
     if (typeof correct === 'object') {
+      if (correct.referenceRule) return correct.referenceRule;
       if (correct.keywords) return `Keywords: ${correct.keywords.join(', ')}`;
       const parts: string[] = [];
       if (correct.summary) parts.push(correct.summary);
@@ -361,14 +362,22 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                       </div>
 
                       {/* Answers comparison */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className={`grid grid-cols-1 ${cp?.checkpointType === 'YARA_RULE' ? '' : 'md:grid-cols-2'} gap-3`}>
                         <div className="bg-muted/50 rounded-md p-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1">Your Answer</p>
-                          <p className="text-sm">{formatAnswer(answer)}</p>
+                          {cp?.checkpointType === 'YARA_RULE' ? (
+                            <pre className="font-mono text-sm whitespace-pre-wrap bg-zinc-900 text-zinc-100 rounded-lg p-4 overflow-x-auto">{formatAnswer(answer)}</pre>
+                          ) : (
+                            <p className="text-sm">{formatAnswer(answer)}</p>
+                          )}
                         </div>
                         <div className="bg-muted/50 rounded-md p-3">
                           <p className="text-xs font-medium text-muted-foreground mb-1">Correct Answer</p>
-                          <p className="text-sm">{formatCorrectAnswer(cp)}</p>
+                          {cp?.checkpointType === 'YARA_RULE' ? (
+                            <pre className="font-mono text-sm whitespace-pre-wrap bg-zinc-900 text-zinc-100 rounded-lg p-4 overflow-x-auto">{formatCorrectAnswer(cp)}</pre>
+                          ) : (
+                            <p className="text-sm">{formatCorrectAnswer(cp)}</p>
+                          )}
                         </div>
                       </div>
 
