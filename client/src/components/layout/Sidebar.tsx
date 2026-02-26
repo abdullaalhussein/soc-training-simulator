@@ -97,7 +97,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange, defaultCollapsed = fal
         <SheetContent side="left" className="w-64 p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="flex items-center gap-2 text-sm">
-              <Logo size={22} />
+              <Logo size={26} />
               SOC Simulator
             </SheetTitle>
           </SheetHeader>
@@ -115,7 +115,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange, defaultCollapsed = fal
       )}
     >
       <div className="flex h-16 items-center border-b px-4">
-        <Logo size={26} />
+        <Logo size={28} />
         {!collapsed && (
           <span className="ml-2 font-semibold text-sm">SOC Simulator</span>
         )}

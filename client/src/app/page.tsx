@@ -95,7 +95,7 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 border-b border-slate-700/50 bg-slate-900/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <Logo size={28} />
+            <Logo size={32} />
             <span className="text-lg font-semibold">SOC Training Simulator</span>
           </div>
           <Link href="/login">
@@ -109,8 +109,8 @@ export default function LandingPage() {
         <Badge className="mb-6 bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/10">
           Cybersecurity Training Platform
         </Badge>
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-cyan-500/10">
-          <Logo size={48} />
+        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-cyan-500/10">
+          <Logo size={56} />
         </div>
         <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
           Train Your SOC Team with{' '}
