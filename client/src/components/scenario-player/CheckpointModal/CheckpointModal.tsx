@@ -286,7 +286,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
                     <Sparkles className="h-4 w-4 shrink-0" />
                     <p className="text-sm font-medium">AI Feedback</p>
                   </div>
-                  <p className="text-sm">{result.feedback}</p>
+                  <MarkdownRenderer content={result.feedback} className="text-sm" />
                 </div>
               )}
               {hasCorrectAnswer && (
@@ -297,16 +297,16 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
                   </div>
                   {formatCorrectAnswer() && (
                     (result.checkpointType || cp.checkpointType) === 'YARA_RULE' ? (
-                      <div className="text-sm space-y-1">
+                      <div className="text-sm space-y-2">
                         <p className="font-medium">Reference Rule:</p>
-                        <pre className="font-mono text-xs whitespace-pre-wrap bg-black/5 dark:bg-white/5 rounded p-2 overflow-x-auto">{formatCorrectAnswer()}</pre>
+                        <pre className="font-mono text-sm whitespace-pre-wrap bg-zinc-900 text-zinc-100 rounded-lg p-4 overflow-x-auto">{formatCorrectAnswer()}</pre>
                       </div>
                     ) : (
                       <p className="text-sm">{formatCorrectAnswer()}</p>
                     )
                   )}
                   {result.explanation && (
-                    <p className="text-sm mt-1">{result.explanation}</p>
+                    <MarkdownRenderer content={result.explanation} className="text-sm mt-1" />
                   )}
                 </div>
               )}

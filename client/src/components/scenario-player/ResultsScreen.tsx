@@ -23,6 +23,7 @@ import {
   FileText,
   GitBranch,
 } from 'lucide-react';
+import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 
 interface ResultsScreenProps {
   attemptId: string;
@@ -378,7 +379,7 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                             <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             <p className="text-xs font-medium text-purple-800 dark:text-purple-400">AI Feedback</p>
                           </div>
-                          <p className="text-sm text-purple-800 dark:text-purple-300">{answer.feedback}</p>
+                          <MarkdownRenderer content={answer.feedback} className="text-sm text-purple-800 dark:text-purple-300" />
                         </div>
                       )}
 
@@ -389,7 +390,7 @@ export function ResultsScreen({ attemptId, embedded }: ResultsScreenProps) {
                             <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             <p className="text-xs font-medium text-blue-800 dark:text-blue-400">Explanation</p>
                           </div>
-                          <p className="text-sm text-blue-800 dark:text-blue-300">{cp.explanation}</p>
+                          <MarkdownRenderer content={cp.explanation} className="text-sm text-blue-800 dark:text-blue-300" />
                         </div>
                       )}
                     </div>
