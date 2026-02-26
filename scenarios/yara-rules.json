@@ -343,7 +343,7 @@
       "checkpoints": [
         {
           "checkpointType": "YARA_RULE",
-          "question": "Write a YARA rule to detect PowerShell downloader scripts using multiple conditions.\n\nDefine strings for common downloader indicators (use 'nocase' for case-insensitive matching):\n- $s1 = \"DownloadString\" nocase\n- $s2 = \"Net.WebClient\" nocase\n- $s3 = \"Invoke-Expression\" nocase\n- $s4 = \"-enc\" nocase\n- $s5 = \"iex\" nocase\n\nCombine two conditions with 'and':\n1. **filesize < 5KB** — malicious downloaders are typically small\n2. **2 of ($s*)** — at least 2 indicator strings must be found",
+          "question": "Write a YARA rule to detect PowerShell downloader scripts using multiple conditions.\n\nDefine strings for common downloader indicators (use 'nocase' for case-insensitive matching):\n- $s1 = \"DownloadString\" nocase\n- $s2 = \"Net.WebClient\" nocase\n- $s3 = \"Invoke-Expression\" nocase\n- $s4 = \"-enc\" nocase\n- $s5 = \"iex\" nocase\n\nCombine two conditions with 'and':\n1. `filesize < 5KB` — malicious downloaders are typically small\n2. `2 of ($s*)` — at least 2 indicator strings must be found",
           "options": null,
           "correctAnswer": {
             "samples": [
