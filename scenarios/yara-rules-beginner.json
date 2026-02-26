@@ -206,7 +206,7 @@
     {
       "stageNumber": 1,
       "checkpointType": "YARA_RULE",
-      "question": "Write a YARA rule to detect the malicious C2 config file.\n\nStep-by-step guide:\n1. Start with: rule detect_c2_config {\n2. Add a **strings:** section with one string — pick the unique C2 domain from the malicious file's preview (look for the server address)\n3. Add a **condition:** section that simply requires your string to be present (e.g., condition: $s1)\n4. Close the rule with }\n\nCompare the preview strings of both files — which string appears ONLY in the malicious file?",
+      "question": "Write a YARA rule to detect the malicious C2 config file.\n\nStep-by-step guide:\n1. Start with: rule detect_c2_config {\n2. Add a strings: section with one string — pick the unique C2 domain from the malicious file's preview (look for the server address)\n3. Add a condition: section that simply requires your string to be present (e.g., condition: $s1)\n4. Close the rule with }\n\nCompare the preview strings of both files — which string appears ONLY in the malicious file?",
       "options": null,
       "correctAnswer": {
         "samples": [
@@ -246,7 +246,7 @@
     {
       "stageNumber": 2,
       "checkpointType": "YARA_RULE",
-      "question": "Write a YARA rule to catch both PowerShell downloader variants.\n\nStep-by-step guide:\n1. Define 3 strings in the **strings:** section:\n   - $s1 = \"DownloadString\" (shared by both malicious scripts)\n   - $s2 = \"Net.WebClient\" (used by variant 1)\n   - $s3 = \"Invoke-WebRequest\" (used by variant 2)\n2. In the **condition:** section, use: 2 of ($s*)\n   This means 'at least 2 of my strings must be found'\n3. Variant 1 matches on $s1 + $s2, Variant 2 matches on $s1 + $s3, and the admin script has none of these\n\nRemember the structure: rule name { strings: ... condition: ... }",
+      "question": "Write a YARA rule to catch both PowerShell downloader variants.\n\nStep-by-step guide:\n1. Define 3 strings in the strings: section:\n   - $s1 = \"DownloadString\" (shared by both malicious scripts)\n   - $s2 = \"Net.WebClient\" (used by variant 1)\n   - $s3 = \"Invoke-WebRequest\" (used by variant 2)\n2. In the condition: section, use: 2 of ($s*)\n   This means 'at least 2 of my strings must be found'\n3. Variant 1 matches on $s1 + $s2, Variant 2 matches on $s1 + $s3, and the admin script has none of these\n\nRemember the structure: rule name { strings: ... condition: ... }",
       "options": null,
       "correctAnswer": {
         "samples": [
@@ -293,7 +293,7 @@
     {
       "stageNumber": 3,
       "checkpointType": "YARA_RULE",
-      "question": "Write a YARA rule to detect PHANTOMLOADER malware using file properties.\n\nYour rule needs a string and 3 checks in the condition:\n\n**strings:** section:\n- $marker = \"MALWARE_CONFIG\"\n\n**condition:** section (combine all 3 with 'and'):\n1. uint16(0) == 0x5A4D — checks the file starts with 'MZ' (Windows executable)\n2. filesize < 100KB — matches the known small file size\n3. $marker — requires the malware config string\n\nThis filters out: the text file (no MZ header) and the benign PE (no MALWARE_CONFIG).",
+      "question": "Write a YARA rule to detect PHANTOMLOADER malware using file properties.\n\nYour rule needs a string and 3 checks in the condition:\n\nstrings: section:\n- $marker = \"MALWARE_CONFIG\"\n\ncondition: section (combine all 3 with 'and'):\n1. uint16(0) == 0x5A4D — checks the file starts with 'MZ' (Windows executable)\n2. filesize < 100KB — matches the known small file size\n3. $marker — requires the malware config string\n\nThis filters out: the text file (no MZ header) and the benign PE (no MALWARE_CONFIG).",
       "options": null,
       "correctAnswer": {
         "samples": [
