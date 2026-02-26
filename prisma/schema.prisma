@@ -378,3 +378,16 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+// M-1: Persistent rate limit store — survives server restarts
+model RateLimitEntry {
+  id        String   @id @default(cuid())
+  key       String   // IP address or userId
+  endpoint  String   // Route group (e.g., "auth", "yara", "global")
+  count     Int      @default(1)
+  windowStart DateTime @default(now())
+  expiresAt DateTime
+
+  @@unique([key, endpoint])
+  @@index([expiresAt])
+}

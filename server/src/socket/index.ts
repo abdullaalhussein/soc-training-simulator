@@ -3,13 +3,17 @@ import { AuthService } from '../services/auth.service';
 import { AIService } from '../services/ai.service';
 import { logger } from '../utils/logger';
 import { filterAiResponse } from '../utils/filterAiResponse';
+import { filterAiInput } from '../utils/filterAiInput';
+import { sanitizePromptContent } from '../utils/sanitizePrompt';
 import prisma from '../lib/prisma';
 
 const MAX_MESSAGE_LENGTH = 5000;
 const RATE_LIMIT_WINDOW_MS = 10_000; // 10 seconds
 const RATE_LIMIT_MAX_EVENTS = 30; // max events per window
 const AI_MESSAGES_PER_ATTEMPT = 20; // max AI assistant messages per attempt
-const AI_DAILY_LIMIT_PER_USER = parseInt(process.env.AI_DAILY_LIMIT || '30', 10); // max AI messages per user per day
+const AI_DAILY_LIMIT_PER_USER = parseInt(process.env.AI_DAILY_LIMIT || '30', 10);
+const MAX_CONNECTIONS_PER_USER = 3; // H-2: max concurrent sockets per user
+const REAUTH_INTERVAL_MS = 5 * 60 * 1000; // H-9: re-verify token every 5 minutes
 
 /**
  * Check if a user has exceeded their daily AI message limit.
@@ -38,7 +42,6 @@ function createRateLimiter() {
   const timestamps: number[] = [];
   return function isRateLimited(): boolean {
     const now = Date.now();
-    // Remove timestamps outside the window
     while (timestamps.length > 0 && timestamps[0] <= now - RATE_LIMIT_WINDOW_MS) {
       timestamps.shift();
     }
@@ -50,19 +53,65 @@ function createRateLimiter() {
   };
 }
 
+// H-2: Track connections per user across both namespaces
+const userConnectionCounts = new Map<string, number>();
+
+function incrementUserConnections(userId: string): boolean {
+  const current = userConnectionCounts.get(userId) || 0;
+  if (current >= MAX_CONNECTIONS_PER_USER) {
+    return false; // Reject connection
+  }
+  userConnectionCounts.set(userId, current + 1);
+  return true;
+}
+
+function decrementUserConnections(userId: string): void {
+  const current = userConnectionCounts.get(userId) || 0;
+  if (current <= 1) {
+    userConnectionCounts.delete(userId);
+  } else {
+    userConnectionCounts.set(userId, current - 1);
+  }
+}
+
+/** Parse a cookie string into a map */
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  if (!cookieHeader) return {};
+  const cookies: Record<string, string> = {};
+  cookieHeader.split(';').forEach(pair => {
+    const [key, ...vals] = pair.trim().split('=');
+    if (key) cookies[key.trim()] = vals.join('=').trim();
+  });
+  return cookies;
+}
+
 export function initializeSocket(io: SocketIOServer) {
   const trainerNsp = io.of('/trainer');
   const traineeNsp = io.of('/trainee');
 
-  // Authenticate sockets
+  // Authenticate sockets — C-1: read from cookie first, fall back to auth.token
   const authenticateSocket = async (socket: any, next: any) => {
     try {
-      const token = socket.handshake.auth?.token;
+      // Try cookie first (C-1)
+      const cookies = parseCookies(socket.handshake.headers?.cookie);
+      let token = cookies['accessToken'];
+
+      // Fall back to handshake auth token
+      if (!token) {
+        token = socket.handshake.auth?.token;
+      }
+
       if (!token) {
         return next(new Error('Authentication required'));
       }
       const payload = AuthService.verifyToken(token);
       socket.data.user = payload;
+
+      // H-2: Check per-user connection limit
+      if (!incrementUserConnections(payload.userId)) {
+        return next(new Error('Too many concurrent connections'));
+      }
+
       next();
     } catch {
       next(new Error('Authentication failed'));
@@ -76,6 +125,7 @@ export function initializeSocket(io: SocketIOServer) {
   trainerNsp.use((socket: any, next: any) => {
     const role = socket.data.user?.role;
     if (role !== 'TRAINER' && role !== 'ADMIN') {
+      decrementUserConnections(socket.data.user?.userId);
       return next(new Error('Access denied: TRAINER or ADMIN role required'));
     }
     next();
@@ -83,16 +133,35 @@ export function initializeSocket(io: SocketIOServer) {
 
   // Role enforcement middleware for /trainee namespace — allow any authenticated user
   traineeNsp.use((socket: any, next: any) => {
-    // Any authenticated user (TRAINEE, TRAINER, ADMIN) can connect
     next();
   });
+
+  // H-9: Setup periodic re-authentication for a socket
+  function setupReauth(socket: any) {
+    const interval = setInterval(() => {
+      try {
+        const cookies = parseCookies(socket.handshake.headers?.cookie);
+        const token = cookies['accessToken'] || socket.handshake.auth?.token;
+        if (!token) {
+          socket.emit('error-message', { message: 'Session expired. Please refresh.' });
+          socket.disconnect(true);
+          return;
+        }
+        AuthService.verifyToken(token);
+      } catch {
+        socket.emit('error-message', { message: 'Session expired. Please refresh.' });
+        socket.disconnect(true);
+      }
+    }, REAUTH_INTERVAL_MS);
+
+    socket.on('disconnect', () => clearInterval(interval));
+  }
 
   // Shared handler for send-session-message on both namespaces
   function handleSessionMessage(socket: any) {
     socket.on('send-session-message', async (data: { sessionId: string; content: string }) => {
       const { sessionId, content } = data;
 
-      // Input validation
       if (!isNonEmptyString(sessionId)) return;
       if (!isNonEmptyString(content)) return;
       if (content.length > MAX_MESSAGE_LENGTH) {
@@ -101,7 +170,6 @@ export function initializeSocket(io: SocketIOServer) {
       }
 
       try {
-        // Authorization: verify user is session creator or session member
         const userId = socket.data.user.userId;
         const session = await prisma.session.findUnique({
           where: { id: sessionId },
@@ -161,12 +229,13 @@ export function initializeSocket(io: SocketIOServer) {
     });
     logger.info(`Trainer connected: ${socket.id} (${socket.data.user.email})`);
 
+    // H-9: Periodic re-authentication
+    setupReauth(socket);
+
     socket.on('join-session', async (sessionId: string) => {
-      // Input validation
       if (!isNonEmptyString(sessionId)) return;
 
       try {
-        // Authorization: verify user is the session creator or an ADMIN
         const userId = socket.data.user.userId;
         const role = socket.data.user.role;
         const session = await prisma.session.findUnique({
@@ -192,29 +261,38 @@ export function initializeSocket(io: SocketIOServer) {
     });
 
     socket.on('send-hint', async (data: { attemptId: string; content: string }) => {
-      // Input validation
       if (!isNonEmptyString(data?.attemptId) || !isNonEmptyString(data?.content)) return;
 
-      // Authorization: verify trainer owns the session this attempt belongs to
       const attempt = await prisma.attempt.findUnique({
         where: { id: data.attemptId },
         include: { session: true },
       });
       if (!attempt || (socket.data.user.role !== 'ADMIN' && attempt.session.createdById !== socket.data.user.userId)) return;
 
-      // Forward hint to the specific trainee
       traineeNsp.to(`attempt:${data.attemptId}`).emit('hint-sent', {
         content: data.content,
         fromTrainer: socket.data.user.email,
       });
+
+      // M-2: Audit log hint sent
+      try {
+        await prisma.auditLog.create({
+          data: {
+            userId: socket.data.user.userId,
+            action: 'SEND_HINT',
+            resource: 'attempt',
+            resourceId: data.attemptId,
+            details: { contentLength: data.content.length },
+          },
+        });
+      } catch { /* non-fatal */ }
+
       logger.info(`Trainer sent hint to attempt:${data.attemptId}`);
     });
 
     socket.on('send-session-alert', async (data: { sessionId: string; message: string }) => {
-      // Input validation
       if (!isNonEmptyString(data?.sessionId) || !isNonEmptyString(data?.message)) return;
 
-      // Authorization: verify trainer owns the session
       const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
       if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
 
@@ -228,10 +306,8 @@ export function initializeSocket(io: SocketIOServer) {
     });
 
     socket.on('pause-session', async (data: { sessionId: string }) => {
-      // Input validation
       if (!isNonEmptyString(data?.sessionId)) return;
 
-      // Authorization: verify trainer owns the session
       const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
       if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
 
@@ -240,10 +316,8 @@ export function initializeSocket(io: SocketIOServer) {
     });
 
     socket.on('resume-session', async (data: { sessionId: string }) => {
-      // Input validation
       if (!isNonEmptyString(data?.sessionId)) return;
 
-      // Authorization: verify trainer owns the session
       const session = await prisma.session.findUnique({ where: { id: data.sessionId } });
       if (!session || (socket.data.user.role !== 'ADMIN' && session.createdById !== socket.data.user.userId)) return;
 
@@ -254,6 +328,8 @@ export function initializeSocket(io: SocketIOServer) {
     handleSessionMessage(socket);
 
     socket.on('disconnect', () => {
+      // H-2: Decrement user connection count
+      decrementUserConnections(socket.data.user?.userId);
       logger.info(`Trainer disconnected: ${socket.id}`);
     });
   });
@@ -270,12 +346,13 @@ export function initializeSocket(io: SocketIOServer) {
     });
     logger.info(`Trainee connected: ${socket.id} (${socket.data.user.email})`);
 
+    // H-9: Periodic re-authentication
+    setupReauth(socket);
+
     socket.on('join-attempt', async (attemptId: string) => {
-      // Input validation
       if (!isNonEmptyString(attemptId)) return;
 
       try {
-        // Authorization: verify the user owns this attempt
         const userId = socket.data.user.userId;
         const attempt = await prisma.attempt.findUnique({
           where: { id: attemptId },
@@ -300,11 +377,9 @@ export function initializeSocket(io: SocketIOServer) {
     });
 
     socket.on('join-session', async (sessionId: string) => {
-      // Input validation
       if (!isNonEmptyString(sessionId)) return;
 
       try {
-        // Authorization: verify the user is a session member
         const userId = socket.data.user.userId;
         const membership = await prisma.sessionMember.findUnique({
           where: { sessionId_userId: { sessionId, userId } },
@@ -322,8 +397,29 @@ export function initializeSocket(io: SocketIOServer) {
       }
     });
 
-    socket.on('progress-update', (data: any) => {
+    // H-3: Add ownership check to progress-update
+    socket.on('progress-update', async (data: any) => {
       if (!data?.sessionId || typeof data.sessionId !== 'string') return;
+
+      // H-3: Verify user belongs to this session before forwarding
+      try {
+        const userId = socket.data.user.userId;
+        const membership = await prisma.sessionMember.findUnique({
+          where: { sessionId_userId: { sessionId: data.sessionId, userId } },
+        });
+        const session = await prisma.session.findUnique({
+          where: { id: data.sessionId },
+          select: { createdById: true },
+        });
+
+        if (!membership && session?.createdById !== userId) {
+          socket.emit('error-message', { message: 'Access denied: not a member of this session' });
+          return;
+        }
+      } catch {
+        return; // Fail silently on DB errors for progress updates
+      }
+
       const sanitized = {
         sessionId: data.sessionId,
         attemptId: typeof data.attemptId === 'string' ? data.attemptId : undefined,
@@ -343,10 +439,46 @@ export function initializeSocket(io: SocketIOServer) {
         return;
       }
 
+      // H-5: AI input filtering — reject jailbreak patterns
+      const inputFilterResult = filterAiInput(data.message);
+      if (inputFilterResult) {
+        // Save the blocked message and response for audit
+        try {
+          await prisma.aiAssistantMessage.createMany({
+            data: [
+              { attemptId: data.attemptId, role: 'user', content: data.message },
+              { attemptId: data.attemptId, role: 'assistant', content: inputFilterResult },
+            ],
+          });
+        } catch { /* non-fatal */ }
+
+        // M-2: Audit log jailbreak attempt
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId: socket.data.user.userId,
+              action: 'AI_JAILBREAK_BLOCKED',
+              resource: 'ai_assistant',
+              resourceId: data.attemptId,
+              details: { messagePreview: data.message.substring(0, 200) },
+            },
+          });
+        } catch { /* non-fatal */ }
+
+        const aiMsgCount = await prisma.aiAssistantMessage.count({
+          where: { attemptId: data.attemptId, role: 'user' },
+        });
+
+        socket.emit('ai-assistant-response', {
+          content: inputFilterResult,
+          remaining: Math.max(0, AI_MESSAGES_PER_ATTEMPT - aiMsgCount),
+        });
+        return;
+      }
+
       try {
         const userId = socket.data.user.userId;
 
-        // Validate attempt ownership
         const attempt = await prisma.attempt.findUnique({
           where: { id: data.attemptId },
           include: {
@@ -403,18 +535,21 @@ export function initializeSocket(io: SocketIOServer) {
           content: m.content,
         }));
 
-        // Build context
+        // Build context — C-2: Sanitize scenario content before prompt injection
         const scenario = attempt.session.scenario;
         const currentStageData = scenario.stages.find((s) => s.stageNumber === attempt.currentStage);
+
+        // C-2: Sanitize all user-controlled fields injected into system prompt
+        const sanitizedBriefing = sanitizePromptContent(scenario.briefing);
         const stageInfo = currentStageData
-          ? `Stage ${currentStageData.stageNumber}: ${currentStageData.title} — ${currentStageData.description}`
+          ? `Stage ${currentStageData.stageNumber}: ${sanitizePromptContent(currentStageData.title)} — ${sanitizePromptContent(currentStageData.description)}`
           : `Stage ${attempt.currentStage}`;
 
-        // Call AI
+        // M-5: Call AI WITHOUT checkpoint answers — they are no longer in the context
         const aiResponse = await AIService.getAssistantResponse(
           data.message,
           conversationHistory,
-          scenario.briefing,
+          sanitizedBriefing,
           stageInfo,
           {
             currentStage: attempt.currentStage,
@@ -438,7 +573,23 @@ export function initializeSocket(io: SocketIOServer) {
 
         if (filteredResponse) {
           logger.warn('AI output filter triggered', { attemptId: data.attemptId, userId });
+
+          // M-2: Audit log filter trigger
+          try {
+            await prisma.auditLog.create({
+              data: {
+                userId,
+                action: 'AI_OUTPUT_FILTERED',
+                resource: 'ai_assistant',
+                resourceId: data.attemptId,
+              },
+            });
+          } catch { /* non-fatal */ }
         }
+
+        // M-7: Track token usage (estimated from message lengths)
+        const estimatedInputTokens = Math.ceil((data.message.length + sanitizedBriefing.length + stageInfo.length) / 4);
+        const estimatedOutputTokens = Math.ceil(finalResponse.length / 4);
 
         // Save both messages
         await prisma.aiAssistantMessage.createMany({
@@ -446,6 +597,15 @@ export function initializeSocket(io: SocketIOServer) {
             { attemptId: data.attemptId, role: 'user', content: data.message },
             { attemptId: data.attemptId, role: 'assistant', content: finalResponse },
           ],
+        });
+
+        // M-7: Log AI usage for cost tracking
+        logger.info('AI usage', {
+          userId,
+          attemptId: data.attemptId,
+          estimatedInputTokens,
+          estimatedOutputTokens,
+          estimatedCost: ((estimatedInputTokens * 0.003 + estimatedOutputTokens * 0.015) / 1000).toFixed(4),
         });
 
         socket.emit('ai-assistant-response', {
@@ -461,6 +621,8 @@ export function initializeSocket(io: SocketIOServer) {
     handleSessionMessage(socket);
 
     socket.on('disconnect', () => {
+      // H-2: Decrement user connection count
+      decrementUserConnections(socket.data.user?.userId);
       logger.info(`Trainee disconnected: ${socket.id}`);
     });
   });

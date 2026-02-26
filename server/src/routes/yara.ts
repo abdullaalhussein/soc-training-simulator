@@ -60,6 +60,20 @@ router.post('/test', yaraRateLimit, async (req: Request, res: Response, next: Ne
     const sanitized = YaraService.sanitizeRule(ruleText);
     const result = await YaraService.testRule(sanitized, samples);
 
+    // M-2: Audit log YARA execution
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          action: 'YARA_TEST',
+          resource: 'yara',
+          resourceId: checkpointId,
+          details: { ruleLength: ruleText.length, sampleCount: samples.length, compiled: result.compiled, accuracy: result.accuracy },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch { /* non-fatal */ }
+
     res.json(result);
   } catch (error) {
     next(error);

@@ -9,7 +9,9 @@ export function getTrainerSocket(): Socket {
   if (!trainerSocket) {
     trainerSocket = io(`${WS_URL}/trainer`, {
       autoConnect: false,
+      withCredentials: true, // C-1: Send httpOnly cookies on handshake
       auth: {
+        // Keep token in auth as fallback for backward compatibility
         token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
       },
     });
@@ -21,7 +23,9 @@ export function getTraineeSocket(): Socket {
   if (!traineeSocket) {
     traineeSocket = io(`${WS_URL}/trainee`, {
       autoConnect: false,
+      withCredentials: true, // C-1: Send httpOnly cookies on handshake
       auth: {
+        // Keep token in auth as fallback for backward compatibility
         token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
       },
     });
@@ -34,4 +38,25 @@ export function disconnectAll() {
   traineeSocket?.disconnect();
   trainerSocket = null;
   traineeSocket = null;
+}
+
+/**
+ * H-9: Force reconnect all active sockets (called after token refresh).
+ * This ensures sockets pick up the new access token cookie.
+ */
+export function reconnectAll() {
+  if (trainerSocket?.connected) {
+    trainerSocket.disconnect();
+    trainerSocket.auth = {
+      token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
+    };
+    trainerSocket.connect();
+  }
+  if (traineeSocket?.connected) {
+    traineeSocket.disconnect();
+    traineeSocket.auth = {
+      token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
+    };
+    traineeSocket.connect();
+  }
 }

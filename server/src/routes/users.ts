@@ -92,6 +92,20 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
   try {
     const userId = req.params.id as string;
     const data = updateUserSchema.parse(req.body);
+
+    // H-4: If role is being changed, revoke all refresh tokens for the user
+    if (data.role) {
+      const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (currentUser && currentUser.role !== data.role) {
+        await prisma.refreshToken.deleteMany({ where: { userId } });
+      }
+    }
+
+    // H-4: If account is being deactivated, revoke all refresh tokens
+    if (data.isActive === false) {
+      await prisma.refreshToken.deleteMany({ where: { userId } });
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
       data,

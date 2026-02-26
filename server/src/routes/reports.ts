@@ -256,4 +256,125 @@ router.get('/audit', requireRole('ADMIN'), async (req: Request, res: Response, n
   }
 });
 
+// M-4: AI Conversation Review — trainers can view AI conversations per session
+router.get('/ai-conversations', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { sessionId, page = '1', pageSize = '20' } = req.query;
+
+    if (!sessionId) throw new AppError('sessionId is required', 400);
+
+    // Verify trainer owns this session
+    const session = await prisma.session.findUnique({
+      where: { id: sessionId as string },
+      select: { createdById: true },
+    });
+    if (!session) throw new AppError('Session not found', 404);
+    if (req.user!.role !== 'ADMIN' && session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
+    const skip = (parseInt(page as string) - 1) * parseInt(pageSize as string);
+    const take = Math.min(parseInt(pageSize as string), 50);
+
+    // Get all attempts for this session with AI messages
+    const attempts = await prisma.attempt.findMany({
+      where: { sessionId: sessionId as string },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        _count: { select: { aiMessages: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      skip,
+      take,
+    });
+
+    const total = await prisma.attempt.count({
+      where: { sessionId: sessionId as string },
+    });
+
+    // Get anomaly flags — jailbreak attempts for this session
+    const jailbreakFlags = await prisma.auditLog.findMany({
+      where: {
+        action: { in: ['AI_JAILBREAK_BLOCKED', 'AI_OUTPUT_FILTERED'] },
+        resourceId: { in: attempts.map(a => a.id) },
+      },
+      select: { resourceId: true, action: true, createdAt: true },
+    });
+
+    const flagsByAttempt = new Map<string, { jailbreakBlocked: number; outputFiltered: number }>();
+    for (const flag of jailbreakFlags) {
+      if (!flag.resourceId) continue;
+      const entry = flagsByAttempt.get(flag.resourceId) || { jailbreakBlocked: 0, outputFiltered: 0 };
+      if (flag.action === 'AI_JAILBREAK_BLOCKED') entry.jailbreakBlocked++;
+      if (flag.action === 'AI_OUTPUT_FILTERED') entry.outputFiltered++;
+      flagsByAttempt.set(flag.resourceId, entry);
+    }
+
+    const result = attempts.map(a => ({
+      attemptId: a.id,
+      user: a.user,
+      status: a.status,
+      messageCount: a._count.aiMessages,
+      startedAt: a.startedAt,
+      flags: flagsByAttempt.get(a.id) || { jailbreakBlocked: 0, outputFiltered: 0 },
+    }));
+
+    res.json({
+      conversations: result,
+      pagination: { page: parseInt(page as string), pageSize: take, total, totalPages: Math.ceil(total / take) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// M-4: Get full AI conversation for a specific attempt
+router.get('/ai-conversations/:attemptId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.attemptId as string;
+
+    const attempt = await prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        session: { select: { createdById: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (req.user!.role !== 'ADMIN' && attempt.session.createdById !== req.user!.userId) {
+      throw new AppError('Access denied', 403);
+    }
+
+    const messages = await prisma.aiAssistantMessage.findMany({
+      where: { attemptId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Get anomaly flags
+    const flags = await prisma.auditLog.findMany({
+      where: {
+        action: { in: ['AI_JAILBREAK_BLOCKED', 'AI_OUTPUT_FILTERED'] },
+        resourceId: attemptId,
+      },
+      select: { action: true, details: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json({
+      attempt: {
+        id: attempt.id,
+        status: attempt.status,
+        user: attempt.user,
+        startedAt: attempt.startedAt,
+        completedAt: attempt.completedAt,
+      },
+      messages,
+      flags,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export { router as reportsRouter };

@@ -7,6 +7,30 @@ import { logger } from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
+// H-7: Concurrency limiter — max 3 simultaneous YARA executions
+const MAX_CONCURRENT_YARA = 3;
+let activeYaraExecutions = 0;
+const yaraQueue: Array<{ resolve: () => void }> = [];
+
+async function acquireYaraSlot(): Promise<void> {
+  if (activeYaraExecutions < MAX_CONCURRENT_YARA) {
+    activeYaraExecutions++;
+    return;
+  }
+  return new Promise((resolve) => {
+    yaraQueue.push({ resolve });
+  });
+}
+
+function releaseYaraSlot(): void {
+  activeYaraExecutions--;
+  const next = yaraQueue.shift();
+  if (next) {
+    activeYaraExecutions++;
+    next.resolve();
+  }
+}
+
 interface SampleInput {
   name: string;
   content: string; // base64-encoded
@@ -58,6 +82,9 @@ export class YaraService {
 
     logger.debug(`[YARA testRule] id=${id}, rule length=${ruleText.length}, samples=${samples.length}`);
     logger.debug(`[YARA testRule] Rule preview: ${ruleText.substring(0, 200)}`);
+
+    // H-7: Acquire concurrency slot before execution
+    await acquireYaraSlot();
 
     try {
       await fs.mkdir(tmpDir, { recursive: true });
@@ -135,6 +162,9 @@ export class YaraService {
         accuracy,
       };
     } finally {
+      // H-7: Release concurrency slot
+      releaseYaraSlot();
+
       // Cleanup temp directory
       try {
         await fs.rm(tmpDir, { recursive: true, force: true });

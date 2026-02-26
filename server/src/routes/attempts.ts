@@ -6,8 +6,17 @@ import { ScoringService } from '../services/scoring.service';
 import prisma from '../lib/prisma';
 import { ActionType } from '@prisma/client';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// M-6: Rate limit investigation action tracking to prevent score inflation
+const actionRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 actions per minute per user
+  message: { error: { message: 'Too many actions, please slow down' } },
+  keyGenerator: (req) => req.user?.userId || req.ip || 'unknown',
+});
 
 const startAttemptSchema = z.object({
   sessionId: z.string().min(1, 'sessionId is required'),
@@ -99,6 +108,20 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
       where: { sessionId, userId },
       data: { status: 'STARTED' },
     });
+
+    // M-2: Audit log attempt start
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'ATTEMPT_START',
+          resource: 'attempt',
+          resourceId: attempt.id,
+          details: { sessionId, attemptNumber: attempt.attemptNumber },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch { /* non-fatal */ }
 
     // Strip sensitive fields for trainee users
     if (req.user!.role === 'TRAINEE') {
@@ -302,8 +325,8 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
   }
 });
 
-// Track investigation actions
-router.post('/:id/actions', async (req: Request, res: Response, next: NextFunction) => {
+// Track investigation actions — M-6: rate limited
+router.post('/:id/actions', actionRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const attemptId = req.params.id as string;
     const attempt = await prisma.attempt.findUnique({ where: { id: attemptId } });
@@ -409,6 +432,20 @@ router.post('/:id/complete', async (req: Request, res: Response, next: NextFunct
       where: { sessionId: attempt.sessionId, userId: attempt.userId },
       data: { status: 'COMPLETED' },
     });
+
+    // M-2: Audit log attempt completion
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: attempt.userId,
+          action: 'ATTEMPT_COMPLETE',
+          resource: 'attempt',
+          resourceId: attemptId,
+          details: { sessionId: attempt.sessionId, totalScore: completed.totalScore },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch { /* non-fatal */ }
 
     res.json(completed);
   } catch (error) {

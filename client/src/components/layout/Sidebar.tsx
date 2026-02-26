@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, Users, FileText, Settings, Activity,
-  Monitor, BarChart3, BookOpen, ClipboardList, ChevronLeft, ChevronRight,
+  Monitor, BarChart3, BookOpen, ClipboardList, ChevronLeft, ChevronRight, Shield,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useEffect, useState } from 'react';
@@ -22,12 +22,14 @@ const navItems = {
     { href: '/console', label: 'Console', icon: Monitor },
     { href: '/scenario-guide', label: 'Scenarios', icon: BookOpen },
     { href: '/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/ai-review', label: 'AI Review', icon: Shield },
   ],
   ADMIN: [
     { href: '/users', label: 'Users', icon: Users },
     { href: '/scenarios', label: 'Scenarios', icon: BookOpen },
     { href: '/console', label: 'Console', icon: Monitor },
     { href: '/reports', label: 'Reports', icon: BarChart3 },
+    { href: '/ai-review', label: 'AI Review', icon: Shield },
     { href: '/audit', label: 'Audit Log', icon: ClipboardList },
     { href: '/settings', label: 'Settings', icon: Settings },
   ],

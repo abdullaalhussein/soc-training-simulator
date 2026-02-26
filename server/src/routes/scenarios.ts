@@ -4,6 +4,8 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditLog } from '../middleware/audit';
 import { AppError } from '../middleware/errorHandler';
+import { scanScenarioContent } from '../utils/sanitizePrompt';
+import { logger } from '../utils/logger';
 import prisma from '../lib/prisma';
 
 const router = Router();
@@ -192,7 +194,19 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
       },
     });
 
-    res.status(201).json(scenario);
+    // M-10: Scan scenario content for prompt injection patterns
+    const scanResult = scanScenarioContent({
+      briefing: scenarioData.briefing,
+      stages: stages?.map((s: any) => ({ title: s.title, description: s.description })),
+    });
+    if (!scanResult.safe) {
+      logger.warn('Scenario content flagged for potential prompt injection', {
+        scenarioId: scenario.id,
+        flaggedFields: scanResult.flaggedFields,
+      });
+    }
+
+    res.status(201).json({ ...scenario, contentWarnings: scanResult.safe ? undefined : scanResult.flaggedFields });
   } catch (error) {
     next(error);
   }

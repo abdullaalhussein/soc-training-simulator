@@ -1,11 +1,17 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/errorHandler';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 
 const router = Router();
 
 router.use(authenticate);
+
+// H-8: Zod validation for messages
+const messageSchema = z.object({
+  content: z.string().min(1, 'Message content is required').max(5000, 'Message too long'),
+});
 
 // Check that the user is a session member (trainee) or the session creator (trainer)
 async function assertSessionAccess(sessionId: string, userId: string) {
@@ -47,14 +53,7 @@ router.get('/:sessionId/messages', async (req: Request, res: Response, next: Nex
 router.post('/:sessionId/messages', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const sessionId = req.params.sessionId as string;
-    const { content } = req.body;
-
-    if (!content || typeof content !== 'string' || !content.trim()) {
-      throw new AppError('Message content is required', 400);
-    }
-    if (content.length > 5000) {
-      throw new AppError('Message too long', 400);
-    }
+    const { content } = messageSchema.parse(req.body);
 
     await assertSessionAccess(sessionId, req.user!.userId);
 
@@ -69,6 +68,9 @@ router.post('/:sessionId/messages', async (req: Request, res: Response, next: Ne
 
     res.status(201).json(message);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors[0].message, 400));
+    }
     next(error);
   }
 });

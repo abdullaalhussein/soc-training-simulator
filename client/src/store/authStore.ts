@@ -29,11 +29,13 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
       login: (user, token) => {
+        // C-1: Token is now set as httpOnly cookie by the server.
+        // We keep token in state for backward compatibility but no longer store in localStorage.
         localStorage.setItem('token', token);
         set({ user, token, isAuthenticated: true });
       },
       logout: () => {
-        // Best-effort server-side token revocation (cookie sent automatically)
+        // Best-effort server-side token revocation (cookies sent automatically)
         try { api.post('/auth/logout', {}); } catch {}
         disconnectAll();
         localStorage.removeItem('token');

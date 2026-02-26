@@ -4,7 +4,9 @@ import { authenticate } from '../middleware/auth';
 import { z } from 'zod';
 import { AppError } from '../middleware/errorHandler';
 import rateLimit from 'express-rate-limit';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
+import { logger } from '../utils/logger';
 
 const router = Router();
 
@@ -28,10 +30,100 @@ const REFRESH_COOKIE_OPTIONS = {
   path: '/api/auth',
 };
 
+// C-1: Access token cookie — path '/' so it's sent on all requests including Socket.io handshake
+const ACCESS_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  maxAge: 4 * 60 * 60 * 1000, // 4 hours (matches JWT_EXPIRES_IN default)
+  path: '/',
+};
+
+// H-6: Account lockout tracking (in-memory, keyed by email)
+const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+function checkAccountLockout(email: string): { locked: boolean; remainingMs: number } {
+  const record = loginAttempts.get(email);
+  if (!record) return { locked: false, remainingMs: 0 };
+  if (record.lockedUntil > Date.now()) {
+    return { locked: true, remainingMs: record.lockedUntil - Date.now() };
+  }
+  // Lockout expired, reset
+  if (record.lockedUntil > 0) {
+    loginAttempts.delete(email);
+  }
+  return { locked: false, remainingMs: 0 };
+}
+
+function recordFailedLogin(email: string): void {
+  const record = loginAttempts.get(email) || { count: 0, lockedUntil: 0 };
+  record.count += 1;
+  if (record.count >= LOCKOUT_THRESHOLD) {
+    record.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
+    logger.warn(`Account locked due to ${record.count} failed attempts: ${email}`);
+  }
+  loginAttempts.set(email, record);
+}
+
+function clearFailedLogins(email: string): void {
+  loginAttempts.delete(email);
+}
+
+// C-3: Default demo credentials
+const DEFAULT_DEMO_EMAILS = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
+const DEFAULT_DEMO_PASSWORD = 'Password123!';
+
 router.post('/login', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
-    const result = await AuthService.login(email, password);
+
+    // H-6: Check account lockout
+    const lockout = checkAccountLockout(email);
+    if (lockout.locked) {
+      const minutes = Math.ceil(lockout.remainingMs / 60000);
+      return next(new AppError(`Account temporarily locked. Try again in ${minutes} minute(s).`, 429));
+    }
+
+    let result;
+    try {
+      result = await AuthService.login(email, password);
+    } catch (error) {
+      // Record failed login for lockout tracking
+      recordFailedLogin(email);
+
+      // Audit log failed login attempt
+      try {
+        await prisma.auditLog.create({
+          data: {
+            action: 'LOGIN_FAILED',
+            resource: 'auth',
+            details: { email, method: req.method, path: req.path },
+            ipAddress: req.ip || req.socket.remoteAddress,
+          },
+        });
+      } catch {
+        // Don't fail the request if audit logging fails
+      }
+
+      throw error;
+    }
+
+    // Clear lockout on successful login
+    clearFailedLogins(email);
+
+    // C-3: Check for default demo credentials in production
+    if (process.env.NODE_ENV === 'production' && DEFAULT_DEMO_EMAILS.includes(email)) {
+      const isDefault = await bcrypt.compare(DEFAULT_DEMO_PASSWORD, (await prisma.user.findUnique({ where: { email }, select: { password: true } }))?.password || '');
+      if (isDefault) {
+        return res.status(200).json({
+          mustChangePassword: true,
+          user: result.user,
+          message: 'Default credentials detected. You must change your password before continuing.',
+        });
+      }
+    }
 
     // Audit log successful login
     try {
@@ -51,24 +143,23 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
     // Set refresh token as httpOnly cookie
     res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
-    // Return token and user only (no refreshToken in body)
+    // C-1: Set access token as httpOnly cookie
+    res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
+
+    // H-1: Set CSRF token as readable cookie (double-submit pattern)
+    const crypto = await import('crypto');
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrf', csrfToken, {
+      httpOnly: false, // Must be readable by client JS
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      maxAge: 4 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    // Return user only (token is in cookie now). Also return token for backward compatibility.
     res.json({ token: result.token, user: result.user });
   } catch (error) {
-    // Audit log failed login attempt
-    try {
-      const email = req.body?.email;
-      await prisma.auditLog.create({
-        data: {
-          action: 'LOGIN_FAILED',
-          resource: 'auth',
-          details: { email: email || 'unknown', method: req.method, path: req.path },
-          ipAddress: req.ip || req.socket.remoteAddress,
-        },
-      });
-    } catch {
-      // Don't fail the request if audit logging fails
-    }
-
     if (error instanceof z.ZodError) {
       return next(new AppError('Invalid email or password format', 400));
     }
@@ -88,7 +179,10 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
     // Set new refresh token cookie (rotation)
     res.cookie('refreshToken', result.refreshToken, REFRESH_COOKIE_OPTIONS);
 
-    // Return only the new access token
+    // C-1: Set new access token as httpOnly cookie
+    res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
+
+    // Return token for backward compatibility
     res.json({ token: result.token });
   } catch (error) {
     next(error);
@@ -102,12 +196,26 @@ router.post('/logout', authenticate, async (req: Request, res: Response, next: N
       await AuthService.logout(refreshToken);
     }
 
-    // Clear the refresh token cookie
+    // Clear all auth cookies
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/api/auth',
+    });
+
+    // C-1: Clear access token cookie
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    });
+
+    res.clearCookie('csrf', {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
     });
 
     res.json({ message: 'Logged out successfully' });
@@ -166,12 +274,23 @@ router.post('/change-password', authenticate, async (req: Request, res: Response
       // Don't fail if audit logging fails
     }
 
-    // Clear the refresh token cookie
+    // Clear all auth cookies
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax' as const,
       path: '/api/auth',
+    });
+    res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
+    });
+    res.clearCookie('csrf', {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/',
     });
 
     res.json({ message: 'Password changed successfully. Please log in again.' });

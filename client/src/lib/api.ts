@@ -4,6 +4,13 @@ import axios from 'axios';
 // In development, use the explicit API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+/** Read a cookie by name from document.cookie */
+function getCookie(name: string): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
   headers: {
@@ -23,9 +30,17 @@ const rawAxios = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
+    // C-1: Access token is now sent as httpOnly cookie automatically.
+    // Keep Authorization header as fallback for backward compatibility.
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    // H-1: Send CSRF token from cookie as custom header (double-submit pattern)
+    const csrfToken = getCookie('csrf');
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
     }
   }
   return config;
@@ -48,10 +63,14 @@ api.interceptors.response.use(
           // Update the store with the new access token
           const { useAuthStore } = await import('@/store/authStore');
           const store = useAuthStore.getState();
-          store.login(store.user!, newToken);
+          if (store.user) {
+            store.login(store.user, newToken);
+          }
 
-          // Retry the original request with the new token
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          // Retry the original request — cookie is set by server, header for fallback
+          if (newToken) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          }
           return api(originalRequest);
         } catch {
           // Refresh failed — logout and redirect
