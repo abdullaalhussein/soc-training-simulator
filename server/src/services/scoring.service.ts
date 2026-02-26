@@ -112,6 +112,7 @@ export class ScoringService {
         }
         if (typeof correctData !== 'object' || correctData === null) correctData = {};
         const samples = (correctData as any).samples || [];
+        const referenceRule = (correctData as any).referenceRule || '';
 
         logger.debug(`[YARA Scoring] Checkpoint ${checkpoint.id}: ${samples.length} samples, answer length: ${String(answer).length}`);
 
@@ -122,11 +123,41 @@ export class ScoringService {
 
         if (!result.compiled) {
           logger.debug(`[YARA Scoring] Compile failed: ${result.compileError}`);
-          return { isCorrect: false, pointsAwarded: 0 };
+
+          // Try AI feedback even on compile failure
+          const aiCompileResult = await AIService.gradeYaraRule(
+            checkpoint.question,
+            String(answer),
+            referenceRule,
+            [],
+            0,
+            scenarioContext,
+          );
+
+          return {
+            isCorrect: false,
+            pointsAwarded: 0,
+            feedback: aiCompileResult?.feedback || `Compilation error: ${result.compileError}`,
+          };
         }
 
         const pointsAwarded = Math.round(result.accuracy * points * 10) / 10;
-        return { isCorrect: result.accuracy >= 0.8, pointsAwarded };
+
+        // Get AI feedback on the rule quality
+        const aiYaraResult = await AIService.gradeYaraRule(
+          checkpoint.question,
+          String(answer),
+          referenceRule,
+          result.sampleResults || [],
+          result.accuracy,
+          scenarioContext,
+        );
+
+        return {
+          isCorrect: result.accuracy >= 0.8,
+          pointsAwarded,
+          feedback: aiYaraResult?.feedback,
+        };
       }
 
       default:

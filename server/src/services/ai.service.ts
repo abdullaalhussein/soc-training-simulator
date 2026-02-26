@@ -124,6 +124,75 @@ Grade this incident report.`,
   }
 
   /**
+   * Grade a YARA rule using AI — analyse structure, logic, and effectiveness.
+   * The algorithmic score (from sample testing) is provided; AI adds feedback.
+   * Returns { score: 0-1, feedback: string } or null on failure.
+   */
+  static async gradeYaraRule(
+    question: string,
+    ruleText: string,
+    referenceRule: string,
+    sampleResults: { name: string; shouldMatch: boolean; didMatch: boolean; correct: boolean }[],
+    algorithmicAccuracy: number,
+    scenarioContext?: string,
+  ): Promise<{ score: number; feedback: string } | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const sampleSummary = sampleResults.map(s =>
+        `- ${s.name}: expected ${s.shouldMatch ? 'MATCH' : 'NO MATCH'}, got ${s.didMatch ? 'MATCH' : 'NO MATCH'} → ${s.correct ? '✓' : '✗'}`
+      ).join('\n');
+
+      const response = await this.getClient().messages.create({
+        model: MODEL,
+        max_tokens: 512,
+        system: `You are a SOC (Security Operations Center) training evaluator specializing in YARA rule analysis. Evaluate the trainee's YARA rule by comparing it to the reference rule and sample test results.
+
+Assess:
+1. Rule structure and syntax quality (meta, strings, condition sections)
+2. Detection logic — does the condition cover the right indicators?
+3. String definitions — are they well-chosen and specific enough?
+4. False positive/negative risk — is the rule too broad or too narrow?
+
+The algorithmic accuracy (from testing against samples) is already calculated. Focus your feedback on WHY the rule succeeded or failed, and what could be improved.
+
+Return ONLY a JSON object with this exact format:
+{"score": <number between 0 and 1>, "feedback": "<2-3 sentence constructive feedback on the rule's strengths and weaknesses>"}`,
+        messages: [
+          {
+            role: 'user',
+            content: `${scenarioContext ? `Scenario context: ${scenarioContext}\n\n` : ''}Question: ${question}
+
+Reference YARA rule:
+${referenceRule}
+
+Trainee's YARA rule:
+${ruleText}
+
+Sample test results (accuracy: ${Math.round(algorithmicAccuracy * 100)}%):
+${sampleSummary}
+
+Grade this YARA rule.`,
+          },
+        ],
+      });
+
+      const text = response.content[0].type === 'text' ? response.content[0].text : '';
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        score: Math.max(0, Math.min(1, Number(parsed.score) || 0)),
+        feedback: String(parsed.feedback || ''),
+      };
+    } catch (err: any) {
+      logger.error('AI grading failed for YARA rule', { message: err?.message, status: err?.status });
+      return null;
+    }
+  }
+
+  /**
    * AI trainee assistant — Socratic method, no direct answers.
    */
   static async getAssistantResponse(
