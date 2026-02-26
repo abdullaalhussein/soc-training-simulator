@@ -269,7 +269,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 overflow-y-auto flex-1 min-h-0">
-          <MarkdownRenderer content={cp.question} className="text-sm font-medium" />
+          <MarkdownRenderer content={cp.question} className="text-sm" />
 
           {result ? (
             <>
