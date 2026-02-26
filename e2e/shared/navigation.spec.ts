@@ -10,11 +10,16 @@ test.describe('Navigation', () => {
     const sidebar = page.locator('aside');
     await expect(sidebar.getByRole('link', { name: 'Users' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Scenarios' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Console' })).toBeVisible();
+    await expect(sidebar.getByRole('link', { name: 'Reports' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Audit Log' })).toBeVisible();
     await expect(sidebar.getByRole('link', { name: 'Settings' })).toBeVisible();
 
-    await sidebar.getByRole('link', { name: 'Scenarios' }).click();
-    await page.waitForURL('**/scenarios', { timeout: 10_000 });
+    await sidebar.getByRole('link', { name: 'Console' }).click();
+    await page.waitForURL('**/console', { timeout: 10_000 });
+
+    await sidebar.getByRole('link', { name: 'Reports' }).click();
+    await page.waitForURL('**/reports', { timeout: 10_000 });
 
     await sidebar.getByRole('link', { name: 'Audit Log' }).click();
     await page.waitForURL('**/audit', { timeout: 10_000 });
