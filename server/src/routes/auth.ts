@@ -116,6 +116,73 @@ router.post('/logout', authenticate, async (req: Request, res: Response, next: N
   }
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one digit')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+});
+
+router.post('/change-password', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+    const userId = req.user!.userId;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    const isValid = await AuthService.comparePassword(currentPassword, user.password);
+    if (!isValid) {
+      return next(new AppError('Current password is incorrect', 400));
+    }
+
+    const hashedPassword = await AuthService.hashPassword(newPassword);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    // Invalidate all refresh tokens so the user must re-login
+    await AuthService.logoutAll(userId);
+
+    // Audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'CHANGE_PASSWORD',
+          resource: 'auth',
+          details: { method: req.method, path: req.path },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch {
+      // Don't fail if audit logging fails
+    }
+
+    // Clear the refresh token cookie
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/api/auth',
+    });
+
+    res.json({ message: 'Password changed successfully. Please log in again.' });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors[0].message, 400));
+    }
+    next(error);
+  }
+});
+
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = await AuthService.getMe(req.user!.userId);

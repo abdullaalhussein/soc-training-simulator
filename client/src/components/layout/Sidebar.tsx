@@ -26,6 +26,8 @@ const navItems = {
   ADMIN: [
     { href: '/users', label: 'Users', icon: Users },
     { href: '/scenarios', label: 'Scenarios', icon: BookOpen },
+    { href: '/console', label: 'Console', icon: Monitor },
+    { href: '/reports', label: 'Reports', icon: BarChart3 },
     { href: '/audit', label: 'Audit Log', icon: ClipboardList },
     { href: '/settings', label: 'Settings', icon: Settings },
   ],

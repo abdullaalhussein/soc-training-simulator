@@ -107,8 +107,13 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
         if (correct.minRecommendations) parts.push(`Min recommendations: ${correct.minRecommendations}`);
         return parts.join('; ') || null;
       }
-      case 'YARA_RULE':
-        return null; // Too complex to display
+      case 'YARA_RULE': {
+        const yaraData = typeof correct === 'object' ? correct : {};
+        if (yaraData.referenceRule) {
+          return yaraData.referenceRule;
+        }
+        return null;
+      }
       default:
         return typeof correct === 'string' ? `Correct answer: ${correct}` : null;
     }
@@ -291,7 +296,14 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
                     <p className="text-sm font-medium">Learning Feedback</p>
                   </div>
                   {formatCorrectAnswer() && (
-                    <p className="text-sm">{formatCorrectAnswer()}</p>
+                    (result.checkpointType || cp.checkpointType) === 'YARA_RULE' ? (
+                      <div className="text-sm space-y-1">
+                        <p className="font-medium">Reference Rule:</p>
+                        <pre className="font-mono text-xs whitespace-pre-wrap bg-black/5 dark:bg-white/5 rounded p-2 overflow-x-auto">{formatCorrectAnswer()}</pre>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{formatCorrectAnswer()}</p>
+                    )
                   )}
                   {result.explanation && (
                     <p className="text-sm mt-1">{result.explanation}</p>
