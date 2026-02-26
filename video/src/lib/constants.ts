@@ -53,10 +53,10 @@ export const CLIPS_V2 = {
 
 // Actual clip durations in frames (V3 — from ffprobe, rounded up, at 30fps)
 const CLIP_FRAMES = {
-  admin:   971,   // 32.4s
-  trainer: 999,   // 33.3s
-  trainee: 1490,  // 49.7s
-  split:   2244,  // 74.8s (shorter of the two — trainee side)
+  admin:   1162,  // 38.7s
+  trainer: 1145,  // 38.2s
+  trainee: 1870,  // 62.3s
+  split:   3362,  // 112.1s (shorter of the two — trainer side)
 } as const;
 
 const TITLE_DUR = 60;  // 2s title card
@@ -105,4 +105,4 @@ function buildCombined() {
 }
 
 export const COMBINED_COMP = buildCombined();
-// total = 90+971+999+1490+2244+120 = 5914 frames = ~197.1s
+// total = 90+1162+1145+1870+3362+120 = 7749 frames = ~258.3s

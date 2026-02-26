@@ -6,17 +6,17 @@ import { COLORS, CLIPS_V2, SCREENSHOTS } from "../lib/constants";
 
 /** Sub-overlay label data: [startFrame, endFrame, text] */
 const SUB_LABELS: [number, number, string][] = [
-  [1,    320, "TRAINEE DASHBOARD"],
-  [321,  397, "SCENARIO BRIEFING"],
-  [408,  733, "INVESTIGATION WORKSPACE"],
-  [745,  958, "EVIDENCE COLLECTION"],
-  [959, 1136, "CHECKPOINT"],
-  [1137, 1490, "HINTS & SOC MENTOR"],
+  [1,    402, "TRAINEE DASHBOARD"],
+  [403,  498, "SCENARIO BRIEFING"],
+  [512,  920, "INVESTIGATION WORKSPACE"],
+  [935, 1202, "EVIDENCE COLLECTION"],
+  [1204, 1426, "CHECKPOINT"],
+  [1427, 1870, "HINTS & SOC MENTOR"],
 ];
 
 /**
  * Act 3: Trainee investigation clip with role badge and timed sub-overlays.
- * 1490 frames (49.7s at 30fps).
+ * 1870 frames (62.3s at 30fps).
  */
 export const Act3Trainee: React.FC = () => {
   const frame = useCurrentFrame();
