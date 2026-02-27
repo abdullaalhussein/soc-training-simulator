@@ -144,4 +144,49 @@ router.post(
   },
 );
 
+// T-03: Security scan for generated or imported scenario content
+const scanContentSchema = z.object({
+  content: z.string().min(1).max(50000),
+});
+
+router.post(
+  '/scan-content',
+  requireRole('ADMIN', 'TRAINER'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!AIService.isAvailable()) {
+        return res.json({ riskScore: 0, explanation: 'AI not configured — scan skipped' });
+      }
+
+      const { content } = scanContentSchema.parse(req.body);
+      const result = await AIService.scoreInjectionRisk(content);
+
+      if (!result) {
+        return res.json({ riskScore: 0, explanation: 'Scan could not be completed' });
+      }
+
+      // Audit log if high risk
+      if (result.riskScore > 0.5) {
+        try {
+          await prisma.auditLog.create({
+            data: {
+              userId: req.user!.userId,
+              action: 'SCENARIO_INJECTION_RISK',
+              resource: 'SCENARIO',
+              details: { riskScore: result.riskScore, explanation: result.explanation },
+            },
+          });
+        } catch { /* non-fatal */ }
+      }
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+      }
+      next(error);
+    }
+  },
+);
+
 export { router as aiRouter };

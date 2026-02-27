@@ -10,7 +10,8 @@ import { MitreAttackPicker } from './MitreAttackPicker';
 import { useGenerateScenarioStream } from '@/hooks/useGenerateScenario';
 import { useImportScenario } from '@/hooks/useScenarios';
 import { toast } from '@/components/ui/toaster';
-import { Sparkles, Loader2, Download, Upload, Copy, ChevronDown, Zap, Square } from 'lucide-react';
+import { Sparkles, Loader2, Download, Upload, Copy, ChevronDown, Zap, Square, ShieldCheck, ShieldAlert, Shield } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface ScenarioGeneratorDialogProps {
   open: boolean;
@@ -46,6 +47,8 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
   const [showExpert, setShowExpert] = useState(false);
   const [generatedJson, setGeneratedJson] = useState<any>(null);
   const [jsonText, setJsonText] = useState('');
+  const [securityScan, setSecurityScan] = useState<{ riskScore: number; explanation: string } | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const { streamingText, isStreaming, error: streamError, startStreaming, abort } = useGenerateScenarioStream();
   const importMutation = useImportScenario();
@@ -68,6 +71,9 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
           const parsed = JSON.parse(jsonMatch[0]);
           setGeneratedJson(parsed);
           setJsonText(JSON.stringify(parsed, null, 2));
+
+          // Run security scan in background
+          runSecurityScan(jsonMatch[0]);
           return;
         } catch {
           // JSON parse failed — fall through to raw text
@@ -77,9 +83,23 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
       // Fallback: show raw text for manual editing
       setGeneratedJson({ _raw: true });
       setJsonText(fullText);
+      runSecurityScan(fullText);
       toast({ title: 'AI returned text that could not be auto-parsed as JSON. You can edit it manually.', variant: 'destructive' });
     } catch {
       toast({ title: streamError || 'Failed to generate scenario', variant: 'destructive' });
+    }
+  };
+
+  const runSecurityScan = async (content: string) => {
+    setScanning(true);
+    setSecurityScan(null);
+    try {
+      const { data } = await api.post('/ai/scan-content', { content: content.slice(0, 50000) });
+      setSecurityScan(data);
+    } catch {
+      // Non-fatal — scan is informational
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -142,6 +162,8 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
     setNumStages('');
     setCategory('');
     setShowExpert(false);
+    setSecurityScan(null);
+    setScanning(false);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -292,11 +314,70 @@ export function ScenarioGeneratorDialog({ open, onOpenChange }: ScenarioGenerato
                   <Button size="sm" variant="ghost" onClick={handleCopy}>
                     <Copy className="h-3 w-3 mr-1" /> Copy
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setGeneratedJson(null); setJsonText(''); }}>
+                  <Button size="sm" variant="ghost" onClick={() => { setGeneratedJson(null); setJsonText(''); setSecurityScan(null); }}>
                     Back
                   </Button>
                 </div>
               </div>
+
+              {/* Security Scan Banner */}
+              {scanning && (
+                <div className="flex items-center gap-2 rounded-md border border-muted bg-muted/50 p-3 mb-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Running security scan...</span>
+                </div>
+              )}
+              {securityScan && !scanning && (
+                <div className={`flex items-start gap-2 rounded-md border p-3 mb-3 ${
+                  securityScan.riskScore > 0.5
+                    ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/50'
+                    : securityScan.riskScore > 0.2
+                    ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/50'
+                    : 'border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/50'
+                }`}>
+                  {securityScan.riskScore > 0.5 ? (
+                    <ShieldAlert className="h-4 w-4 mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
+                  ) : securityScan.riskScore > 0.2 ? (
+                    <Shield className="h-4 w-4 mt-0.5 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${
+                      securityScan.riskScore > 0.5
+                        ? 'text-red-800 dark:text-red-300'
+                        : securityScan.riskScore > 0.2
+                        ? 'text-yellow-800 dark:text-yellow-300'
+                        : 'text-green-800 dark:text-green-300'
+                    }`}>
+                      {securityScan.riskScore > 0.5
+                        ? 'High Injection Risk Detected'
+                        : securityScan.riskScore > 0.2
+                        ? 'Moderate Risk — Review Before Importing'
+                        : 'Security Scan Passed'}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${
+                      securityScan.riskScore > 0.5
+                        ? 'text-red-700 dark:text-red-400'
+                        : securityScan.riskScore > 0.2
+                        ? 'text-yellow-700 dark:text-yellow-400'
+                        : 'text-green-700 dark:text-green-400'
+                    }`}>
+                      {securityScan.explanation}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-mono shrink-0 ${
+                    securityScan.riskScore > 0.5
+                      ? 'text-red-600 dark:text-red-400'
+                      : securityScan.riskScore > 0.2
+                      ? 'text-yellow-600 dark:text-yellow-400'
+                      : 'text-green-600 dark:text-green-400'
+                  }`}>
+                    {Math.round(securityScan.riskScore * 100)}%
+                  </span>
+                </div>
+              )}
+
               <Textarea
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
