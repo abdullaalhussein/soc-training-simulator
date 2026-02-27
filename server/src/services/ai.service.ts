@@ -393,8 +393,12 @@ Rules:
 - Include a mix of evidence logs and noise/benign logs
 - Each stage should have 4-8 logs and 1-3 checkpoints
 - Include at least one SHORT_ANSWER and one INCIDENT_REPORT checkpoint in the final stage
-- rawLog fields should be realistic JSON representations of actual log sources
-- Return ONLY the JSON object, no markdown fences or explanation`;
+- rawLog fields should be realistic but CONCISE JSON (5-10 key fields max per log, no deeply nested objects). Keep each rawLog under 150 words.
+- Keep the briefing and lessonContent concise (under 300 words each)
+- Keep stage descriptions under 100 words
+- Keep checkpoint questions under 50 words and explanations under 80 words
+- Return ONLY the JSON object, no markdown fences or explanation
+- CRITICAL: The entire response must be valid, complete JSON. Do not truncate. If the scenario would be too large, reduce the number of logs per stage rather than producing incomplete JSON.`;
 
   private static buildScenarioPromptParams(params: {
     description: string;
@@ -431,7 +435,7 @@ Rules:
     try {
       const response = await this.getClient().messages.create({
         model: MODEL,
-        max_tokens: 8192,
+        max_tokens: 16384,
         system: this.SCENARIO_SYSTEM_PROMPT,
         messages: [
           {
@@ -469,7 +473,7 @@ Rules:
   }) {
     return this.getClient().messages.stream({
       model: MODEL,
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: this.SCENARIO_SYSTEM_PROMPT,
       messages: [
         {
