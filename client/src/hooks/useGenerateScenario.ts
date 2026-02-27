@@ -71,27 +71,36 @@ export function useGenerateScenarioStream() {
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events from buffer
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // keep incomplete line in buffer
+        // Parse complete SSE events (separated by double newline)
+        let boundary: number;
+        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
 
-        let eventType = '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7);
-          } else if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (eventType === 'text') {
-              const chunk = JSON.parse(data) as string;
+          let blockEvent = '';
+          let blockData = '';
+
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) {
+              blockEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              blockData = line.slice(6);
+            }
+          }
+
+          if (blockEvent === 'text' && blockData) {
+            try {
+              const chunk = JSON.parse(blockData) as string;
               accumulated += chunk;
               setStreamingText(accumulated);
-            } else if (eventType === 'error') {
-              const errData = JSON.parse(data) as { message: string };
-              throw new Error(errData.message);
+            } catch {
+              // skip malformed chunk
             }
-            // 'done' event — loop will end on next reader.read()
-            eventType = '';
+          } else if (blockEvent === 'error' && blockData) {
+            const errData = JSON.parse(blockData) as { message: string };
+            throw new Error(errData.message);
           }
+          // 'done' event — loop will end on next reader.read()
         }
       }
 
