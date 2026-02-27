@@ -130,21 +130,13 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
     // Clear lockout on successful login
     clearFailedLogins(email);
 
-    // S-06: Block demo credentials unless explicitly allowed
-    if (DEFAULT_DEMO_EMAILS.includes(email)) {
+    // S-06: Block demo credentials in production unless explicitly allowed
+    if (DEFAULT_DEMO_EMAILS.includes(email) && env.NODE_ENV === 'production') {
       const isDefault = await bcrypt.compare(DEFAULT_DEMO_PASSWORD, (await prisma.user.findUnique({ where: { email }, select: { password: true } }))?.password || '');
-      if (isDefault) {
-        if (!env.ALLOW_DEMO_CREDENTIALS && env.NODE_ENV === 'production') {
-          return res.status(403).json({
-            error: { message: 'Demo credentials are disabled in production. Set ALLOW_DEMO_CREDENTIALS=true or change the password.' },
-          });
-        } else if (env.NODE_ENV === 'production') {
-          return res.status(200).json({
-            mustChangePassword: true,
-            user: result.user,
-            message: 'Default credentials detected. You must change your password before continuing.',
-          });
-        }
+      if (isDefault && !env.ALLOW_DEMO_CREDENTIALS) {
+        return res.status(403).json({
+          error: { message: 'Demo credentials are disabled in production. Set ALLOW_DEMO_CREDENTIALS=true or change the password.' },
+        });
       }
     }
 
