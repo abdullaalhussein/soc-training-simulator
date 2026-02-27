@@ -505,6 +505,9 @@ General rules:
     numStages?: number;
     category?: string;
   }) {
+    if (!this.isAvailable()) {
+      throw new Error('AI features are not configured');
+    }
     return this.getClient().messages.stream({
       model: MODEL,
       max_tokens: this.getMaxTokensForDifficulty(params.difficulty),

@@ -22,6 +22,11 @@ const generateScenarioSchema = z.object({
 
 router.use(authenticate);
 
+// AI availability check — any authenticated user can query
+router.get('/status', (_req: Request, res: Response) => {
+  res.json({ available: AIService.isAvailable() });
+});
+
 // Generate scenario with AI (ADMIN/TRAINER only)
 router.post(
   '/generate-scenario',

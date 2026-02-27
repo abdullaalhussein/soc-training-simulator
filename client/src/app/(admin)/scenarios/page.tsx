@@ -15,6 +15,7 @@ import { ScenarioGeneratorDialog } from '@/components/admin/ScenarioGeneratorDia
 import { MitreAttackBadge } from '@/components/MitreAttackBadge';
 import { toast } from '@/components/ui/toaster';
 import { Plus, BookOpen, Layers, CheckSquare, MoreVertical, Pencil, Download, Trash2, Upload, Eye, FileDown, Sparkles } from 'lucide-react';
+import { useAiStatus } from '@/hooks/useAiStatus';
 
 const difficultyColors: Record<string, string> = {
   BEGINNER: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -32,6 +33,7 @@ export default function ScenariosPage() {
   const [editingScenario, setEditingScenario] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { aiAvailable } = useAiStatus();
 
   const handleDownloadTemplate = () => {
     const template = {
@@ -174,7 +176,7 @@ export default function ScenariosPage() {
           <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={importScenario.isPending}>
             <Upload className="mr-2 h-4 w-4" /> Import
           </Button>
-          <Button variant="outline" onClick={() => setGeneratorOpen(true)}>
+          <Button variant="outline" onClick={() => setGeneratorOpen(true)} disabled={!aiAvailable} title={!aiAvailable ? 'AI not configured — set ANTHROPIC_API_KEY on the server' : undefined}>
             <Sparkles className="mr-2 h-4 w-4" /> Generate with AI
           </Button>
           <Button onClick={() => setWizardOpen(true)}>

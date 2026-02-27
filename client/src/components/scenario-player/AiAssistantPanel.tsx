@@ -2,12 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAiAssistant, AiMessage } from '@/hooks/useAiAssistant';
+import { useAiStatus } from '@/hooks/useAiStatus';
 import { MarkdownRenderer } from '@/components/MarkdownRenderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Shield, Loader2, Eye } from 'lucide-react';
+import { Send, Shield, ShieldOff, Loader2, Eye } from 'lucide-react';
 
 const MAX_MESSAGES = 20;
 
@@ -17,6 +18,7 @@ interface AiAssistantPanelProps {
 
 export function AiAssistantPanel({ attemptId }: AiAssistantPanelProps) {
   const { messages, isLoading, isSending, remaining, sendMessage } = useAiAssistant(attemptId);
+  const { aiAvailable, isLoading: aiStatusLoading } = useAiStatus();
   const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +76,17 @@ export function AiAssistantPanel({ attemptId }: AiAssistantPanelProps) {
 
       {/* Messages */}
       <ScrollArea className="flex-1 px-3 py-2">
-        {isLoading ? (
+        {!aiStatusLoading && !aiAvailable ? (
+          <div className="text-center py-6 space-y-3">
+            <ShieldOff className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">SOC Mentor Unavailable</p>
+              <p className="text-xs text-muted-foreground">
+                AI features are not configured on this server. Contact your administrator to enable the SOC Mentor by setting an Anthropic API key.
+              </p>
+            </div>
+          </div>
+        ) : isLoading ? (
           <p className="text-sm text-muted-foreground text-center py-4">Loading...</p>
         ) : messages.length === 0 ? (
           <div className="text-center py-6 space-y-3">
@@ -134,12 +146,12 @@ export function AiAssistantPanel({ attemptId }: AiAssistantPanelProps) {
           onKeyDown={handleKeyDown}
           placeholder="Ask for guidance..."
           className="flex-1"
-          disabled={isSending || (remaining !== null && remaining <= 0)}
+          disabled={!aiAvailable || isSending || (remaining !== null && remaining <= 0)}
         />
         <Button
           size="icon"
           onClick={handleSend}
-          disabled={!input.trim() || isSending || (remaining !== null && remaining <= 0)}
+          disabled={!aiAvailable || !input.trim() || isSending || (remaining !== null && remaining <= 0)}
         >
           <Send className="h-4 w-4" />
         </Button>

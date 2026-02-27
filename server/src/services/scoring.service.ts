@@ -18,7 +18,7 @@ export class ScoringService {
         const feedback = await AIService.getCheckpointFeedback(
           checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
         );
-        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || undefined };
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || checkpoint.explanation || undefined };
       }
 
       case 'MULTIPLE_CHOICE':
@@ -27,7 +27,7 @@ export class ScoringService {
         const feedback = await AIService.getCheckpointFeedback(
           checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
         );
-        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || undefined };
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || checkpoint.explanation || undefined };
       }
 
       case 'EVIDENCE_SELECTION': {
@@ -43,7 +43,7 @@ export class ScoringService {
         const feedback = await AIService.getCheckpointFeedback(
           checkpoint.question, checkpointType, selected.join(', '), correct.join(', '), isCorrect, scenarioContext,
         );
-        return { isCorrect, pointsAwarded: Math.round(f1 * points * 10) / 10, feedback: feedback || undefined };
+        return { isCorrect, pointsAwarded: Math.round(f1 * points * 10) / 10, feedback: feedback || checkpoint.explanation || undefined };
       }
 
       case 'SHORT_ANSWER': {
@@ -71,7 +71,7 @@ export class ScoringService {
         const matchCount = keywords.filter((k: string) => answerStr.includes(k.toLowerCase())).length;
         const score = keywords.length > 0 ? matchCount / keywords.length : 0;
 
-        return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10 };
+        return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10, feedback: checkpoint.explanation || undefined };
       }
 
       case 'INCIDENT_REPORT': {
@@ -109,7 +109,7 @@ export class ScoringService {
         const recScore = Math.min(recs.length / minRecs, 1);
         score += recScore * 0.5;
 
-        return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10 };
+        return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10, feedback: checkpoint.explanation || undefined };
       }
 
       case 'YARA_RULE': {
@@ -166,7 +166,7 @@ export class ScoringService {
         return {
           isCorrect: result.accuracy >= 0.8,
           pointsAwarded,
-          feedback: aiYaraResult?.feedback,
+          feedback: aiYaraResult?.feedback || checkpoint.explanation || undefined,
         };
       }
 
