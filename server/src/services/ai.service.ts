@@ -387,18 +387,52 @@ The JSON must follow this exact schema:
   ]
 }
 
-Rules:
+Difficulty-based structure (FOLLOW STRICTLY based on the difficulty level):
+
+BEGINNER (estimatedMinutes: 15-25):
+- 2-3 stages, 3-5 logs per stage, 1-2 checkpoints per stage
+- Low noise: most logs should be evidence (60-70% isEvidence: true)
+- Clear, obvious indicators of compromise — no red herrings
+- rawLog: simple JSON with 3-5 key fields per log
+- Checkpoint types: mainly TRUE_FALSE, MULTIPLE_CHOICE, EVIDENCE_SELECTION
+- 1-2 hints per stage with low penalty (3-5 points)
+
+INTERMEDIATE (estimatedMinutes: 30-45):
+- 3-4 stages, 5-7 logs per stage, 2-3 checkpoints per stage
+- Moderate noise: mix of evidence and benign logs (40-50% isEvidence: true)
+- Some ambiguity requiring correlation across logs
+- rawLog: standard JSON with 5-8 key fields per log
+- All checkpoint types including SHORT_ANSWER
+- 1-2 hints per stage with moderate penalty (5-10 points)
+
+ADVANCED (estimatedMinutes: 45-60):
+- 4-5 stages, 6-10 logs per stage, 2-4 checkpoints per stage
+- High noise: red herrings, decoy indicators, subtle evidence (25-35% isEvidence: true)
+- Requires multi-stage correlation and deep analysis
+- rawLog: detailed JSON with 8-12 key fields per log
+- All checkpoint types including INCIDENT_REPORT, YARA_RULE challenges
+- 1-3 hints per stage with high penalty (10-15 points)
+
+General rules:
 - Generate realistic log data with proper timestamps, IPs, hostnames, and process names
 - Logs should tell a coherent attack story across stages
-- Include a mix of evidence logs and noise/benign logs
-- Each stage should have 4-8 logs and 1-3 checkpoints
-- Include at least one SHORT_ANSWER and one INCIDENT_REPORT checkpoint in the final stage
-- rawLog fields should be realistic but CONCISE JSON (5-10 key fields max per log, no deeply nested objects). Keep each rawLog under 150 words.
+- Include at least one SHORT_ANSWER or INCIDENT_REPORT checkpoint in the final stage
+- rawLog fields should be realistic but CONCISE (no deeply nested objects, keep each under 150 words)
 - Keep the briefing and lessonContent concise (under 300 words each)
 - Keep stage descriptions under 100 words
 - Keep checkpoint questions under 50 words and explanations under 80 words
 - Return ONLY the JSON object, no markdown fences or explanation
 - CRITICAL: The entire response must be valid, complete JSON. Do not truncate. If the scenario would be too large, reduce the number of logs per stage rather than producing incomplete JSON.`;
+
+  /** Token budget per difficulty — beginner scenarios need fewer tokens */
+  private static getMaxTokensForDifficulty(difficulty?: string): number {
+    switch (difficulty?.toUpperCase()) {
+      case 'BEGINNER': return 10000;
+      case 'INTERMEDIATE': return 14000;
+      case 'ADVANCED': return 16384;
+      default: return 14000; // AI decides → intermediate budget
+    }
+  }
 
   private static buildScenarioPromptParams(params: {
     description: string;
@@ -435,7 +469,7 @@ Rules:
     try {
       const response = await this.getClient().messages.create({
         model: MODEL,
-        max_tokens: 16384,
+        max_tokens: this.getMaxTokensForDifficulty(params.difficulty),
         system: this.SCENARIO_SYSTEM_PROMPT,
         messages: [
           {
@@ -473,7 +507,7 @@ Rules:
   }) {
     return this.getClient().messages.stream({
       model: MODEL,
-      max_tokens: 16384,
+      max_tokens: this.getMaxTokensForDifficulty(params.difficulty),
       system: this.SCENARIO_SYSTEM_PROMPT,
       messages: [
         {
