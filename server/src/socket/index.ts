@@ -503,8 +503,13 @@ export function initializeSocket(io: SocketIOServer) {
 
       const sanitized = {
         sessionId: data.sessionId,
+        userId: socket.data.user.userId,
         attemptId: typeof data.attemptId === 'string' ? data.attemptId : undefined,
         currentStage: typeof data.currentStage === 'number' ? data.currentStage : undefined,
+        currentScore: typeof data.currentScore === 'number' ? data.currentScore : undefined,
+        elapsedMinutes: typeof data.elapsedMinutes === 'number' ? data.elapsedMinutes : undefined,
+        lastAction: typeof data.lastAction === 'string' ? data.lastAction : undefined,
+        details: data.details && typeof data.details === 'object' ? data.details : undefined,
         evidenceCount: typeof data.evidenceCount === 'number' ? data.evidenceCount : undefined,
         checkpointsCompleted: typeof data.checkpointsCompleted === 'number' ? data.checkpointsCompleted : undefined,
         timeElapsed: typeof data.timeElapsed === 'number' ? data.timeElapsed : undefined,

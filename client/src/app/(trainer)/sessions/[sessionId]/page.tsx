@@ -24,6 +24,7 @@ import {
   Play, Pause, Square, Send, Eye, Users, Activity, MessageSquare,
   Search, FileText, Lightbulb, CheckCircle2, XCircle, ArrowRight, Bookmark,
   Clock, X, AlertTriangle, UserPlus, Trash2, RotateCcw, ClipboardList, Download,
+  Shield, CirclePause, CircleAlert,
 } from 'lucide-react';
 
 interface ActionEntry {
@@ -46,6 +47,8 @@ interface TraineeState {
   status: string;
   actions: ActionEntry[];
   actionsLoaded: boolean;
+  lastActionAt: number; // timestamp for idle detection
+  aiMessageCount: number; // AI mentor message count
 }
 
 // Map action types to readable labels and icons
@@ -63,6 +66,14 @@ const ACTION_CONFIG: Record<string, { label: string; icon: any; color: string }>
   SEARCH_PERFORMED: { label: 'Searched Logs', icon: Search, color: 'text-slate-500' },
   FILTER_APPLIED: { label: 'Filtered Logs', icon: Search, color: 'text-slate-500' },
 };
+
+function getIdleStatus(lastActionAt: number, status: string): { label: string; color: string; level: 'active' | 'idle' | 'stuck' } | null {
+  if (status !== 'IN_PROGRESS') return null;
+  const idleMinutes = (Date.now() - lastActionAt) / 60000;
+  if (idleMinutes >= 5) return { label: `${Math.floor(idleMinutes)}m stuck`, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-300', level: 'stuck' };
+  if (idleMinutes >= 3) return { label: `${Math.floor(idleMinutes)}m idle`, color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-300', level: 'idle' };
+  return null;
+}
 
 function formatActionDetail(actionType: string, details: any): string {
   if (!details) return '';
@@ -119,12 +130,19 @@ export default function SessionMonitorPage() {
   const [retakeTargetTrainee, setRetakeTargetTrainee] = useState<TraineeState | null>(null);
   const [viewReportAttemptId, setViewReportAttemptId] = useState<string | null>(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [, setTick] = useState(0); // force re-render for idle detection
 
   // Auto-refresh session data every 3 seconds as fallback for socket
   useEffect(() => {
     const interval = setInterval(() => refetch(), 3000);
     return () => clearInterval(interval);
   }, [refetch]);
+
+  // Idle detection: re-render every 30 seconds to update idle indicators
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Initialize trainee states from session data (preserve existing actions)
   useEffect(() => {
@@ -147,6 +165,8 @@ export default function SessionMonitorPage() {
             status: attempt.status,
             actions: existing?.actions || [],
             actionsLoaded: existing?.actionsLoaded || false,
+            lastActionAt: existing?.lastActionAt || (attempt.startedAt ? new Date(attempt.startedAt).getTime() : Date.now()),
+            aiMessageCount: attempt._count?.aiMessages ?? existing?.aiMessageCount ?? 0,
           });
         }
         return map;
@@ -210,7 +230,8 @@ export default function SessionMonitorPage() {
             currentScore: data.currentScore ?? existing.currentScore,
             lastAction: data.lastAction || existing.lastAction,
             elapsedMinutes: data.elapsedMinutes ?? existing.elapsedMinutes,
-            actions: [
+            lastActionAt: Date.now(),
+            actions: data.lastAction ? [
               {
                 type: data.lastAction,
                 detail,
@@ -221,7 +242,7 @@ export default function SessionMonitorPage() {
                 } : {}),
               },
               ...existing.actions.slice(0, 99),
-            ],
+            ] : existing.actions,
           });
         }
         return updated;
@@ -377,6 +398,15 @@ export default function SessionMonitorPage() {
   const traineeList = Array.from(trainees.values());
   const predefinedHints = getPredefinedHints();
 
+  // Map stage numbers to names for current focus context
+  const stageNames = useMemo(() => {
+    const map = new Map<number, string>();
+    session?.scenario?.stages?.forEach((s: any) => {
+      map.set(s.stageNumber, s.title || `Stage ${s.stageNumber}`);
+    });
+    return map;
+  }, [session?.scenario?.stages]);
+
   // Build the full member list: members with attempts + assigned-only members
   const existingMemberIds = useMemo(() => {
     const ids = new Set<string>();
@@ -476,19 +506,23 @@ export default function SessionMonitorPage() {
         {/* Trainee List - horizontal chips on mobile, sidebar on desktop */}
         <div className="md:hidden shrink-0">
           <div className="flex gap-2 overflow-x-auto pb-2 px-1">
-            {traineeList.map((t) => (
-              <button
-                key={t.userId}
-                className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                  selectedTrainee === t.userId ? 'bg-primary/10 border-primary/30 font-medium' : 'hover:bg-muted border-border'
-                }`}
-                onClick={() => setSelectedTrainee(t.userId)}
-              >
-                <div className={`w-2 h-2 rounded-full ${statusColors[t.status] || 'bg-slate-400'}`} />
-                <span className="truncate max-w-[120px]">{t.userName}</span>
-                <span className="text-xs text-muted-foreground">{t.currentScore}pts</span>
-              </button>
-            ))}
+            {traineeList.map((t) => {
+              const idle = getIdleStatus(t.lastActionAt, t.status);
+              return (
+                <button
+                  key={t.userId}
+                  className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    selectedTrainee === t.userId ? 'bg-primary/10 border-primary/30 font-medium' : 'hover:bg-muted border-border'
+                  } ${idle?.level === 'stuck' ? 'border-red-400 dark:border-red-600' : ''}`}
+                  onClick={() => setSelectedTrainee(t.userId)}
+                >
+                  <div className={`w-2 h-2 rounded-full ${idle?.level === 'stuck' ? 'bg-red-500 animate-pulse' : idle?.level === 'idle' ? 'bg-amber-500' : statusColors[t.status] || 'bg-slate-400'}`} />
+                  <span className="truncate max-w-[120px]">{t.userName}</span>
+                  <span className="text-xs text-muted-foreground">{t.currentScore}pts</span>
+                  {idle && <span className={`text-[10px] ${idle.level === 'stuck' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`}>{idle.label}</span>}
+                </button>
+              );
+            })}
             {assignedOnlyMembers.map((m) => (
               <button
                 key={m.userId}
@@ -517,29 +551,49 @@ export default function SessionMonitorPage() {
           <CardContent className="flex-1 overflow-hidden p-0">
             <ScrollArea className="h-full">
               <div className="p-3 space-y-1">
-                {traineeList.map((t) => (
-                  <button
-                    key={t.userId}
-                    className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
-                      selectedTrainee === t.userId ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted'
-                    }`}
-                    onClick={() => setSelectedTrainee(t.userId)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${statusColors[t.status] || 'bg-slate-400'}`} />
-                      <span className="font-medium truncate">{t.userName}</span>
-                    </div>
-                    <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
-                      <span>Stage {t.currentStage}/{t.totalStages}</span>
-                      <span className="font-semibold">{t.currentScore} pts</span>
-                    </div>
-                    {t.lastAction && (
-                      <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                        {ACTION_CONFIG[t.lastAction]?.label || t.lastAction.replace(/_/g, ' ')}
+                {traineeList.map((t) => {
+                  const idle = getIdleStatus(t.lastActionAt, t.status);
+                  const stageName = stageNames.get(t.currentStage);
+                  return (
+                    <button
+                      key={t.userId}
+                      className={`w-full text-left p-2 rounded-md text-sm transition-colors ${
+                        selectedTrainee === t.userId ? 'bg-primary/10 border border-primary/20' : 'hover:bg-muted'
+                      } ${idle?.level === 'stuck' ? 'ring-1 ring-red-300 dark:ring-red-700' : ''}`}
+                      onClick={() => setSelectedTrainee(t.userId)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${statusColors[t.status] || 'bg-slate-400'}`} />
+                        <span className="font-medium truncate flex-1">{t.userName}</span>
+                        {idle && (
+                          <span className={`shrink-0 inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${idle.color}`}>
+                            {idle.level === 'stuck' ? <CircleAlert className="h-3 w-3" /> : <CirclePause className="h-3 w-3" />}
+                            {idle.label}
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </button>
-                ))}
+                      <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                        <span className="truncate" title={stageName}>
+                          Stage {t.currentStage}/{t.totalStages}{stageName ? `: ${stageName}` : ''}
+                        </span>
+                        <span className="font-semibold shrink-0 ml-1">{t.currentScore} pts</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        {t.lastAction ? (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {ACTION_CONFIG[t.lastAction]?.label || t.lastAction.replace(/_/g, ' ')}
+                          </div>
+                        ) : <div />}
+                        {t.aiMessageCount > 0 && (
+                          <span className="shrink-0 inline-flex items-center gap-0.5 text-[10px] text-purple-600 dark:text-purple-400">
+                            <Shield className="h-3 w-3" />
+                            {t.aiMessageCount}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
                 {assignedOnlyMembers.length > 0 && traineeList.length > 0 && (
                   <Separator className="my-2" />
                 )}
@@ -573,9 +627,24 @@ export default function SessionMonitorPage() {
           {selectedTraineeData ? (
             <>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">{selectedTraineeData.userName}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">{selectedTraineeData.userName}</CardTitle>
+                  {(() => {
+                    const idle = getIdleStatus(selectedTraineeData.lastActionAt, selectedTraineeData.status);
+                    if (!idle) return null;
+                    return (
+                      <Badge variant="outline" className={`text-xs ${idle.color}`}>
+                        {idle.level === 'stuck' ? <CircleAlert className="mr-1 h-3 w-3" /> : <CirclePause className="mr-1 h-3 w-3" />}
+                        {idle.label}
+                      </Badge>
+                    );
+                  })()}
+                </div>
                 <div className="flex gap-3 text-sm flex-wrap">
-                  <Badge variant="outline">Stage {selectedTraineeData.currentStage}/{selectedTraineeData.totalStages}</Badge>
+                  <Badge variant="outline" title={stageNames.get(selectedTraineeData.currentStage) || ''}>
+                    Stage {selectedTraineeData.currentStage}/{selectedTraineeData.totalStages}
+                    {stageNames.get(selectedTraineeData.currentStage) ? `: ${stageNames.get(selectedTraineeData.currentStage)}` : ''}
+                  </Badge>
                   <Badge variant="outline">{selectedTraineeData.currentScore} points</Badge>
                   <Badge variant="outline">{selectedTraineeData.elapsedMinutes} min elapsed</Badge>
                   <Badge
@@ -585,6 +654,11 @@ export default function SessionMonitorPage() {
                   >
                     {selectedTraineeData.status.replace(/_/g, ' ')}
                   </Badge>
+                  {selectedTraineeData.aiMessageCount > 0 && (
+                    <Badge variant="outline" className="border-purple-300 text-purple-700 dark:text-purple-400">
+                      <Shield className="mr-1 h-3 w-3" /> SOC Mentor: {selectedTraineeData.aiMessageCount} msgs
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-1">
                   <Button size="sm" variant="outline" onClick={() => setHintDialogOpen(true)}>

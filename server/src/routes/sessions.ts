@@ -83,7 +83,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
         members: { include: { user: { select: { id: true, name: true, email: true } } } },
         attempts: {
           where: { status: { not: 'RETAKEN' } },
-          include: { user: { select: { id: true, name: true, email: true } } },
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            _count: { select: { aiMessages: true } },
+          },
           orderBy: { totalScore: 'desc' },
         },
       },
