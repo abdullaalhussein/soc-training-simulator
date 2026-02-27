@@ -4,6 +4,12 @@ import { useState, useRef, useCallback } from 'react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+function getCsrfToken(): string | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : undefined;
+}
+
 interface GenerateScenarioParams {
   description: string;
   difficulty?: string;
@@ -36,12 +42,14 @@ export function useGenerateScenarioStream() {
 
     try {
       const token = localStorage.getItem('token');
+      const csrf = getCsrfToken();
       const res = await fetch(`${API_URL}/api/ai/generate-scenario`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
         },
         body: JSON.stringify(params),
         signal: controller.signal,
@@ -50,7 +58,7 @@ export function useGenerateScenarioStream() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || `Server error (${res.status})`);
+        throw new Error(body.error?.message || body.message || `Server error (${res.status})`);
       }
 
       const reader = res.body!.getReader();
