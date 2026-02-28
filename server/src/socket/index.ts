@@ -531,6 +531,15 @@ export function initializeSocket(io: SocketIOServer) {
         return;
       }
 
+      // Early exit if AI is not configured — avoid misleading rate limit errors
+      if (!AIService.isAvailable()) {
+        socket.emit('ai-assistant-response', {
+          content: 'SOC Mentor is not configured on this server. Contact your administrator to enable it by setting an Anthropic API key.',
+          remaining: 0,
+        });
+        return;
+      }
+
       // H-5: AI input filtering — reject jailbreak patterns
       const inputFilterResult = filterAiInput(data.message);
       if (inputFilterResult) {
