@@ -76,13 +76,27 @@ export class ScoringService {
 
       case 'INCIDENT_REPORT': {
         const report = typeof answer === 'object' ? answer : { summary: String(answer), recommendations: [] };
-        const expected = typeof correctAnswer === 'object' ? correctAnswer : { keywords: [], minRecommendations: 3 };
+        let expected: { keywords: string[]; minRecommendations: number };
+        if (typeof correctAnswer === 'object' && correctAnswer !== null && !Array.isArray(correctAnswer)) {
+          expected = { keywords: correctAnswer.keywords || [], minRecommendations: correctAnswer.minRecommendations || 3 };
+        } else {
+          // correctAnswer is a plain string — extract significant words as keywords for matching
+          const answerText = String(correctAnswer || '');
+          const stopWords = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','by','from','is','was','were','are','been','be','have','has','had','do','does','did','will','would','could','should','may','might','shall','can','that','this','these','those','it','its','he','she','they','we','you','i','not','no','as','if','then','than','so','into','over','after','before','about','between','through','during','up','out','their','his','her','our','your','my','all','each','every','both','few','more','most','some','any','other','such','only','also','just','which','who','whom','what','when','where','how','why','very','too','quite','rather','approximately']);
+          const words = answerText.toLowerCase().match(/[a-z0-9][a-z0-9.-]+/g) || [];
+          const keywordSet = new Set<string>();
+          for (const w of words) {
+            if (w.length >= 3 && !stopWords.has(w)) keywordSet.add(w);
+          }
+          expected = { keywords: Array.from(keywordSet), minRecommendations: 0 };
+        }
 
         // Try AI grading first
+        const referenceAnswer = typeof correctAnswer === 'string' ? correctAnswer : undefined;
         const aiReportResult = await AIService.gradeIncidentReport(
           checkpoint.question,
           { summary: report.summary || '', recommendations: report.recommendations || [] },
-          { keywords: expected.keywords || [], minRecommendations: expected.minRecommendations || 3 },
+          { keywords: expected.keywords, minRecommendations: expected.minRecommendations, referenceAnswer },
           scenarioContext,
         );
 
@@ -102,12 +116,17 @@ export class ScoringService {
         const keywordScore = keywords.length > 0
           ? keywords.filter((k: string) => summaryText.includes(k.toLowerCase())).length / keywords.length
           : 0;
-        score += keywordScore * 0.5;
 
         const recs = report.recommendations || [];
-        const minRecs = expected.minRecommendations || 3;
-        const recScore = Math.min(recs.length / minRecs, 1);
-        score += recScore * 0.5;
+        const minRecs = expected.minRecommendations;
+
+        if (minRecs > 0) {
+          // Structured correctAnswer — split 50/50 between keywords and recommendations
+          score = keywordScore * 0.5 + Math.min(recs.length / minRecs, 1) * 0.5;
+        } else {
+          // String correctAnswer — score entirely on keyword overlap (recommendations not expected)
+          score = keywordScore;
+        }
 
         return { isCorrect: score >= 0.6, pointsAwarded: Math.round(score * points * 10) / 10, feedback: checkpoint.explanation || undefined };
       }

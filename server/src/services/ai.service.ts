@@ -74,36 +74,54 @@ Grade this answer. A score of 1.0 means perfect, 0.0 means completely wrong. Con
   static async gradeIncidentReport(
     question: string,
     report: { summary: string; recommendations: string[] },
-    expected: { keywords: string[]; minRecommendations: number },
+    expected: { keywords: string[]; minRecommendations: number; referenceAnswer?: string },
     scenarioContext?: string,
   ): Promise<{ score: number; feedback: string } | null> {
     if (!this.isAvailable()) return null;
 
-    try {
-      const response = await this.getClient().messages.create({
-        model: MODEL,
-        max_tokens: 512,
-        system: `You are a SOC (Security Operations Center) training evaluator. Grade the trainee's incident report based on:
+    const hasRecommendations = expected.minRecommendations > 0;
+    const systemPrompt = hasRecommendations
+      ? `You are a SOC (Security Operations Center) training evaluator. Grade the trainee's incident report based on:
 1. Summary quality — covers key findings, root cause, and impact (50%)
 2. Recommendations — actionable, relevant, and sufficient count (50%)
 
 Return ONLY a JSON object with this exact format:
-{"score": <number between 0 and 1>, "feedback": "<2-3 sentence constructive feedback covering both summary and recommendations>"}`,
+{"score": <number between 0 and 1>, "feedback": "<2-3 sentence constructive feedback covering both summary and recommendations>"}`
+      : `You are a SOC (Security Operations Center) training evaluator. Grade the trainee's incident report summary based on how well it covers the key findings, subjects involved, data at risk, methods used, and impact. Be generous with partial credit — if the trainee identifies the core incident correctly, they should receive at least 0.4. A good summary that covers most key points should score 0.7+.
+
+Return ONLY a JSON object with this exact format:
+{"score": <number between 0 and 1>, "feedback": "<2-3 sentence constructive feedback>"}`;
+
+    try {
+      let userContent = scenarioContext ? `Scenario context: ${scenarioContext}\n\n` : '';
+      userContent += `Question: ${question}\n\n`;
+
+      if (expected.referenceAnswer) {
+        userContent += `Reference answer (for comparison): ${expected.referenceAnswer}\n\n`;
+      }
+      if (expected.keywords.length > 0) {
+        userContent += `Expected key points: ${expected.keywords.join(', ')}\n`;
+      }
+      if (hasRecommendations) {
+        userContent += `Minimum recommendations expected: ${expected.minRecommendations}\n`;
+      }
+
+      userContent += `\nTrainee's incident summary:\n${report.summary}\n`;
+
+      if (report.recommendations.length > 0) {
+        userContent += `\nTrainee's recommendations:\n${report.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n`;
+      }
+
+      userContent += '\nGrade this incident report.';
+
+      const response = await this.getClient().messages.create({
+        model: MODEL,
+        max_tokens: 512,
+        system: systemPrompt,
         messages: [
           {
             role: 'user',
-            content: `${scenarioContext ? `Scenario context: ${scenarioContext}\n\n` : ''}Question: ${question}
-
-Expected key points: ${expected.keywords.join(', ')}
-Minimum recommendations expected: ${expected.minRecommendations}
-
-Trainee's incident summary:
-${report.summary}
-
-Trainee's recommendations:
-${report.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
-
-Grade this incident report.`,
+            content: userContent,
           },
         ],
       });
