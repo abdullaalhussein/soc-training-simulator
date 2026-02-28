@@ -46,6 +46,12 @@ export const errorHandler = (
     return res.status(statusCode).json({ error: { message } });
   }
 
+  // Handle JSON parse errors from body-parser (malformed request body)
+  if (err instanceof SyntaxError && 'body' in err) {
+    logger.warn(`400 - Malformed JSON in request body`, { path: _req.path, method: _req.method });
+    return res.status(400).json({ error: { message: 'Invalid JSON in request body' } });
+  }
+
   const statusCode = err instanceof AppError ? err.statusCode : 500;
   const message = err instanceof AppError ? err.message : 'Internal Server Error';
 
