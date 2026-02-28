@@ -8,6 +8,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { logger } from '../utils/logger';
 import { env } from '../config/env';
+import { DEFAULT_DEMO_EMAILS, DEFAULT_DEMO_PASSWORD } from '../config/constants';
 
 const router = Router();
 
@@ -23,12 +24,19 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Cross-origin cookie policy: Railway deploys client and server on different subdomains
+// under .railway.app (a public suffix), making them different "sites." sameSite:'lax'
+// blocks cookies on cross-origin AJAX — use 'none' in production (CSRF double-submit
+// pattern still protects against cross-site request forgery).
+const isProduction = process.env.NODE_ENV === 'production';
+const COOKIE_SAME_SITE: 'lax' | 'none' = isProduction ? 'none' : 'lax';
+
 // E-06: Dynamic refresh cookie options based on role (shorter for privileged roles)
 function getRefreshCookieOptions(role?: string) {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
+    secure: isProduction,
+    sameSite: COOKIE_SAME_SITE,
     maxAge: role ? AuthService.getRefreshMaxAgeMs(role) : 7 * 24 * 60 * 60 * 1000,
     path: '/api/auth',
   };
@@ -37,54 +45,61 @@ function getRefreshCookieOptions(role?: string) {
 // C-1: Access token cookie — path '/' so it's sent on all requests including Socket.io handshake
 const ACCESS_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  secure: isProduction,
+  sameSite: COOKIE_SAME_SITE,
   maxAge: 4 * 60 * 60 * 1000, // 4 hours (matches JWT_EXPIRES_IN default)
   path: '/',
 };
 
-// H-6: Account lockout tracking (in-memory, keyed by email)
-const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
+// M-3: Account lockout tracking (DB-backed via RateLimitEntry, survives restarts)
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
-function checkAccountLockout(email: string): { locked: boolean; remainingMs: number } {
-  const record = loginAttempts.get(email);
-  if (!record) return { locked: false, remainingMs: 0 };
-  if (record.lockedUntil > Date.now()) {
-    return { locked: true, remainingMs: record.lockedUntil - Date.now() };
+async function checkAccountLockout(email: string): Promise<{ locked: boolean; remainingMs: number }> {
+  const entry = await prisma.rateLimitEntry.findUnique({
+    where: { key_endpoint: { key: email, endpoint: 'auth:login' } },
+  });
+  if (!entry) return { locked: false, remainingMs: 0 };
+
+  // Check if lockout expired
+  if (entry.expiresAt < new Date()) {
+    await prisma.rateLimitEntry.delete({
+      where: { key_endpoint: { key: email, endpoint: 'auth:login' } },
+    }).catch(() => {});
+    return { locked: false, remainingMs: 0 };
   }
-  // Lockout expired, reset
-  if (record.lockedUntil > 0) {
-    loginAttempts.delete(email);
+
+  // Locked if count >= threshold
+  if (entry.count >= LOCKOUT_THRESHOLD) {
+    return { locked: true, remainingMs: entry.expiresAt.getTime() - Date.now() };
   }
   return { locked: false, remainingMs: 0 };
 }
 
-function recordFailedLogin(email: string): void {
-  const record = loginAttempts.get(email) || { count: 0, lockedUntil: 0 };
-  record.count += 1;
-  if (record.count >= LOCKOUT_THRESHOLD) {
-    record.lockedUntil = Date.now() + LOCKOUT_DURATION_MS;
-    logger.warn(`Account locked due to ${record.count} failed attempts: ${email}`);
+async function recordFailedLogin(email: string): Promise<void> {
+  const expiresAt = new Date(Date.now() + LOCKOUT_DURATION_MS);
+  const entry = await prisma.rateLimitEntry.upsert({
+    where: { key_endpoint: { key: email, endpoint: 'auth:login' } },
+    create: { key: email, endpoint: 'auth:login', count: 1, expiresAt },
+    update: { count: { increment: 1 }, expiresAt },
+  });
+  if (entry.count >= LOCKOUT_THRESHOLD) {
+    logger.warn(`Account locked due to ${entry.count} failed attempts: ${email}`);
   }
-  loginAttempts.set(email, record);
 }
 
-function clearFailedLogins(email: string): void {
-  loginAttempts.delete(email);
+async function clearFailedLogins(email: string): Promise<void> {
+  await prisma.rateLimitEntry.deleteMany({
+    where: { key: email, endpoint: 'auth:login' },
+  });
 }
-
-// C-3: Default demo credentials
-const DEFAULT_DEMO_EMAILS = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
-const DEFAULT_DEMO_PASSWORD = 'Password123!';
 
 router.post('/login', authRateLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    // H-6: Check account lockout
-    const lockout = checkAccountLockout(email);
+    // M-3: Check account lockout (DB-backed)
+    const lockout = await checkAccountLockout(email);
     if (lockout.locked) {
       const minutes = Math.ceil(lockout.remainingMs / 60000);
       return next(new AppError(`Account temporarily locked. Try again in ${minutes} minute(s).`, 429));
@@ -98,7 +113,7 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
       result = await AuthService.login(email, password);
     } catch (error) {
       // Record failed login for lockout tracking
-      recordFailedLogin(email);
+      await recordFailedLogin(email);
 
       // S-05: Record failed login in history (non-blocking)
       try {
@@ -128,7 +143,7 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
     }
 
     // Clear lockout on successful login
-    clearFailedLogins(email);
+    await clearFailedLogins(email);
 
     // S-06: Block demo credentials in production unless explicitly allowed
     if (DEFAULT_DEMO_EMAILS.includes(email) && env.NODE_ENV === 'production') {
@@ -194,8 +209,8 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
     const csrfToken = crypto.randomBytes(32).toString('hex');
     res.cookie('csrf', csrfToken, {
       httpOnly: false, // Must be readable by client JS
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       maxAge: 4 * 60 * 60 * 1000,
       path: '/',
     });
@@ -239,25 +254,24 @@ router.post('/logout', authenticate, async (req: Request, res: Response, next: N
       await AuthService.logout(refreshToken);
     }
 
-    // Clear all auth cookies
+    // Clear all auth cookies (options must match how they were set)
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/api/auth',
     });
 
-    // C-1: Clear access token cookie
     res.clearCookie('accessToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/',
     });
 
     res.clearCookie('csrf', {
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/',
     });
 
@@ -318,22 +332,22 @@ router.post('/change-password', authenticate, async (req: Request, res: Response
       // Don't fail if audit logging fails
     }
 
-    // Clear all auth cookies
+    // Clear all auth cookies (options must match how they were set)
     res.clearCookie('refreshToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/api/auth',
     });
     res.clearCookie('accessToken', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/',
     });
     res.clearCookie('csrf', {
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
       path: '/',
     });
 

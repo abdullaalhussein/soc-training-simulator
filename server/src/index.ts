@@ -16,6 +16,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
 import { initializeSocket } from './socket';
 import { logger } from './utils/logger';
+import { DEFAULT_DEMO_EMAILS, DEFAULT_DEMO_PASSWORD } from './config/constants';
 
 const app = express();
 const httpServer = createServer(app);
@@ -61,6 +62,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:"],
       connectSrc: ["'self'"],
+      // M-5: Prevent clickjacking via frame-ancestors
+      frameAncestors: ["'none'"],
       // M-8: CSP violation reporting
       ...(process.env.CSP_REPORT_URI ? { reportUri: [process.env.CSP_REPORT_URI] } : {}),
     },
@@ -117,14 +120,13 @@ async function checkDefaultCredentials() {
     const prisma = new PrismaClient();
     const bcrypt = (await import('bcryptjs')).default;
 
-    const defaultEmails = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
     const users = await prisma.user.findMany({
-      where: { email: { in: defaultEmails } },
+      where: { email: { in: DEFAULT_DEMO_EMAILS } },
       select: { email: true, password: true },
     });
 
     for (const user of users) {
-      const isDefault = await bcrypt.compare('Password123!', user.password);
+      const isDefault = await bcrypt.compare(DEFAULT_DEMO_PASSWORD, user.password);
       if (isDefault) {
         logger.warn('='.repeat(70));
         logger.warn('  SECURITY WARNING: Default demo credentials detected!');

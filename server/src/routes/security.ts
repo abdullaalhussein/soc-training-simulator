@@ -2,12 +2,10 @@ import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
+import { DEFAULT_DEMO_EMAILS, DEFAULT_DEMO_PASSWORD } from '../config/constants';
 import prisma from '../lib/prisma';
 
 const router = Router();
-
-const DEFAULT_DEMO_EMAILS = ['admin@soc.local', 'trainer@soc.local', 'trainee@soc.local'];
-const DEFAULT_DEMO_PASSWORD = 'Password123!';
 
 router.use(authenticate);
 
