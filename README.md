@@ -243,7 +243,7 @@ SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anth
 
 **To enable AI features**, set your API key in `.env`:
 ```env
-ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_API_KEY=your-api-key-here
 AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
 AI_DAILY_ORG_LIMIT=500     # Organization-wide AI message cap (default: 500)
 AI_MAX_CONCURRENT=5        # Max concurrent AI API calls (default: 5)
