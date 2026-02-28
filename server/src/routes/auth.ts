@@ -200,8 +200,8 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
       path: '/',
     });
 
-    // Return user only (token is in cookie now). Also return token for backward compatibility.
-    res.json({ token: result.token, user: result.user });
+    // Token is in httpOnly cookie — only return user info in response body
+    res.json({ user: result.user });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return next(new AppError('Invalid email or password format', 400));
@@ -225,8 +225,8 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
     // C-1: Set new access token as httpOnly cookie
     res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
 
-    // Return token for backward compatibility
-    res.json({ token: result.token });
+    // Token is in httpOnly cookie — no token in response body
+    res.json({ success: true });
   } catch (error) {
     next(error);
   }

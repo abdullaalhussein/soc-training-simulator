@@ -166,14 +166,9 @@ export function initializeSocket(io: SocketIOServer) {
         return next(new Error('Server connection limit reached. Please try again later.'));
       }
 
-      // Try cookie first (C-1)
+      // C-1: Read access token from httpOnly cookie only — no localStorage fallback
       const cookies = parseCookies(socket.handshake.headers?.cookie);
-      let token = cookies['accessToken'];
-
-      // Fall back to handshake auth token
-      if (!token) {
-        token = socket.handshake.auth?.token;
-      }
+      const token = cookies['accessToken'];
 
       if (!token) {
         return next(new Error('Authentication required'));
@@ -217,16 +212,27 @@ export function initializeSocket(io: SocketIOServer) {
 
   // H-9: Setup periodic re-authentication for a socket
   function setupReauth(socket: any) {
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       try {
         const cookies = parseCookies(socket.handshake.headers?.cookie);
-        const token = cookies['accessToken'] || socket.handshake.auth?.token;
+        const token = cookies['accessToken'];
         if (!token) {
           socket.emit('error-message', { message: 'Session expired. Please refresh.' });
           socket.disconnect(true);
           return;
         }
-        AuthService.verifyToken(token);
+        const payload = AuthService.verifyToken(token);
+
+        // Check tokenVersion and isActive from DB — disconnect if revoked/deactivated
+        const user = await prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: { isActive: true, tokenVersion: true },
+        });
+        if (!user || !user.isActive || (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion)) {
+          socket.emit('error-message', { message: 'Session invalidated. Please log in again.' });
+          socket.disconnect(true);
+          return;
+        }
       } catch {
         socket.emit('error-message', { message: 'Session expired. Please refresh.' });
         socket.disconnect(true);

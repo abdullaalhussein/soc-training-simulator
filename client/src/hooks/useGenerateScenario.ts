@@ -41,14 +41,12 @@ export function useGenerateScenarioStream() {
     let accumulated = '';
 
     try {
-      const token = localStorage.getItem('token');
       const csrf = getCsrfToken();
       const res = await fetch(`${API_URL}/api/ai/generate-scenario`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
         },
         body: JSON.stringify(params),

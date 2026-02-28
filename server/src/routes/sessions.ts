@@ -100,6 +100,10 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
     } else if (role === 'TRAINEE') {
       const isMember = session.members.some((m: any) => m.userId === req.user!.userId);
       if (!isMember) throw new AppError('Access denied', 403);
+
+      // Strip other trainees' PII: only show own attempts and membership
+      (session as any).attempts = (session as any).attempts.filter((a: any) => a.userId === req.user!.userId);
+      (session as any).members = (session as any).members.filter((m: any) => m.userId === req.user!.userId);
     }
 
     res.json(session);

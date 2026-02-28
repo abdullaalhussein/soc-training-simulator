@@ -26,7 +26,7 @@ export default function LoginPage() {
 
     try {
       const { data } = await api.post('/auth/login', { email, password });
-      login(data.user, data.token);
+      login(data.user, '');
 
       switch (data.user.role) {
         case 'ADMIN':

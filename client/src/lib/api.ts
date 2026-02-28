@@ -30,13 +30,7 @@ const rawAxios = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    // C-1: Access token is now sent as httpOnly cookie automatically.
-    // Keep Authorization header as fallback for backward compatibility.
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-
+    // C-1: Access token is sent as httpOnly cookie automatically (withCredentials: true).
     // H-1: Send CSRF token from cookie as custom header (double-submit pattern)
     const csrfToken = getCookie('csrf');
     if (csrfToken) {
@@ -57,20 +51,9 @@ api.interceptors.response.use(
       if (typeof window !== 'undefined') {
         try {
           // Cookie is sent automatically via withCredentials
-          const { data } = await rawAxios.post('/auth/refresh', {});
-          const { token: newToken } = data;
+          await rawAxios.post('/auth/refresh', {});
 
-          // Update the store with the new access token
-          const { useAuthStore } = await import('@/store/authStore');
-          const store = useAuthStore.getState();
-          if (store.user) {
-            store.login(store.user, newToken);
-          }
-
-          // Retry the original request — cookie is set by server, header for fallback
-          if (newToken) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          }
+          // Server has set new httpOnly cookies — retry the original request
           return api(originalRequest);
         } catch {
           // Refresh failed — logout and redirect

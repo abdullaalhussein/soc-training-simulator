@@ -12,17 +12,8 @@ declare global {
 
 export const authenticate = (req: Request, _res: Response, next: NextFunction) => {
   try {
-    // C-1: Read access token from httpOnly cookie first, fall back to Authorization header
-    let token: string | undefined;
-
-    if (req.cookies?.accessToken) {
-      token = req.cookies.accessToken;
-    } else {
-      const authHeader = req.headers.authorization;
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.split(' ')[1];
-      }
-    }
+    // C-1: Read access token from httpOnly cookie only — no localStorage fallback
+    const token = req.cookies?.accessToken;
 
     if (!token) {
       throw new AppError('Authentication required', 401);

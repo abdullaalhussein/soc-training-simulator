@@ -118,11 +118,12 @@ export class AuthService {
   }
 
   static async refresh(refreshToken: string) {
-    // Verify the token exists in DB (not revoked)
-    const storedToken = await prisma.refreshToken.findUnique({
+    // Atomic delete: prevents race condition where two concurrent requests
+    // both pass a findUnique check and generate duplicate tokens
+    const deleted = await prisma.refreshToken.deleteMany({
       where: { token: refreshToken },
     });
-    if (!storedToken) {
+    if (deleted.count === 0) {
       throw new AppError('Invalid refresh token', 401);
     }
 
@@ -136,8 +137,6 @@ export class AuthService {
 
     // E-06: Validate tokenVersion — if role/password changed, invalidate old tokens
     if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
-      // Token was issued before a security event — delete it and reject
-      await prisma.refreshToken.delete({ where: { token: refreshToken } }).catch(() => {});
       throw new AppError('Session invalidated due to security change. Please log in again.', 401);
     }
 
@@ -152,8 +151,7 @@ export class AuthService {
     const refreshExpiresIn = getRefreshExpiresIn(user.role);
     const newRefreshToken = this.generateRefreshToken(newPayload, refreshExpiresIn);
 
-    // Token rotation: delete old token and store new one
-    await prisma.refreshToken.delete({ where: { token: refreshToken } });
+    // Store new rotated token
     await prisma.refreshToken.create({
       data: {
         token: newRefreshToken,

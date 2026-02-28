@@ -85,7 +85,6 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   // Socket for real-time hints from trainer
   useEffect(() => {
     const socket = getTraineeSocket();
-    socket.auth = { token: localStorage.getItem('token') };
     socket.connect();
     socket.emit('join-attempt', attemptId);
     if (sessionId) {

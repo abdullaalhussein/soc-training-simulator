@@ -10,10 +10,6 @@ export function getTrainerSocket(): Socket {
     trainerSocket = io(`${WS_URL}/trainer`, {
       autoConnect: false,
       withCredentials: true, // C-1: Send httpOnly cookies on handshake
-      auth: {
-        // Keep token in auth as fallback for backward compatibility
-        token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
-      },
     });
   }
   return trainerSocket;
@@ -24,10 +20,6 @@ export function getTraineeSocket(): Socket {
     traineeSocket = io(`${WS_URL}/trainee`, {
       autoConnect: false,
       withCredentials: true, // C-1: Send httpOnly cookies on handshake
-      auth: {
-        // Keep token in auth as fallback for backward compatibility
-        token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
-      },
     });
   }
   return traineeSocket;
@@ -47,16 +39,10 @@ export function disconnectAll() {
 export function reconnectAll() {
   if (trainerSocket?.connected) {
     trainerSocket.disconnect();
-    trainerSocket.auth = {
-      token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
-    };
     trainerSocket.connect();
   }
   if (traineeSocket?.connected) {
     traineeSocket.disconnect();
-    traineeSocket.auth = {
-      token: typeof window !== 'undefined' ? localStorage.getItem('token') : '',
-    };
     traineeSocket.connect();
   }
 }

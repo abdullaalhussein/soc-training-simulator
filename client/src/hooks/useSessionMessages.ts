@@ -39,7 +39,6 @@ export function useSessionMessages(sessionId: string | undefined) {
 
     // Ensure socket is connected and joined to the session room
     if (!socket.connected) {
-      socket.auth = { token: localStorage.getItem('token') };
       socket.connect();
     }
     socket.emit('join-session', sessionId);

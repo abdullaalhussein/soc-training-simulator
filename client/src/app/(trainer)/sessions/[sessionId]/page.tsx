@@ -214,7 +214,6 @@ export default function SessionMonitorPage() {
   // Socket.io for real-time updates
   useEffect(() => {
     const socket = getTrainerSocket();
-    socket.auth = { token: localStorage.getItem('token') };
     socket.connect();
     socket.emit('join-session', sessionId);
 
