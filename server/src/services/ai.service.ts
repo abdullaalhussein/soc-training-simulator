@@ -27,6 +27,7 @@ export class AIService {
     answer: string,
     keywords: string[],
     scenarioContext?: string,
+    referenceAnswer?: string,
   ): Promise<{ score: number; feedback: string } | null> {
     if (!this.isAvailable()) return null;
 
@@ -42,7 +43,7 @@ Return ONLY a JSON object with this exact format:
           {
             role: 'user',
             content: `${scenarioContext ? `Scenario context: ${scenarioContext}\n\n` : ''}Question: ${question}
-
+${referenceAnswer ? `\nReference answer (for comparison): ${referenceAnswer}\n` : ''}
 Expected keywords/concepts: ${keywords.join(', ')}
 
 Trainee's answer: ${answer}
@@ -396,7 +397,7 @@ The JSON must follow this exact schema:
       "checkpointType": "TRUE_FALSE | MULTIPLE_CHOICE | SEVERITY_CLASSIFICATION | RECOMMENDED_ACTION | SHORT_ANSWER | EVIDENCE_SELECTION | INCIDENT_REPORT",
       "question": "string",
       "options": ["string", ...] | null (required for MULTIPLE_CHOICE, RECOMMENDED_ACTION, EVIDENCE_SELECTION),
-      "correctAnswer": any (type-specific),
+      "correctAnswer": (format depends on checkpointType — see rules below),
       "points": number (5-15),
       "category": "accuracy | response | report | null",
       "explanation": "string — shown after answering",
@@ -404,6 +405,15 @@ The JSON must follow this exact schema:
     }
   ]
 }
+
+CRITICAL — correctAnswer format rules (scoring will break if these are wrong):
+- TRUE_FALSE: boolean (true or false)
+- MULTIPLE_CHOICE: string that exactly matches one of the "options" strings
+- SEVERITY_CLASSIFICATION: plain string, one of "LOW", "MEDIUM", "HIGH", "CRITICAL" (no descriptions, no dashes)
+- SHORT_ANSWER: array of keyword strings, e.g. ["lateral movement", "mimikatz", "pass-the-hash"]
+- EVIDENCE_SELECTION: array of strings, each exactly matching one of the "options" strings
+- RECOMMENDED_ACTION: string that exactly matches one of the "options" strings
+- INCIDENT_REPORT: object {"keywords": ["keyword1", "keyword2", ...], "minRecommendations": number}
 
 Difficulty-based structure (FOLLOW STRICTLY based on the difficulty level):
 

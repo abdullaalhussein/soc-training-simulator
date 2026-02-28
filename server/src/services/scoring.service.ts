@@ -4,6 +4,23 @@ import prisma from '../lib/prisma';
 import { AIService } from './ai.service';
 
 export class ScoringService {
+  /** Extract significant keywords from a text string, filtering out stop words */
+  private static extractKeywords(text: string): string[] {
+    const stopWords = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','by','from','is','was','were','are','been','be','have','has','had','do','does','did','will','would','could','should','may','might','shall','can','that','this','these','those','it','its','he','she','they','we','you','i','not','no','as','if','then','than','so','into','over','after','before','about','between','through','during','up','out','their','his','her','our','your','my','all','each','every','both','few','more','most','some','any','other','such','only','also','just','which','who','whom','what','when','where','how','why','very','too','quite','rather','approximately']);
+    const words = text.toLowerCase().match(/[a-z0-9][a-z0-9.-]+/g) || [];
+    const keywordSet = new Set<string>();
+    for (const w of words) {
+      if (w.length >= 3 && !stopWords.has(w)) keywordSet.add(w);
+    }
+    return Array.from(keywordSet);
+  }
+
+  /** Extract severity prefix from a potentially descriptive string like "CRITICAL — detailed description" */
+  private static extractSeverityPrefix(value: string): string {
+    const match = String(value).trim().match(/^(LOW|MEDIUM|HIGH|CRITICAL|CATASTROPHIC)\b/i);
+    return match ? match[1].toUpperCase() : String(value).trim().toUpperCase();
+  }
+
   static async gradeAnswer(
     checkpoint: any,
     answer: any,
@@ -12,8 +29,7 @@ export class ScoringService {
     const { checkpointType, correctAnswer, points } = checkpoint;
 
     switch (checkpointType) {
-      case 'TRUE_FALSE':
-      case 'SEVERITY_CLASSIFICATION': {
+      case 'TRUE_FALSE': {
         const isCorrect = String(answer).toLowerCase() === String(correctAnswer).toLowerCase();
         const feedback = await AIService.getCheckpointFeedback(
           checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
@@ -21,8 +37,40 @@ export class ScoringService {
         return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || checkpoint.explanation || undefined };
       }
 
-      case 'MULTIPLE_CHOICE':
+      case 'SEVERITY_CLASSIFICATION': {
+        // Extract severity prefix to handle "CRITICAL — description..." formats
+        const answerSev = this.extractSeverityPrefix(String(answer));
+        const correctSev = this.extractSeverityPrefix(String(correctAnswer));
+        const isCorrect = answerSev === correctSev;
+        const feedback = await AIService.getCheckpointFeedback(
+          checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
+        );
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || checkpoint.explanation || undefined };
+      }
+
+      case 'MULTIPLE_CHOICE': {
+        const isCorrect = String(answer) === String(correctAnswer);
+        const feedback = await AIService.getCheckpointFeedback(
+          checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
+        );
+        return { isCorrect, pointsAwarded: isCorrect ? points : 0, feedback: feedback || checkpoint.explanation || undefined };
+      }
+
       case 'RECOMMENDED_ACTION': {
+        // Handle both string correctAnswer (single select) and array correctAnswer (multi-select)
+        if (Array.isArray(correctAnswer)) {
+          const selected = Array.isArray(answer) ? answer : [answer];
+          const correct = correctAnswer as string[];
+          const truePositives = selected.filter((s: string) => correct.includes(s)).length;
+          const precision = selected.length > 0 ? truePositives / selected.length : 0;
+          const recall = correct.length > 0 ? truePositives / correct.length : 0;
+          const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+          const isCorrect = f1 >= 0.8;
+          const feedback = await AIService.getCheckpointFeedback(
+            checkpoint.question, checkpointType, selected.join(', '), correct.join(', '), isCorrect, scenarioContext,
+          );
+          return { isCorrect, pointsAwarded: Math.round(f1 * points * 10) / 10, feedback: feedback || checkpoint.explanation || undefined };
+        }
         const isCorrect = String(answer) === String(correctAnswer);
         const feedback = await AIService.getCheckpointFeedback(
           checkpoint.question, checkpointType, String(answer), String(correctAnswer), isCorrect, scenarioContext,
@@ -47,7 +95,17 @@ export class ScoringService {
       }
 
       case 'SHORT_ANSWER': {
-        const keywords = Array.isArray(correctAnswer) ? correctAnswer : (correctAnswer.keywords || []);
+        let keywords: string[];
+        let referenceAnswer: string | undefined;
+        if (Array.isArray(correctAnswer)) {
+          keywords = correctAnswer;
+        } else if (typeof correctAnswer === 'object' && correctAnswer !== null && correctAnswer.keywords) {
+          keywords = correctAnswer.keywords;
+        } else {
+          // correctAnswer is a plain string — extract keywords and keep as reference
+          referenceAnswer = String(correctAnswer);
+          keywords = this.extractKeywords(referenceAnswer);
+        }
 
         // Try AI grading first
         const aiShortResult = await AIService.gradeShortAnswer(
@@ -55,6 +113,7 @@ export class ScoringService {
           String(answer),
           keywords,
           scenarioContext,
+          referenceAnswer,
         );
 
         if (aiShortResult) {
@@ -81,14 +140,7 @@ export class ScoringService {
           expected = { keywords: correctAnswer.keywords || [], minRecommendations: correctAnswer.minRecommendations || 3 };
         } else {
           // correctAnswer is a plain string — extract significant words as keywords for matching
-          const answerText = String(correctAnswer || '');
-          const stopWords = new Set(['the','a','an','and','or','but','in','on','at','to','for','of','with','by','from','is','was','were','are','been','be','have','has','had','do','does','did','will','would','could','should','may','might','shall','can','that','this','these','those','it','its','he','she','they','we','you','i','not','no','as','if','then','than','so','into','over','after','before','about','between','through','during','up','out','their','his','her','our','your','my','all','each','every','both','few','more','most','some','any','other','such','only','also','just','which','who','whom','what','when','where','how','why','very','too','quite','rather','approximately']);
-          const words = answerText.toLowerCase().match(/[a-z0-9][a-z0-9.-]+/g) || [];
-          const keywordSet = new Set<string>();
-          for (const w of words) {
-            if (w.length >= 3 && !stopWords.has(w)) keywordSet.add(w);
-          }
-          expected = { keywords: Array.from(keywordSet), minRecommendations: 0 };
+          expected = { keywords: this.extractKeywords(String(correctAnswer || '')), minRecommendations: 0 };
         }
 
         // Try AI grading first

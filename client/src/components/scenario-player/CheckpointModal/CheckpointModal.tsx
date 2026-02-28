@@ -91,8 +91,10 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
       case 'TRUE_FALSE':
         return `Correct answer: ${correct === true || correct === 'true' ? 'True' : 'False'}`;
       case 'MULTIPLE_CHOICE':
-      case 'RECOMMENDED_ACTION':
       case 'SEVERITY_CLASSIFICATION':
+        return `Correct answer: ${correct}`;
+      case 'RECOMMENDED_ACTION':
+        if (Array.isArray(correct)) return `Correct actions: ${correct.join(', ')}`;
         return `Correct answer: ${correct}`;
       case 'SHORT_ANSWER':
         if (Array.isArray(correct)) return `Expected keywords: ${correct.join(', ')}`;
@@ -139,7 +141,6 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
         );
 
       case 'MULTIPLE_CHOICE':
-      case 'RECOMMENDED_ACTION':
         return (
           <RadioGroup
             value={answers[cp.id] || ''}
@@ -154,13 +155,54 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
           </RadioGroup>
         );
 
-      case 'SEVERITY_CLASSIFICATION':
+      case 'RECOMMENDED_ACTION': {
+        // Detect multi-select from question text or array correctAnswer
+        const isMultiSelect = /select\s+all/i.test(cp.question) || (cp.options && cp.options.length > 2 && /which.*actions?/i.test(cp.question));
+        if (isMultiSelect) {
+          return (
+            <div className="space-y-2">
+              {cp.options?.map((opt: string, i: number) => (
+                <div key={i} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`ra-${i}`}
+                    checked={(answers[cp.id] || []).includes(opt)}
+                    onCheckedChange={(checked) => {
+                      const current = answers[cp.id] || [];
+                      const updated = checked
+                        ? [...current, opt]
+                        : current.filter((v: string) => v !== opt);
+                      setAnswers({ ...answers, [cp.id]: updated });
+                    }}
+                  />
+                  <Label htmlFor={`ra-${i}`}>{opt}</Label>
+                </div>
+              ))}
+            </div>
+          );
+        }
         return (
           <RadioGroup
             value={answers[cp.id] || ''}
             onValueChange={(v) => setAnswers({ ...answers, [cp.id]: v })}
           >
-            {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((sev) => (
+            {cp.options?.map((opt: string, i: number) => (
+              <div key={i} className="flex items-center space-x-2">
+                <RadioGroupItem value={opt} id={`opt-${i}`} />
+                <Label htmlFor={`opt-${i}`}>{opt}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        );
+      }
+
+      case 'SEVERITY_CLASSIFICATION': {
+        const severityOptions = cp.options?.length ? cp.options : ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+        return (
+          <RadioGroup
+            value={answers[cp.id] || ''}
+            onValueChange={(v) => setAnswers({ ...answers, [cp.id]: v })}
+          >
+            {severityOptions.map((sev: string) => (
               <div key={sev} className="flex items-center space-x-2">
                 <RadioGroupItem value={sev} id={`sev-${sev}`} />
                 <Label htmlFor={`sev-${sev}`}>{sev}</Label>
@@ -168,6 +210,7 @@ export function CheckpointModal({ checkpoints, attemptId, onComplete, onClose, o
             ))}
           </RadioGroup>
         );
+      }
 
       case 'EVIDENCE_SELECTION':
         return (

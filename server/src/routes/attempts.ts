@@ -152,6 +152,78 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// Batch re-grade attempts (ADMIN only) — must be before /:id routes
+router.post('/regrade-batch', requireRole('ADMIN'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { sessionId, scenarioId } = z.object({
+      sessionId: z.string().optional(),
+      scenarioId: z.string().optional(),
+    }).parse(req.body);
+
+    if (!sessionId && !scenarioId) throw new AppError('Either sessionId or scenarioId is required', 400);
+
+    const where: any = { status: 'COMPLETED' };
+    if (sessionId) where.sessionId = sessionId;
+    if (scenarioId) where.session = { scenarioId };
+
+    const attempts = await prisma.attempt.findMany({
+      where,
+      select: { id: true },
+      take: 100,
+      orderBy: { completedAt: 'desc' },
+    });
+
+    const batchResults: { attemptId: string; oldTotal: number; newTotal: number }[] = [];
+
+    for (const { id: attemptId } of attempts) {
+      const attempt = await prisma.attempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          answers: { include: { checkpoint: true } },
+          session: { include: { scenario: { select: { briefing: true } } } },
+        },
+      });
+      if (!attempt) continue;
+
+      const scenarioContext = attempt.session?.scenario?.briefing;
+      const oldTotal = attempt.totalScore;
+
+      for (const ans of attempt.answers) {
+        const { isCorrect, pointsAwarded, feedback } = await ScoringService.gradeAnswer(ans.checkpoint, ans.answer, scenarioContext);
+        await prisma.answer.update({
+          where: { id: ans.id },
+          data: { isCorrect, pointsAwarded, feedback: feedback || null },
+        });
+      }
+
+      await ScoringService.recalculateScores(attemptId);
+      const updated = await prisma.attempt.findUnique({ where: { id: attemptId } });
+      batchResults.push({ attemptId, oldTotal, newTotal: updated?.totalScore ?? 0 });
+    }
+
+    // Audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          action: 'ATTEMPT_REGRADE_BATCH',
+          resource: 'attempt',
+          resourceId: sessionId || scenarioId || 'batch',
+          details: { count: batchResults.length, sessionId, scenarioId },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch { /* non-fatal */ }
+
+    res.json({ count: batchResults.length, results: batchResults });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
+    }
+    next(error);
+  }
+});
+
 // Get attempt details
 router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -576,6 +648,73 @@ router.post('/:id/retake', requireRole('ADMIN', 'TRAINER'), async (req: Request,
     });
 
     res.status(201).json(newAttempt);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Re-grade a single attempt (ADMIN/TRAINER only)
+router.post('/:id/regrade', requireRole('ADMIN', 'TRAINER'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const attemptId = req.params.id as string;
+    const attempt = await prisma.attempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        answers: { include: { checkpoint: true } },
+        session: { include: { scenario: { select: { briefing: true } } } },
+      },
+    });
+    if (!attempt) throw new AppError('Attempt not found', 404);
+    if (attempt.status !== 'COMPLETED') throw new AppError('Only completed attempts can be re-graded', 400);
+
+    const scenarioContext = attempt.session?.scenario?.briefing;
+    const results: { checkpointId: string; question: string; oldScore: number; newScore: number; oldCorrect: boolean; newCorrect: boolean }[] = [];
+
+    for (const ans of attempt.answers) {
+      const oldScore = ans.pointsAwarded;
+      const oldCorrect = ans.isCorrect;
+      const { isCorrect, pointsAwarded, feedback } = await ScoringService.gradeAnswer(ans.checkpoint, ans.answer, scenarioContext);
+
+      await prisma.answer.update({
+        where: { id: ans.id },
+        data: { isCorrect, pointsAwarded, feedback: feedback || null },
+      });
+
+      results.push({
+        checkpointId: ans.checkpointId,
+        question: ans.checkpoint.question,
+        oldScore,
+        newScore: pointsAwarded,
+        oldCorrect,
+        newCorrect: isCorrect,
+      });
+    }
+
+    // Recalculate dimension scores
+    const oldTotal = attempt.totalScore;
+    await ScoringService.recalculateScores(attemptId);
+    const updated = await prisma.attempt.findUnique({ where: { id: attemptId } });
+
+    // Audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId: req.user!.userId,
+          action: 'ATTEMPT_REGRADE',
+          resource: 'attempt',
+          resourceId: attemptId,
+          details: { oldTotal, newTotal: updated?.totalScore, changedAnswers: results.filter(r => r.oldScore !== r.newScore).length },
+          ipAddress: req.ip || req.socket.remoteAddress,
+        },
+      });
+    } catch { /* non-fatal */ }
+
+    res.json({
+      attemptId,
+      oldTotal,
+      newTotal: updated?.totalScore,
+      answers: results,
+    });
   } catch (error) {
     next(error);
   }
