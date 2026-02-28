@@ -343,6 +343,14 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
     const checkpoint = await prisma.checkpoint.findUnique({ where: { id: checkpointId } });
     if (!checkpoint) throw new AppError('Checkpoint not found', 404);
 
+    // SEC-03: Prevent answer resubmission (blocks answer harvesting exploit)
+    const existingAnswer = await prisma.answer.findUnique({
+      where: { attemptId_checkpointId: { attemptId, checkpointId } },
+    });
+    if (existingAnswer) {
+      return res.json(existingAnswer);
+    }
+
     // Fetch scenario briefing for AI context
     let scenarioContext: string | undefined;
     try {
@@ -355,10 +363,9 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
 
     const { isCorrect, pointsAwarded, feedback } = await ScoringService.gradeAnswer(checkpoint, answer, scenarioContext);
 
-    const savedAnswer = await prisma.answer.upsert({
-      where: { attemptId_checkpointId: { attemptId, checkpointId } },
-      update: { answer, isCorrect, pointsAwarded, feedback: feedback || null },
-      create: { attemptId, checkpointId, answer, isCorrect, pointsAwarded, feedback: feedback || null },
+    // SEC-03: Use create (not upsert) — resubmission blocked above
+    const savedAnswer = await prisma.answer.create({
+      data: { attemptId, checkpointId, answer, isCorrect, pointsAwarded, feedback: feedback || null },
     });
 
     // Recalculate scores
@@ -380,7 +387,8 @@ router.post('/:id/answers', async (req: Request, res: Response, next: NextFuncti
 
     const response: any = { ...savedAnswer, feedback: savedAnswer.feedback || feedback || undefined };
 
-    // Include correct answer + explanation on wrong answers for all difficulty levels
+    // SEC-03: correctAnswer is safe to show for learning feedback because
+    // resubmission is blocked above — trainee can't exploit it for points
     if (!isCorrect) {
       response.correctAnswer = checkpoint.correctAnswer;
       response.explanation = checkpoint.explanation;
@@ -431,6 +439,16 @@ router.post('/:id/hints', async (req: Request, res: Response, next: NextFunction
     const { hintId } = z.object({ hintId: z.string().min(1, 'hintId is required') }).parse(req.body);
     const hint = await prisma.hint.findUnique({ where: { id: hintId } });
     if (!hint) throw new AppError('Hint not found', 404);
+
+    // RC-02: Check if hint was already requested for this attempt (prevent replay)
+    const alreadyUsed = await prisma.investigationAction.findFirst({
+      where: { attemptId, actionType: 'HINT_REQUESTED', details: { path: ['hintId'], equals: hintId } },
+    });
+
+    if (alreadyUsed) {
+      // Return hint content without applying penalty again
+      return res.json({ content: hint.content, penalty: 0, alreadyUsed: true });
+    }
 
     await prisma.attempt.update({
       where: { id: attemptId },
