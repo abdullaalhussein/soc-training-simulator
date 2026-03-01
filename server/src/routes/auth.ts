@@ -215,8 +215,9 @@ router.post('/login', authRateLimit, async (req: Request, res: Response, next: N
       path: '/',
     });
 
-    // Token is in httpOnly cookie — only return user info in response body
-    res.json({ user: result.user });
+    // Token is in httpOnly cookie — return user info + CSRF token in response body
+    // (Cross-origin deployments can't read the csrf cookie via document.cookie)
+    res.json({ user: result.user, csrfToken });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return next(new AppError('Invalid email or password format', 400));
@@ -251,8 +252,9 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
       path: '/',
     });
 
-    // Token is in httpOnly cookie — no token in response body
-    res.json({ success: true });
+    // Token is in httpOnly cookie — return CSRF token in response body
+    // (Cross-origin deployments can't read the csrf cookie via document.cookie)
+    res.json({ success: true, csrfToken });
   } catch (error) {
     next(error);
   }

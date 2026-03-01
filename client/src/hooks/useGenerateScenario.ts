@@ -1,14 +1,9 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { getCsrfToken } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-
-function getCsrfToken(): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const match = document.cookie.match(/(?:^|;\s*)csrf=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : undefined;
-}
 
 interface GenerateScenarioParams {
   description: string;

@@ -4,11 +4,18 @@ import axios from 'axios';
 // In development, use the explicit API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-/** Read a cookie by name from document.cookie */
-function getCookie(name: string): string | undefined {
-  if (typeof document === 'undefined') return undefined;
-  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : undefined;
+// H-1: In-memory CSRF token storage.
+// Cross-origin deployments (e.g., Railway) set the csrf cookie on the server's domain,
+// which document.cookie can't read from the client's domain. The server returns the
+// CSRF token in the login/refresh response body, and we store it here.
+let _csrfToken: string | null = null;
+
+export function setCsrfToken(token: string) {
+  _csrfToken = token;
+}
+
+export function getCsrfToken(): string | null {
+  return _csrfToken;
 }
 
 export const api = axios.create({
@@ -31,10 +38,9 @@ const rawAxios = axios.create({
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     // C-1: Access token is sent as httpOnly cookie automatically (withCredentials: true).
-    // H-1: Send CSRF token from cookie as custom header (double-submit pattern)
-    const csrfToken = getCookie('csrf');
-    if (csrfToken) {
-      config.headers['X-CSRF-Token'] = csrfToken;
+    // H-1: Send CSRF token from in-memory storage as custom header (double-submit pattern)
+    if (_csrfToken) {
+      config.headers['X-CSRF-Token'] = _csrfToken;
     }
   }
   return config;
@@ -51,7 +57,12 @@ api.interceptors.response.use(
       if (typeof window !== 'undefined') {
         try {
           // Cookie is sent automatically via withCredentials
-          await rawAxios.post('/auth/refresh', {});
+          const { data } = await rawAxios.post('/auth/refresh', {});
+
+          // Store new CSRF token from refresh response
+          if (data.csrfToken) {
+            _csrfToken = data.csrfToken;
+          }
 
           // Server has set new httpOnly cookies — retry the original request
           return api(originalRequest);
@@ -59,6 +70,7 @@ api.interceptors.response.use(
           // Refresh failed — logout and redirect
           const { useAuthStore } = await import('@/store/authStore');
           useAuthStore.getState().logout();
+          _csrfToken = null;
           window.location.href = '/login';
           return Promise.reject(error);
         }
