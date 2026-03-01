@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { useState } from 'react';
 import { BookOpen, Trophy, Target, Clock } from 'lucide-react';
+import { toast } from '@/components/ui/toaster';
 
 const difficultyColors: Record<string, string> = {
   BEGINNER: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
@@ -42,8 +43,10 @@ export default function TraineeDashboard() {
     try {
       const { data: attempt } = await api.post('/attempts/start', { sessionId });
       router.push(`/scenario/${attempt.id}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start attempt:', err);
+      const message = err?.response?.data?.error?.message || 'Failed to start investigation. Please try logging out and back in.';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setStarting(null);
     }
