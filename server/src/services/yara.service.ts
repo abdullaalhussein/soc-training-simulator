@@ -77,13 +77,25 @@ export class YaraService {
       return 'Rule rejected: nested quantifiers detected (potential ReDoS). Simplify the regex pattern.';
     }
 
-    // Check for excessive repetition counts {N,} where N > 10000
-    const repetitionMatch = ruleText.match(/\{(\d+),\}/g);
-    if (repetitionMatch) {
-      for (const match of repetitionMatch) {
+    // Check for excessive repetition counts {N,} or {N,M} where N or M > 10000
+    const unboundedMatch = ruleText.match(/\{(\d+),\}/g);
+    if (unboundedMatch) {
+      for (const match of unboundedMatch) {
         const n = parseInt(match.replace(/[{}]/g, '').replace(',', ''), 10);
         if (n > 10000) {
           return `Rule rejected: excessive repetition count ({${n},}). Maximum allowed is {10000,}.`;
+        }
+      }
+    }
+
+    // M-7: Check bounded repetition {N,M} where M > 10000
+    const boundedMatch = ruleText.match(/\{(\d+),(\d+)\}/g);
+    if (boundedMatch) {
+      for (const match of boundedMatch) {
+        const parts = match.replace(/[{}]/g, '').split(',');
+        const m = parseInt(parts[1], 10);
+        if (m > 10000) {
+          return `Rule rejected: excessive bounded repetition ({${parts[0]},${m}}). Maximum upper bound is 10000.`;
         }
       }
     }

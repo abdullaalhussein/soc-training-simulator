@@ -15,3 +15,7 @@ playwright-report/
 test-results/
 pg-data/
 video/public/clips/
+nul
+nul.mp4
+out/
+tmp-*

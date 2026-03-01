@@ -1,8 +1,12 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AppError } from '../middleware/errorHandler';
 import prisma from '../lib/prisma';
+
+// M-1: Pre-hashed dummy value for timing-safe rejection of non-existent users
+const DUMMY_HASH = '$2a$12$LJ3m4ys3Lg8L/6RmqWMcaOYEkVbRMqqGHMsKvNP2hFak.HYBfGm3e';
 
 export interface TokenPayload {
   userId: string;
@@ -61,6 +65,11 @@ export class AuthService {
     }
   }
 
+  // M-2: Hash refresh token with SHA-256 before DB storage
+  static hashRefreshToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
   // E-06: Expose role-based refresh helpers for use in auth routes
   static getRefreshExpiresIn = getRefreshExpiresIn;
   static getRefreshMaxAgeMs = getRefreshMaxAgeMs;
@@ -68,6 +77,8 @@ export class AuthService {
   static async login(email: string, password: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
+      // M-1: Perform dummy bcrypt compare to prevent timing-based user enumeration
+      await bcrypt.compare(password, DUMMY_HASH);
       throw new AppError('Invalid email or password', 401);
     }
 
@@ -96,10 +107,10 @@ export class AuthService {
     const refreshExpiresIn = getRefreshExpiresIn(user.role);
     const refreshToken = this.generateRefreshToken(payload, refreshExpiresIn);
 
-    // Store refresh token in DB for revocation support
+    // M-2: Store SHA-256 hash of refresh token (not plaintext) for revocation support
     await prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: this.hashRefreshToken(refreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + getRefreshMaxAgeMs(user.role)),
       },
@@ -118,10 +129,13 @@ export class AuthService {
   }
 
   static async refresh(refreshToken: string) {
+    // M-2: Look up by SHA-256 hash of the token
+    const tokenHash = this.hashRefreshToken(refreshToken);
+
     // Atomic delete: prevents race condition where two concurrent requests
     // both pass a findUnique check and generate duplicate tokens
     const deleted = await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
+      where: { token: tokenHash },
     });
     if (deleted.count === 0) {
       throw new AppError('Invalid refresh token', 401);
@@ -151,10 +165,10 @@ export class AuthService {
     const refreshExpiresIn = getRefreshExpiresIn(user.role);
     const newRefreshToken = this.generateRefreshToken(newPayload, refreshExpiresIn);
 
-    // Store new rotated token
+    // M-2: Store SHA-256 hash of new rotated token
     await prisma.refreshToken.create({
       data: {
-        token: newRefreshToken,
+        token: this.hashRefreshToken(newRefreshToken),
         userId: user.id,
         expiresAt: new Date(Date.now() + getRefreshMaxAgeMs(user.role)),
       },
@@ -168,8 +182,9 @@ export class AuthService {
   }
 
   static async logout(refreshToken: string) {
+    // M-2: Delete by SHA-256 hash
     await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
+      where: { token: this.hashRefreshToken(refreshToken) },
     });
   }
 
