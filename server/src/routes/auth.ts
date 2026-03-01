@@ -240,6 +240,17 @@ router.post('/refresh', authRateLimit, async (req: Request, res: Response, next:
     // C-1: Set new access token as httpOnly cookie
     res.cookie('accessToken', result.token, ACCESS_COOKIE_OPTIONS);
 
+    // H-1: Regenerate CSRF cookie on refresh (must stay in sync with access token lifetime)
+    const crypto = await import('crypto');
+    const csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('csrf', csrfToken, {
+      httpOnly: false,
+      secure: isProduction,
+      sameSite: COOKIE_SAME_SITE,
+      maxAge: 4 * 60 * 60 * 1000,
+      path: '/',
+    });
+
     // Token is in httpOnly cookie — no token in response body
     res.json({ success: true });
   } catch (error) {
