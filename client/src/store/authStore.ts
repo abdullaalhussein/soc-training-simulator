@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { disconnectAll } from '@/lib/socket';
-import { api } from '@/lib/api';
+import { api, clearCsrfToken } from '@/lib/api';
 
 export interface User {
   id: string;
@@ -36,6 +36,7 @@ export const useAuthStore = create<AuthState>()(
         // Best-effort server-side token revocation (cookies sent automatically)
         try { api.post('/auth/logout', {}); } catch {}
         disconnectAll();
+        clearCsrfToken();
         set({ user: null, token: null, isAuthenticated: false });
       },
       setUser: (user) => set({ user }),

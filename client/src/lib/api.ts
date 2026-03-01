@@ -4,18 +4,32 @@ import axios from 'axios';
 // In development, use the explicit API URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-// H-1: In-memory CSRF token storage.
+// H-1: CSRF token storage with localStorage persistence.
 // Cross-origin deployments (e.g., Railway) set the csrf cookie on the server's domain,
 // which document.cookie can't read from the client's domain. The server returns the
-// CSRF token in the login/refresh response body, and we store it here.
-let _csrfToken: string | null = null;
+// CSRF token in the login/refresh response body, and we persist it in localStorage
+// so it survives page refreshes.
+const CSRF_STORAGE_KEY = 'csrf_token';
+
+let _csrfToken: string | null =
+  typeof window !== 'undefined' ? localStorage.getItem(CSRF_STORAGE_KEY) : null;
 
 export function setCsrfToken(token: string) {
   _csrfToken = token;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(CSRF_STORAGE_KEY, token);
+  }
 }
 
 export function getCsrfToken(): string | null {
   return _csrfToken;
+}
+
+export function clearCsrfToken() {
+  _csrfToken = null;
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(CSRF_STORAGE_KEY);
+  }
 }
 
 export const api = axios.create({
@@ -61,7 +75,7 @@ api.interceptors.response.use(
 
           // Store new CSRF token from refresh response
           if (data.csrfToken) {
-            _csrfToken = data.csrfToken;
+            setCsrfToken(data.csrfToken);
           }
 
           // Server has set new httpOnly cookies — retry the original request
@@ -70,7 +84,7 @@ api.interceptors.response.use(
           // Refresh failed — logout and redirect
           const { useAuthStore } = await import('@/store/authStore');
           useAuthStore.getState().logout();
-          _csrfToken = null;
+          clearCsrfToken();
           window.location.href = '/login';
           return Promise.reject(error);
         }
