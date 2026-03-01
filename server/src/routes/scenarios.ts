@@ -34,8 +34,10 @@ const checkpointSchema = z.object({
   stageNumber: z.number().int().positive(),
   checkpointType: z.enum(['TRUE_FALSE', 'MULTIPLE_CHOICE', 'SEVERITY_CLASSIFICATION', 'RECOMMENDED_ACTION', 'SHORT_ANSWER', 'EVIDENCE_SELECTION', 'INCIDENT_REPORT', 'YARA_RULE']),
   question: z.string().min(1),
-  options: z.any().optional(),
-  correctAnswer: z.any(),
+  // IV-01: Tighten from z.any() — options is always string[] or null
+  options: z.array(z.string()).nullable().optional(),
+  // IV-01: Tighten from z.any() — correctAnswer varies by type but is always a known shape
+  correctAnswer: z.union([z.string(), z.boolean(), z.number(), z.array(z.string()), z.record(z.string(), z.unknown())]),
   points: z.number().int().min(0).optional(),
   category: z.string().nullable().optional(),
   explanation: z.string().min(1, 'Explanation is required'),
@@ -44,7 +46,8 @@ const checkpointSchema = z.object({
 
 const logSchema = z.object({
   logType: z.enum(['WINDOWS_EVENT', 'SYSMON', 'EDR_ALERT', 'NETWORK_FLOW', 'SIEM_ALERT', 'FIREWALL', 'PROXY', 'DNS', 'EMAIL_GATEWAY', 'AUTH_LOG']),
-  rawLog: z.any(),
+  // IV-01: Tighten from z.any() — rawLog is either a JSON string or structured object
+  rawLog: z.union([z.string(), z.record(z.string(), z.unknown()), z.array(z.unknown())]),
   timestamp: z.string().or(z.date()),
   summary: z.string(),
   severity: z.string().optional(),
@@ -57,6 +60,18 @@ const logSchema = z.object({
   isEvidence: z.boolean().optional(),
   evidenceTag: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+});
+
+// IV-01: Schemas for nested arrays in bulk create/import
+const hintSchema = z.object({
+  content: z.string().min(1),
+  pointsPenalty: z.number().int().min(0).optional(),
+  sortOrder: z.number().int().min(0).optional(),
+});
+
+const fullStageSchema = stageSchema.extend({
+  logs: z.array(logSchema).optional(),
+  hints: z.array(hintSchema).optional(),
 });
 
 router.use(authenticate);
@@ -138,20 +153,24 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
     const { stages, checkpoints, ...rawData } = req.body;
     const scenarioData = scenarioSchema.parse(rawData);
 
+    // IV-01: Validate nested arrays before use
+    const validatedStages = stages ? z.array(fullStageSchema).parse(stages) : undefined;
+    const validatedCheckpoints = checkpoints ? z.array(checkpointSchema).parse(checkpoints) : undefined;
+
     const scenario = await prisma.scenario.create({
       data: {
         ...scenarioData,
-        stages: stages ? {
-          create: stages.map((s: any) => ({
+        stages: validatedStages ? {
+          create: validatedStages.map((s) => ({
             stageNumber: s.stageNumber,
             title: s.title,
             description: s.description,
             unlockCondition: s.unlockCondition || 'AFTER_PREVIOUS',
             unlockDelay: s.unlockDelay,
             logs: s.logs ? {
-              create: s.logs.map((l: any) => ({
+              create: s.logs.map((l) => ({
                 logType: l.logType,
-                rawLog: l.rawLog,
+                rawLog: l.rawLog as any,
                 summary: l.summary,
                 severity: l.severity || 'INFO',
                 hostname: l.hostname,
@@ -167,7 +186,7 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
               })),
             } : undefined,
             hints: s.hints ? {
-              create: s.hints.map((h: any) => ({
+              create: s.hints.map((h) => ({
                 content: h.content,
                 pointsPenalty: h.pointsPenalty || 5,
                 sortOrder: h.sortOrder || 0,
@@ -175,13 +194,13 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
             } : undefined,
           })),
         } : undefined,
-        checkpoints: checkpoints ? {
-          create: checkpoints.map((c: any) => ({
+        checkpoints: validatedCheckpoints ? {
+          create: validatedCheckpoints.map((c) => ({
             stageNumber: c.stageNumber,
             checkpointType: c.checkpointType,
             question: c.question,
-            options: c.options,
-            correctAnswer: c.correctAnswer,
+            options: c.options as any,
+            correctAnswer: c.correctAnswer as any,
             points: c.points || 10,
             category: c.category,
             explanation: c.explanation,
@@ -198,7 +217,7 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
     // M-10: Scan scenario content for prompt injection patterns
     const scanResult = scanScenarioContent({
       briefing: scenarioData.briefing,
-      stages: stages?.map((s: any) => ({ title: s.title, description: s.description })),
+      stages: validatedStages?.map((s) => ({ title: s.title, description: s.description })),
     });
     if (!scanResult.safe) {
       logger.warn('Scenario content flagged for potential prompt injection', {
@@ -210,7 +229,7 @@ router.post('/', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCENARIO')
     // T-03: Non-blocking AI-powered injection risk scoring
     const allContent = [
       scenarioData.briefing || '',
-      ...(stages || []).map((s: any) => `${s.title} ${s.description}`),
+      ...(validatedStages || []).map((s) => `${s.title} ${s.description}`),
     ].join('\n');
     AIService.scoreInjectionRisk(allContent).then(result => {
       if (result && result.riskScore > 0.5) {
@@ -243,29 +262,33 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
     const scenarioData = scenarioSchema.partial().parse(rawData);
 
     if (stages || checkpoints) {
+      // IV-01: Validate nested arrays before use
+      const validatedStages = stages ? z.array(fullStageSchema).parse(stages) : undefined;
+      const validatedCheckpoints = checkpoints ? z.array(checkpointSchema).parse(checkpoints) : undefined;
+
       // Full edit: delete old nested data and recreate in a transaction
       const scenario = await prisma.$transaction(async (tx) => {
-        if (stages) {
+        if (validatedStages) {
           await tx.scenarioStage.deleteMany({ where: { scenarioId } });
         }
-        if (checkpoints) {
+        if (validatedCheckpoints) {
           await tx.checkpoint.deleteMany({ where: { scenarioId } });
         }
         return tx.scenario.update({
           where: { id: scenarioId },
           data: {
             ...scenarioData,
-            stages: stages ? {
-              create: stages.map((s: any) => ({
+            stages: validatedStages ? {
+              create: validatedStages.map((s) => ({
                 stageNumber: s.stageNumber,
                 title: s.title,
                 description: s.description,
                 unlockCondition: s.unlockCondition || 'AFTER_PREVIOUS',
                 unlockDelay: s.unlockDelay,
                 logs: s.logs ? {
-                  create: s.logs.map((l: any) => ({
+                  create: s.logs.map((l) => ({
                     logType: l.logType,
-                    rawLog: l.rawLog,
+                    rawLog: l.rawLog as any,
                     summary: l.summary,
                     severity: l.severity || 'INFO',
                     hostname: l.hostname,
@@ -281,7 +304,7 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
                   })),
                 } : undefined,
                 hints: s.hints ? {
-                  create: s.hints.map((h: any) => ({
+                  create: s.hints.map((h) => ({
                     content: h.content,
                     pointsPenalty: h.pointsPenalty || 5,
                     sortOrder: h.sortOrder || 0,
@@ -289,13 +312,13 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
                 } : undefined,
               })),
             } : undefined,
-            checkpoints: checkpoints ? {
-              create: checkpoints.map((c: any) => ({
+            checkpoints: validatedCheckpoints ? {
+              create: validatedCheckpoints.map((c) => ({
                 stageNumber: c.stageNumber,
                 checkpointType: c.checkpointType,
                 question: c.question,
-                options: c.options,
-                correctAnswer: c.correctAnswer,
+                options: c.options as any,
+                correctAnswer: c.correctAnswer as any,
                 points: c.points || 10,
                 category: c.category,
                 explanation: c.explanation,
@@ -311,7 +334,7 @@ router.put('/:id', requireRole('ADMIN', 'TRAINER'), auditLog('UPDATE', 'SCENARIO
       });
       // T-03: Non-blocking AI injection risk scoring on update
       const allContent = [
-        ...(stages || []).map((s: any) => `${s.title} ${s.description}`),
+        ...(validatedStages || []).map((s) => `${s.title} ${s.description}`),
       ].join('\n');
       if (allContent.trim()) {
         AIService.scoreInjectionRisk(allContent).then(result => {
@@ -452,20 +475,24 @@ router.post('/import', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCEN
     const { stages, checkpoints, ...rawData } = req.body;
     const scenarioData = scenarioSchema.parse(rawData);
 
+    // IV-01: Validate nested arrays before use
+    const validatedStages = stages ? z.array(fullStageSchema).parse(stages) : undefined;
+    const validatedCheckpoints = checkpoints ? z.array(checkpointSchema).parse(checkpoints) : undefined;
+
     const scenario = await prisma.scenario.create({
       data: {
         ...scenarioData,
-        stages: stages ? {
-          create: stages.map((s: any) => ({
+        stages: validatedStages ? {
+          create: validatedStages.map((s) => ({
             stageNumber: s.stageNumber,
             title: s.title,
             description: s.description,
             unlockCondition: s.unlockCondition || 'AFTER_PREVIOUS',
             unlockDelay: s.unlockDelay,
             logs: s.logs ? {
-              create: s.logs.map((l: any) => ({
+              create: s.logs.map((l) => ({
                 logType: l.logType,
-                rawLog: l.rawLog,
+                rawLog: l.rawLog as any,
                 summary: l.summary,
                 severity: l.severity || 'INFO',
                 hostname: l.hostname,
@@ -481,7 +508,7 @@ router.post('/import', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCEN
               })),
             } : undefined,
             hints: s.hints ? {
-              create: s.hints.map((h: any) => ({
+              create: s.hints.map((h) => ({
                 content: h.content,
                 pointsPenalty: h.pointsPenalty || 5,
                 sortOrder: h.sortOrder || 0,
@@ -489,13 +516,13 @@ router.post('/import', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCEN
             } : undefined,
           })),
         } : undefined,
-        checkpoints: checkpoints ? {
-          create: checkpoints.map((c: any) => ({
+        checkpoints: validatedCheckpoints ? {
+          create: validatedCheckpoints.map((c) => ({
             stageNumber: c.stageNumber,
             checkpointType: c.checkpointType,
             question: c.question,
-            options: c.options,
-            correctAnswer: c.correctAnswer,
+            options: c.options as any,
+            correctAnswer: c.correctAnswer as any,
             points: c.points || 10,
             category: c.category,
             explanation: c.explanation,
@@ -508,6 +535,41 @@ router.post('/import', requireRole('ADMIN', 'TRAINER'), auditLog('CREATE', 'SCEN
         checkpoints: true,
       },
     });
+
+    // M-4: Scan imported scenario content for prompt injection patterns
+    const scanResult = scanScenarioContent({
+      briefing: scenarioData.briefing,
+      stages: validatedStages?.map((s) => ({ title: s.title, description: s.description })),
+    });
+    if (!scanResult.safe) {
+      logger.warn('Imported scenario content flagged for potential prompt injection', {
+        scenarioId: scenario.id,
+        flaggedFields: scanResult.flaggedFields,
+      });
+    }
+
+    // M-4: Non-blocking AI-powered injection risk scoring for imports
+    const allContent = [
+      scenarioData.briefing || '',
+      ...(validatedStages || []).map((s) => `${s.title} ${s.description}`),
+    ].join('\n');
+    AIService.scoreInjectionRisk(allContent).then(result => {
+      if (result && result.riskScore > 0.5) {
+        logger.warn('AI injection risk scoring flagged imported scenario', {
+          scenarioId: scenario.id,
+          riskScore: result.riskScore,
+          explanation: result.explanation,
+        });
+        prisma.auditLog.create({
+          data: {
+            action: 'SCENARIO_INJECTION_RISK',
+            resource: 'scenario',
+            resourceId: scenario.id,
+            details: { riskScore: result.riskScore, explanation: result.explanation, source: 'import' },
+          },
+        }).catch(() => {});
+      }
+    }).catch(() => {});
 
     res.status(201).json(scenario);
   } catch (error) {
@@ -549,7 +611,7 @@ router.post('/:id/stages/:stageId/logs', requireRole('ADMIN', 'TRAINER'), async 
       data: validatedLogs.map((l) => ({
         stageId,
         logType: l.logType,
-        rawLog: l.rawLog,
+        rawLog: l.rawLog as any,
         summary: l.summary,
         severity: l.severity || 'INFO',
         hostname: l.hostname,
@@ -576,7 +638,7 @@ router.post('/:id/checkpoints', requireRole('ADMIN', 'TRAINER'), async (req: Req
     const scenarioId = req.params.id as string;
     const { stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder } = checkpointSchema.parse(req.body);
     const checkpoint = await prisma.checkpoint.create({
-      data: { scenarioId, stageNumber, checkpointType, question, options, correctAnswer, points, category, explanation, sortOrder },
+      data: { scenarioId, stageNumber, checkpointType, question, options: options as any, correctAnswer: correctAnswer as any, points, category, explanation, sortOrder },
     });
     res.status(201).json(checkpoint);
   } catch (error) {

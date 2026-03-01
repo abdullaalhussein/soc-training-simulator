@@ -98,6 +98,13 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
     if (data.role) {
       const currentUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
       if (currentUser && currentUser.role !== data.role) {
+        // M-8: Prevent downgrading the last admin
+        if (currentUser.role === 'ADMIN' && data.role !== 'ADMIN') {
+          const adminCount = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
+          if (adminCount <= 1) {
+            throw new AppError('Cannot change role: this is the last active admin account', 400);
+          }
+        }
         await prisma.refreshToken.deleteMany({ where: { userId } });
         updateData.tokenVersion = { increment: 1 };
       }
@@ -105,6 +112,14 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
 
     // H-4 + E-06: If account is being deactivated, revoke refresh tokens and increment tokenVersion
     if (data.isActive === false) {
+      // M-8: Prevent deactivating the last admin
+      const targetUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (targetUser?.role === 'ADMIN') {
+        const adminCount = await prisma.user.count({ where: { role: 'ADMIN', isActive: true } });
+        if (adminCount <= 1) {
+          throw new AppError('Cannot deactivate: this is the last active admin account', 400);
+        }
+      }
       await prisma.refreshToken.deleteMany({ where: { userId } });
       updateData.tokenVersion = { increment: 1 };
     }
@@ -144,6 +159,9 @@ router.delete('/:id', requireRole('ADMIN'), auditLog('DELETE', 'USER'), async (r
         await prisma.answer.deleteMany({ where: { attemptId: { in: attemptIds } } });
         await prisma.attempt.deleteMany({ where: { userId } });
       }
+
+      // SEC-05: Reassign sessions created by this user to the admin performing the deletion
+      await prisma.session.updateMany({ where: { createdById: userId }, data: { createdById: req.user!.userId } });
 
       await prisma.trainerNote.deleteMany({ where: { trainerId: userId } });
       await prisma.sessionMessage.deleteMany({ where: { userId } });
