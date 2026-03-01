@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { useMobile } from '@/hooks/useMobile';
 import { getTraineeSocket } from '@/lib/socket';
-import { FileText, MessageCircle, AlertTriangle, Sparkles, Lock, ChevronRight } from 'lucide-react';
+import { FileText, MessageCircle, AlertTriangle, Sparkles, Lock, ChevronRight, ChevronLeft, PanelLeftOpen, PanelLeftClose } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DiscussionPanel } from '@/components/DiscussionPanel';
 import { AiAssistantPanel } from './AiAssistantPanel';
@@ -41,6 +41,7 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
   const [trainerAlert, setTrainerAlert] = useState<string | null>(null);
   const [viewingStage, setViewingStage] = useState<number | null>(null);
+  const [briefingCollapsed, setBriefingCollapsed] = useState(false);
 
   const isMobile = useMobile();
   const isTablet = useMobile(1024);
@@ -479,8 +480,31 @@ export function ScenarioPlayer({ attemptId, sessionId }: ScenarioPlayerProps) {
       {stageSelector}
       {viewingPastStageBanner}
       <div className="flex-1 flex overflow-hidden relative">
-        <div className="w-64 flex-shrink-0 border-r overflow-y-auto">
-          <BriefingPanel {...briefingProps} />
+        <div className={cn(
+          'flex-shrink-0 border-r transition-all duration-200 relative',
+          briefingCollapsed ? 'w-10' : 'w-64 overflow-y-auto'
+        )}>
+          {briefingCollapsed ? (
+            <button
+              onClick={() => setBriefingCollapsed(false)}
+              className="absolute inset-0 flex flex-col items-center justify-start pt-3 hover:bg-accent/50 transition-colors"
+              title="Expand briefing"
+            >
+              <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
+              <span className="mt-2 text-[10px] font-medium text-muted-foreground [writing-mode:vertical-lr]">Briefing</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setBriefingCollapsed(true)}
+                className="absolute top-2 right-2 z-10 p-1 rounded-md hover:bg-accent transition-colors"
+                title="Collapse briefing"
+              >
+                <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <BriefingPanel {...briefingProps} />
+            </>
+          )}
         </div>
         <div className="flex-1 min-w-0 overflow-hidden">
           <LogFeedViewer {...logProps} />
