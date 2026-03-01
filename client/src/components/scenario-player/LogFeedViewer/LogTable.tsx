@@ -53,14 +53,14 @@ export function LogTable({ logs, pagination, isLoading, evidenceIds, timelineLog
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
-        <Table className="w-full md:table-fixed min-w-[600px]">
+        <Table className="w-full md:table-fixed min-w-[640px]">
           <colgroup>
-            <col style={{ width: '60px' }} />
-            <col style={{ width: '76px' }} />
-            <col style={{ width: '62px' }} />
-            <col style={{ width: '72px' }} />
+            <col className="w-[72px]" />
+            <col className="w-[100px]" />
+            <col className="w-[72px]" />
+            <col className="w-[100px]" />
             <col />
-            <col style={{ width: '52px' }} />
+            <col className="w-[56px]" />
           </colgroup>
           <TableHeader>
             <TableRow>
@@ -86,20 +86,20 @@ export function LogTable({ logs, pagination, isLoading, evidenceIds, timelineLog
                   className="cursor-pointer hover:bg-muted/70"
                   onClick={() => onLogClick(log)}
                 >
-                  <TableCell className="text-xs font-mono whitespace-nowrap">
+                  <TableCell className="text-xs font-mono whitespace-nowrap pr-2">
                     {format(new Date(log.timestamp), 'HH:mm:ss')}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="pr-2">
                     <Badge className={`text-[10px] whitespace-nowrap ${logTypeColors[log.logType] || ''}`}>
                       {log.logType.replace('_', ' ')}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="pr-2">
                     <Badge className={`text-[10px] ${severityColors[log.severity] || ''}`}>
                       {log.severity}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{log.hostname || '-'}</TableCell>
+                  <TableCell className="text-xs truncate pr-3" title={log.hostname || '-'}>{log.hostname || '-'}</TableCell>
                   <TableCell className="text-sm truncate" title={log.summary}>{log.summary}</TableCell>
                   <TableCell className="p-1">
                     <div className="flex gap-0" onClick={(e) => e.stopPropagation()}>
