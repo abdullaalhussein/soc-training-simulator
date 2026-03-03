@@ -46,7 +46,7 @@ Deploy 3 services on [Railway](https://railway.app):
 ## CI/CD
 
 GitHub Actions runs on every push/PR to `master`:
-- **Unit tests** — 73 tests via Vitest (scoring service, AI output filter, CSRF middleware)
+- **Unit tests** — 96 tests via Vitest (scoring, AI filter, CSRF, integration)
 - **Type checking** — server and client `tsc --noEmit`
 - **Deployment** — auto-deploys to Railway on push to `master` (requires repository secrets)
 

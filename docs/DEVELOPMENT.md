@@ -117,7 +117,7 @@ soc-training-simulator/
 cd server && npm test
 ```
 
-73 tests covering the most critical paths:
+96 tests covering the most critical paths:
 - **Scoring Service** (30 tests) — all 8 checkpoint types, AI grading, fallback grading, edge cases, score recalculation
 - **AI Output Filter** (22 tests) — all 4 filter layers (regex patterns, answer matching, explanation overlap, JSON leak detection)
 - **CSRF Middleware** (21 tests) — token validation, cookie handling, exempt routes, error cases

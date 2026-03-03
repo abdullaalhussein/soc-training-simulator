@@ -21,7 +21,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Anthropic](https://img.shields.io/badge/Anthropic-Claude_AI-D4A574?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-73_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-96_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
 [![Playwright](https://img.shields.io/badge/Playwright-68_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 ---
@@ -204,7 +204,7 @@ npm run dev
 | **Server** | Express 5, Socket.io, JWT Auth, RBAC, CSRF, Prisma ORM, Zod, Helmet |
 | **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
 | **Database** | PostgreSQL 16, Prisma ORM (18 models, 8 enums) |
-| **Testing** | Vitest (73 unit tests), Playwright (68 E2E tests across 22 spec files) |
+| **Testing** | Vitest (96 unit + integration tests), Playwright (68 E2E tests across 22 spec files) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
 
 ---
