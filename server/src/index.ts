@@ -16,6 +16,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
 import { initializeSocket } from './socket';
 import { logger } from './utils/logger';
+import prisma from './lib/prisma';
 import { DEFAULT_DEMO_EMAILS, DEFAULT_DEMO_PASSWORD } from './config/constants';
 
 const app = express();
@@ -100,8 +101,24 @@ app.post('/api/csp-report', express.json({ type: 'application/csp-report' }), (r
 });
 
 // Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (_req, res) => {
+  const mem = process.memoryUsage();
+  let dbStatus = 'ok';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    dbStatus = 'unreachable';
+  }
+  res.json({
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    database: dbStatus,
+    memory: {
+      rss: Math.round(mem.rss / 1024 / 1024),
+      heap: Math.round(mem.heapUsed / 1024 / 1024),
+    },
+  });
 });
 
 // API routes

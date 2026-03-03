@@ -1,7 +1,9 @@
 import winston from 'winston';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 export const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: isProduction ? 'info' : 'debug',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
@@ -10,10 +12,15 @@ export const logger = winston.createLogger({
   defaultMeta: { service: 'soc-training-server' },
   transports: [
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
+      format: isProduction
+        ? winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json()
+          )
+        : winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+          ),
     }),
   ],
 });
