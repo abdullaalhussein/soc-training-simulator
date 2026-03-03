@@ -83,7 +83,7 @@ router.post('/', requireRole('ADMIN'), auditLog('CREATE', 'USER'), async (req: R
     });
     res.status(201).json(user);
   } catch (error) {
-    if (error instanceof z.ZodError) return next(new AppError('Invalid user data', 400));
+    if (error instanceof z.ZodError) return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
     next(error);
   }
 });
@@ -131,7 +131,7 @@ router.put('/:id', requireRole('ADMIN'), auditLog('UPDATE', 'USER'), async (req:
     });
     res.json(user);
   } catch (error) {
-    if (error instanceof z.ZodError) return next(new AppError('Invalid user data', 400));
+    if (error instanceof z.ZodError) return next(new AppError(error.errors.map(e => e.message).join(', '), 400));
     next(error);
   }
 });

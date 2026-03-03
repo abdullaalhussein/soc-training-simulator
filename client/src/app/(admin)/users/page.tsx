@@ -56,8 +56,9 @@ export default function UsersPage() {
       setDialogOpen(false);
       setEditUser(null);
       setForm({ email: '', password: '', name: '', role: 'TRAINEE' });
-    } catch {
-      toast({ title: 'Operation failed', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Operation failed';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -65,8 +66,9 @@ export default function UsersPage() {
     try {
       await deleteUser.mutateAsync(id);
       toast({ title: 'User deactivated' });
-    } catch {
-      toast({ title: 'Failed', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -74,8 +76,9 @@ export default function UsersPage() {
     try {
       await updateUser.mutateAsync({ id, isActive: true });
       toast({ title: 'User activated' });
-    } catch {
-      toast({ title: 'Failed', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -95,8 +98,9 @@ export default function UsersPage() {
       await resetPassword.mutateAsync({ id: pwUserId, password: newPassword });
       toast({ title: 'Password changed successfully' });
       setPwDialogOpen(false);
-    } catch {
-      toast({ title: 'Failed to change password', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to change password';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -219,7 +223,7 @@ export default function UsersPage() {
             {!editUser && (
               <div className="space-y-2">
                 <Label>Password</Label>
-                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
+                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min 8 chars, upper + lower + digit + special" />
               </div>
             )}
             <div className="space-y-2">
@@ -254,7 +258,7 @@ export default function UsersPage() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min 8 characters"
+                placeholder="Min 8 chars, upper + lower + digit + special"
                 onKeyDown={(e) => e.key === 'Enter' && handleResetPw()}
               />
             </div>
