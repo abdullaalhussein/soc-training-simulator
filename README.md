@@ -1,8 +1,12 @@
-# SOC Training Simulator
+<p align="center">
+  <img src="client/public/favicon.svg" alt="SOC Training Simulator Logo" width="80" />
+</p>
 
-**An open-source platform that prepares SOC analysts for real incidents before they face one.**
+<h1 align="center">SOC Training Simulator</h1>
 
-With a global shortage of 3.5 million cybersecurity professionals, most SOC training is either expensive, static, or disconnected from real investigation workflows. This platform closes that gap — free, self-hosted, and AI-powered.
+<p align="center"><strong>An open-source platform that prepares SOC analysts for real incidents before they face one.</strong></p>
+
+<p align="center">With a global shortage of 3.5 million cybersecurity professionals, most SOC training is either expensive, static, or disconnected from real investigation workflows. This platform closes that gap — free, self-hosted, and AI-powered.</p>
 
 [![GitHub stars](https://img.shields.io/github/stars/abdullaalhussein/soc-training-simulator?style=flat&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/stargazers)
 [![CI](https://img.shields.io/github/actions/workflow/status/abdullaalhussein/soc-training-simulator/ci.yml?label=CI&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/actions/workflows/ci.yml)
