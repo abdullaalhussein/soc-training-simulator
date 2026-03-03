@@ -26,9 +26,23 @@
 
 ---
 
-## Overview
+## How It Compares
 
-SOC Training Simulator is a full-stack, multi-role platform for training cybersecurity analysts on realistic incident scenarios. Trainees investigate multi-stage attacks by analyzing simulated security logs, collecting evidence, writing YARA rules, and submitting incident reports — while trainers monitor progress in real-time and an AI-powered SOC Mentor guides learning.
+| Feature | SOC Training Simulator | LetsDefend | TryHackMe | CyberDefenders |
+|---------|----------------------|------------|-----------|----------------|
+| Open source | Yes (MIT) | No | No | No |
+| Self-hosted | Yes | No | No | No |
+| AI Mentor / Scoring | Yes (Claude) | No | No | No |
+| AI Scenario Generator | Yes | No | No | No |
+| Custom scenarios | JSON import + AI generator | Limited | Community rooms | Limited |
+| Real-time trainer monitoring | Yes (Socket.io) | No | No | No |
+| YARA rule playground | Yes | No | No | No |
+| MITRE ATT&CK mapping | Yes (searchable picker) | Partial | No | Yes |
+| Multi-role (Admin/Trainer/Trainee) | Yes | Single user | Single user | Single user |
+| Security hardening | CSRF, lockout, audit log, CSP | N/A | N/A | N/A |
+| Cost | Free (BYOK for AI) | $25/mo+ | $14/mo+ | Free tier limited |
+
+---
 
 ## Screenshots
 
@@ -95,63 +109,28 @@ SOC Training Simulator is a full-stack, multi-role platform for training cyberse
 - **Multi-stage scenario investigation** with configurable unlock conditions
 - **10 realistic log types** — SIEM, EDR, Sysmon, Firewall, DNS, Network Flow, Proxy, Windows Event, Auth, Email Gateway
 - **8 checkpoint types** — True/False, Multiple Choice, Severity Classification, Recommended Action, Short Answer, Evidence Selection, Incident Report, YARA Rule
-- **Pre-investigation lessons** with markdown-rendered educational content
 
 **AI-Powered (Bring Your Own Key)**
 - **AI SOC Mentor** — context-aware assistant that guides trainees with Socratic questioning (never gives away answers)
 - **AI Scoring** — Claude grades Short Answer and Incident Report checkpoints with detailed feedback
-- **AI Scenario Generator** — create new scenarios from a text prompt with difficulty-scaled token budgets (Beginner/Intermediate/Advanced)
-- **AI Security Scan** — automated injection risk detection on AI-generated scenario content
-- **Server-side AI output filter** — 4-layer filter prevents the AI from leaking answers
+- **AI Scenario Generator** — create new scenarios from a text prompt with difficulty-scaled token budgets
 - **Graceful degradation** — platform is fully functional without an API key; AI features show "unavailable" state
 
 **Trainer Tools**
-- **Real-time trainer monitoring** via Socket.io (hints, alerts, pause/resume, chat)
-- **5-dimension scoring system** — Accuracy (35%), Investigation (20%), Evidence (20%), Response (15%), Report (10%)
-- **PDF & CSV report generation** with detailed score breakdowns
-- **Scenario import/export** via JSON for sharing between instances
+- **Real-time monitoring** via Socket.io (hints, alerts, pause/resume, chat)
+- **5-dimension scoring** — Accuracy (35%), Investigation (20%), Evidence (20%), Response (15%), Report (10%)
+- **PDF & CSV reports** with detailed score breakdowns
 
 **Security**
-- **httpOnly cookie authentication** — access + refresh tokens stored in httpOnly cookies (never in localStorage)
-- **CSRF double-submit pattern** — protects all state-changing requests
-- **DB-backed account lockout** — 5 failed attempts triggers 15-minute lockout (survives server restarts)
-- **Login anomaly detection** — warns on logins from new IP addresses
-- **Answer resubmission prevention** — first answer is final, blocks answer harvesting exploits
-- **Hint replay protection** — deduplicates hint requests to prevent score penalty stacking
-- **AI prompt injection sanitizer** — 30 regex patterns strip known injection vectors from scenario content
-- **Unicode normalization** — NFC normalization defeats homoglyph-based jailbreak bypasses
-- **Audit logging** — tracks login, password changes, attempt lifecycle, and security events
-- **Content Security Policy** — Helmet.js with `frame-ancestors: 'none'` (clickjacking prevention)
-- **Global + per-route rate limiting** — 200 req/min global, 15 req/15min on auth endpoints
-
-**Platform**
-- **YARA rule writing & testing** with real-time compilation against samples
-- **Light/dark mode toggle** — optimized for SOC environments
-- **Three roles** — Admin, Trainer, Trainee with full RBAC enforcement
-
-### Roles
+- httpOnly cookie auth, CSRF double-submit, DB-backed lockout, login anomaly detection
+- Answer harvesting prevention, hint replay protection, AI prompt injection sanitizer
+- Unicode normalization, audit logging, Content Security Policy, rate limiting
 
 | Role | Capabilities |
 |------|-------------|
 | **Admin** | Manage users, scenarios, audit logs, system settings |
 | **Trainer** | Create sessions, monitor trainees live, send hints, adjust scores |
 | **Trainee** | Investigate scenarios, analyze logs, submit evidence & reports |
-
-### How It Compares
-
-| Feature | SOC Training Simulator | LetsDefend | TryHackMe | CyberDefenders |
-|---------|----------------------|------------|-----------|----------------|
-| Open source | Yes (MIT) | No | No | No |
-| Self-hosted | Yes | No | No | No |
-| AI Mentor / Scoring | Yes (Claude) | No | No | No |
-| AI Scenario Generator | Yes | No | No | No |
-| Custom scenarios | JSON import + AI generator | Limited | Community rooms | Limited |
-| Real-time trainer monitoring | Yes (Socket.io) | No | No | No |
-| YARA rule playground | Yes | No | No | No |
-| MITRE ATT&CK mapping | Yes (searchable picker) | Partial | No | Yes |
-| Multi-role (Admin/Trainer/Trainee) | Yes | Single user | Single user | Single user |
-| Security hardening | CSRF, lockout, audit log, CSP | N/A | N/A | N/A |
-| Cost | Free (BYOK for AI) | $25/mo+ | $14/mo+ | Free tier limited |
 
 ---
 
@@ -189,21 +168,6 @@ npm run dev
 #   Server → http://localhost:3001
 ```
 
-### Quick Deploy (Railway)
-
-1. Fork this repo
-2. Create a new project on [Railway](https://railway.app)
-3. Add a **PostgreSQL** plugin (auto-provisions `DATABASE_URL`)
-4. Add a **Server** service → point to `server/Dockerfile`, set these env vars:
-   - `JWT_SECRET` — a random 32+ character string
-   - `JWT_REFRESH_SECRET` — a different random 32+ character string
-   - `CORS_ORIGIN` — your client's Railway URL
-   - `ANTHROPIC_API_KEY` — (optional) your Anthropic API key for AI features
-5. Add a **Client** service → point to `client/Dockerfile`, set build args:
-   - `NEXT_PUBLIC_API_URL` — your server's Railway URL
-   - `NEXT_PUBLIC_WS_URL` — your server's Railway URL
-6. Deploy. Run `npx prisma db push && npx prisma db seed` in the server service shell.
-
 ### Default Credentials
 
 | Role | Email | Password |
@@ -215,25 +179,9 @@ npm run dev
 > [!WARNING]
 > These are demo credentials for local development only. **Change all default passwords immediately** before deploying to any network-accessible environment. The server will log warnings on startup if default credentials are detected.
 
-### Production Security Checklist
-
-Before deploying to a network-accessible environment:
-
-- [ ] **Change all default passwords** — admin, trainer, and trainee accounts
-- [ ] **Set `ALLOW_DEMO_CREDENTIALS=false`** — blocks login with default demo passwords in production
-- [ ] **Set strong JWT secrets** — use cryptographically random 32+ character strings for `JWT_SECRET` and `JWT_REFRESH_SECRET`
-- [ ] **Configure CORS** — set `CORS_ORIGIN` to your exact client domain (not `*`)
-- [ ] **Use HTTPS** — required for secure cookie transport (httpOnly cookies with `secure` and `sameSite: none`)
-- [ ] **Set `NODE_ENV=production`** — enables security hardening (Helmet CSP, secure cookies, CSRF enforcement)
-- [ ] **Restrict database access** — ensure PostgreSQL is not publicly accessible
-- [ ] **Review AI rate limits** — adjust `AI_DAILY_LIMIT` and `AI_DAILY_ORG_LIMIT` based on your user count and budget
-- [ ] **Set `CSP_REPORT_URI`** (optional) — receive Content Security Policy violation reports
-
 ---
 
 ## AI Features (Bring Your Own Key)
-
-SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anthropic.com/) for three optional AI features:
 
 | Feature | What it does | Works without API key? |
 |---------|-------------|----------------------|
@@ -242,15 +190,9 @@ SOC Training Simulator integrates with [Anthropic's Claude API](https://www.anth
 | **AI Scenario Generator** | Creates new scenarios from a text description, scaled by difficulty level | No (button disabled with tooltip) |
 | **AI Security Scan** | Scans AI-generated content for prompt injection risks | No (disabled) |
 
-**To enable AI features**, set your API key in `.env`:
-```env
-ANTHROPIC_API_KEY=your-api-key-here
-AI_DAILY_LIMIT=30          # Max AI messages per user per day (default: 30)
-AI_DAILY_ORG_LIMIT=500     # Organization-wide AI message cap (default: 500)
-AI_MAX_CONCURRENT=5        # Max concurrent AI API calls (default: 5)
-```
+**To enable**, set `ANTHROPIC_API_KEY` in your `.env` file. See [Configuration Guide](docs/DEVELOPMENT.md#environment-variables) for all AI-related settings.
 
-**Without an API key**, the platform is fully functional — all investigation, scoring (via deterministic methods), checkpoint, evidence, YARA, and reporting features work without AI. The SOC Mentor shows a clear "unavailable" state, and the AI scenario generator button is disabled with an explanatory tooltip.
+**Without an API key**, the platform is fully functional — all investigation, scoring, checkpoint, evidence, YARA, and reporting features work without AI.
 
 ---
 
@@ -258,296 +200,25 @@ AI_MAX_CONCURRENT=5        # Max concurrent AI API calls (default: 5)
 
 | Layer | Technologies |
 |-------|-------------|
-| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query, next-themes, Recharts, Axios |
-| **Server** | Express 5, Socket.io, JWT Auth (httpOnly cookies), RBAC, CSRF, Prisma ORM, Zod, Helmet, PDFKit, Winston, YARA |
+| **Client** | Next.js 15, React 19, Tailwind CSS, Radix UI, Zustand, TanStack Query |
+| **Server** | Express 5, Socket.io, JWT Auth, RBAC, CSRF, Prisma ORM, Zod, Helmet |
 | **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
-| **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
+| **Database** | PostgreSQL 16, Prisma ORM (18 models, 8 enums) |
 | **Testing** | Vitest (73 unit tests), Playwright (68 E2E tests across 22 spec files) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
 
 ---
 
-## Project Structure
-
-```
-soc-training-simulator/
-├── client/                  # Next.js 15 frontend
-│   ├── src/app/
-│   │   ├── (auth)/          # Login pages
-│   │   ├── (admin)/         # Admin panel (users, scenarios, audit)
-│   │   ├── (trainer)/       # Trainer console (sessions, monitoring, reports)
-│   │   └── (trainee)/       # Investigation UI (log viewer, evidence, checkpoints)
-│   ├── src/components/      # Reusable UI components
-│   ├── src/hooks/           # Custom React hooks
-│   └── src/stores/          # Zustand stores
-├── server/                  # Express 5 backend
-│   ├── src/routes/          # API route handlers
-│   ├── src/middleware/       # Auth, RBAC, CSRF, error handling
-│   ├── src/services/        # Scoring, AI, YARA, PDF reports
-│   ├── src/utils/           # AI output filter, prompt sanitizer, logger
-│   └── src/socket/          # Socket.io namespaces (/trainer, /trainee)
-├── shared/                  # Shared TypeScript types & constants
-│   └── src/types/           # Enums, interfaces, validation
-├── prisma/                  # Database schema & seed data
-│   ├── schema.prisma        # 13 models, 7 enums
-│   └── seed.ts              # Demo users & all 13 scenarios
-├── scenarios/               # 8 importable scenario JSON files (13 total via seed)
-├── e2e/                     # Playwright E2E tests (68 tests)
-│   ├── auth/                # Login, RBAC, redirect tests
-│   ├── admin/               # User, scenario, audit, settings tests
-│   ├── trainer/             # Console, monitor, chat, notifications, reports tests
-│   ├── trainee/             # Dashboard, investigation tests
-│   ├── shared/              # Theme, navigation, logout tests
-│   ├── fixtures/            # Auth setup & test data
-│   └── pages/               # Page object models
-├── docker-compose.yml       # Local PostgreSQL + pgAdmin
-└── docs/
-    └── presentation.html    # Project architecture presentation
-```
-
----
-
-## Environment Variables
-
-Create a `.env` file from [`.env.example`](.env.example):
-
-```env
-# Database (local dev defaults — change in production)
-DATABASE_URL="postgresql://soc_admin:soc_password_2024@localhost:5433/soc_training?schema=public"
-
-# JWT Authentication
-JWT_SECRET="your-jwt-secret-change-in-production"
-JWT_EXPIRES_IN="4h"
-JWT_REFRESH_SECRET="your-refresh-secret-change-in-production"
-JWT_REFRESH_EXPIRES_IN="7d"
-
-# Server
-SERVER_PORT=3001
-NODE_ENV=development
-
-# Client (build-time, visible in browser)
-NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_WS_URL=http://localhost:3001
-
-# CORS
-CORS_ORIGIN=http://localhost:3000
-
-# AI Features (optional — platform works fully without these)
-ANTHROPIC_API_KEY=
-AI_DAILY_LIMIT=30
-AI_DAILY_ORG_LIMIT=500
-AI_MAX_CONCURRENT=5
-
-# Security (production)
-ALLOW_DEMO_CREDENTIALS=false
-CSP_REPORT_URI=
-SOCKET_MAX_CONNECTIONS=500
-```
-
----
-
-## Available Scripts
-
-```bash
-# Development
-npm run dev                  # Run client + server concurrently
-npm run dev -w client        # Client only (port 3000)
-npm run dev -w server        # Server only (port 3001)
-
-# Build
-npm run build                # Build shared → server → client
-
-# Database
-npm run db:push              # Push Prisma schema to database
-npm run db:seed              # Seed demo users & all 13 scenarios
-npm run db:migrate           # Run Prisma migrations
-npm run db:studio            # Open Prisma Studio GUI
-
-# Testing
-npm run test -w server       # Run unit tests (Vitest)
-npm run test:e2e             # Run all E2E tests (headless)
-npm run test:e2e:ui          # Open Playwright UI for interactive debugging
-npm run test:e2e:headed      # Run tests in headed browser
-
-# Docker
-docker-compose up -d         # Start PostgreSQL + pgAdmin
-docker-compose down          # Stop services
-```
-
----
-
-## API Endpoints
-
-| Endpoint | Description | Access |
-|----------|-------------|--------|
-| `POST /api/auth/login` | User login (rate-limited, lockout-protected) | Public |
-| `POST /api/auth/refresh` | Refresh JWT token (httpOnly cookie rotation) | Public |
-| `POST /api/auth/logout` | Logout and revoke refresh token | Authenticated |
-| `POST /api/auth/change-password` | Change password (invalidates all sessions) | Authenticated |
-| `GET /api/auth/me` | Current user profile | Authenticated |
-| `GET/POST /api/users` | User management | Admin |
-| `GET/POST /api/scenarios` | Scenario CRUD | Admin, Trainer |
-| `POST /api/scenarios/import` | Import scenario from JSON | Admin, Trainer |
-| `POST /api/scenarios/generate` | AI-generate scenario from prompt | Admin, Trainer |
-| `GET/POST /api/sessions` | Session lifecycle | Admin, Trainer |
-| `PUT /api/sessions/:id/status` | Pause/resume/end session | Admin, Trainer |
-| `POST /api/attempts/start` | Start an attempt | Trainee |
-| `POST /api/attempts/:id/answers` | Submit checkpoint answer (one submission per checkpoint) | Trainee |
-| `POST /api/attempts/:id/hints` | Request hint (deduplicated, single penalty) | Trainee |
-| `GET /api/logs/attempt/:id` | Filtered log retrieval | Trainee |
-| `POST /api/yara/test` | Test YARA rule | Trainee |
-| `GET /api/ai/status` | Check AI availability | Authenticated |
-| `POST /api/ai/scan-content` | Scan content for injection risk | Admin, Trainer |
-| `GET /api/reports/attempt/:id/pdf` | PDF report | Admin, Trainer |
-| `GET /api/reports/session/:id/csv` | CSV export | Admin, Trainer |
-| `GET /api/security/audit-logs` | Security audit log viewer | Admin |
-
----
-
-## Real-Time Events (Socket.io)
-
-### `/trainer` namespace
-| Event | Description |
-|-------|-------------|
-| `join-session` | Join session monitoring room |
-| `send-hint` | Send hint to specific trainee |
-| `send-session-alert` | Broadcast alert to all trainees |
-| `pause-session` / `resume-session` | Control session state |
-| `send-session-message` | Discussion chat |
-
-### `/trainee` namespace
-| Event | Description |
-|-------|-------------|
-| `join-attempt` | Join attempt room |
-| `join-session` | Join session room |
-| `progress-update` | Send progress to trainers |
-| `ai-assistant-message` | Send message to SOC Mentor |
-| `send-session-message` | Discussion chat |
-
----
-
-## Scoring System
-
-| Category | Weight | Method |
-|----------|--------|--------|
-| **Accuracy** | 35% | Checkpoint correctness (True/False, MC, Severity) |
-| **Investigation** | 20% | Search diversity, filter usage, log depth, timeline building |
-| **Evidence** | 20% | F1 score of selected vs correct evidence (precision & recall) |
-| **Response** | 15% | Recommended action checkpoint accuracy |
-| **Report** | 10% | Incident report keyword coverage + recommendations |
-
-**Adjustments:** -5 points per hint used, trainer manual adjustment with notes.
-
----
-
-## Testing
-
-### Unit Tests (Vitest)
-
-```bash
-cd server && npm test
-```
-
-73 tests covering the most critical paths:
-- **Scoring Service** (30 tests) — all 8 checkpoint types, AI grading, fallback grading, edge cases, score recalculation
-- **AI Output Filter** (22 tests) — all 4 filter layers (regex patterns, answer matching, explanation overlap, JSON leak detection)
-- **CSRF Middleware** (21 tests) — token validation, cookie handling, exempt routes, error cases
-
-### E2E Tests (Playwright)
-
-```bash
-npm run test:e2e             # Run all tests (headless Firefox)
-npm run test:e2e:ui          # Interactive Playwright UI
-npm run test:e2e:headed      # Run in visible browser
-```
-
-| Area | Spec Files | Coverage |
-|------|------------|----------|
-| **Auth** | 2 | Login, invalid credentials, redirects, RBAC enforcement |
-| **Admin** | 5 | User CRUD, scenario management, audit log, settings |
-| **Trainer** | 8 | Console (create/launch/pause/resume/end sessions), session monitor, reports, scenario guide, discussion chat, toast notifications, broadcast alerts |
-| **Trainee** | 3 | Dashboard stats, session cards, investigation workspace, log search, evidence collection, checkpoints |
-| **Shared** | 4 | Theme toggle, sidebar navigation, logout for all roles |
-
----
-
-## Deployment
-
-### Docker
-
-Multi-stage Dockerfiles for both [server](server/Dockerfile) and [client](client/Dockerfile):
-
-```bash
-# Build server image (includes YARA binary)
-docker build -t soc-server ./server
-
-# Build client image (Next.js standalone)
-docker build -t soc-client ./client \
-  --build-arg NEXT_PUBLIC_API_URL=https://your-server.example.com \
-  --build-arg NEXT_PUBLIC_WS_URL=https://your-server.example.com
-```
-
-### Railway.app
-
-Deploy 3 services on [Railway](https://railway.app):
-
-1. **PostgreSQL** — Railway plugin (auto-provisions `DATABASE_URL`)
-2. **Server** — Uses `server/Dockerfile`, set JWT secrets & CORS origin
-3. **Client** — Uses `client/Dockerfile`, set `NEXT_PUBLIC_API_URL` & `NEXT_PUBLIC_WS_URL` as build args
-
-**Important:** `JWT_SECRET` and `JWT_REFRESH_SECRET` are required — the server will not start without them. Set `CORS_ORIGIN` to your client's Railway URL (e.g. `https://your-client.up.railway.app`).
-
-### CI/CD
-
-GitHub Actions runs on every push/PR to `master`:
-- **Unit tests** — 73 tests via Vitest (scoring service, AI output filter, CSRF middleware)
-- **Type checking** — server and client `tsc --noEmit`
-- **Deployment** — auto-deploys to Railway on push to `master` (requires repository secrets)
-
-| Secret | Description |
-|--------|-------------|
-| `RAILWAY_API_TOKEN` | Railway account API token (Account → Tokens) |
-| `RAILWAY_PROJECT_ID` | Railway project ID |
-| `RAILWAY_SERVER_SERVICE_ID` | Service ID for the server |
-| `RAILWAY_CLIENT_SERVICE_ID` | Service ID for the client |
-
-### Minimum Requirements
-
-| Resource | Spec |
-|----------|------|
-| CPU | 1 vCPU |
-| RAM (server) | 512 MB |
-| RAM (client) | 512 MB |
-| Storage | 1 GB + database |
-| Ports | 3000 (client), 3001 (server), 5432 (PostgreSQL) |
-
----
-
-## Adding Content
-
-### Import a Scenario
-
-```bash
-# Via API
-curl -X POST http://localhost:3001/api/scenarios/import \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d @scenarios/soc-fundamentals.json
-```
-
-Or use the Admin UI at `/scenarios`.
-
-### Scenario JSON Format
-
-Scenarios include top-level fields, a `stages[]` array with nested `logs[]` and `hints[]`, and a top-level `checkpoints[]` array (each with a `stageNumber` field). See the [`scenarios/`](scenarios/) directory for examples.
-
----
-
 ## Documentation
 
-- [`docs/presentation.html`](docs/presentation.html) — full architecture & implementation presentation (14 slides, bilingual EN/AR, arrow key navigation)
-- [`SECURITY.md`](SECURITY.md) — security policy and vulnerability reporting
-- [`THREAT_MODEL.md`](THREAT_MODEL.md) — STRIDE threat analysis with 31 threats and 6 residual risks
+| Document | Description |
+|----------|-------------|
+| [Development Guide](docs/DEVELOPMENT.md) | Environment variables, scripts, project structure, testing |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Docker, Railway, CI/CD, production checklist |
+| [API Reference](docs/API.md) | REST endpoints, Socket.io events, scoring system |
+| [Architecture Presentation](docs/presentation.html) | 14 slides, bilingual EN/AR |
+| [Security Policy](SECURITY.md) | Vulnerability reporting |
+| [Threat Model](THREAT_MODEL.md) | STRIDE analysis — 31 threats, 6 residual risks |
 
 ---
 
@@ -561,12 +232,6 @@ For organizations that need more than the open-source edition:
 - **Dedicated support & SLA** — priority response for your team
 
 **Contact:** [abdullaalhussein@gmail.com](mailto:abdullaalhussein@gmail.com)
-
----
-
-## Vision
-
-Our goal is to become the open-source standard for SOC analyst training — free, extensible, and community-driven. We believe every security team deserves access to realistic, AI-powered training, regardless of budget.
 
 ---
 
