@@ -8,6 +8,10 @@
 
 <p align="center">With a global shortage of 3.5 million cybersecurity professionals, most SOC training is either expensive, static, or disconnected from real investigation workflows. This platform closes that gap — free, self-hosted, and AI-powered.</p>
 
+<p align="center">
+  <img src="docs/screenshots/00-landing-hero.png" alt="SOC Training Simulator — Landing Page" width="720" />
+</p>
+
 [![GitHub stars](https://img.shields.io/github/stars/abdullaalhussein/soc-training-simulator?style=flat&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/stargazers)
 [![CI](https://img.shields.io/github/actions/workflow/status/abdullaalhussein/soc-training-simulator/ci.yml?label=CI&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
@@ -25,16 +29,6 @@
 ## Overview
 
 SOC Training Simulator is a full-stack, multi-role platform for training cybersecurity analysts on realistic incident scenarios. Trainees investigate multi-stage attacks by analyzing simulated security logs, collecting evidence, writing YARA rules, and submitting incident reports — while trainers monitor progress in real-time and an AI-powered SOC Mentor guides learning.
-
-### Demo
-
-<p align="center">
-  <a href="docs/screenshots/00-landing-hero.png">
-    <img src="docs/screenshots/00-landing-hero.png" alt="SOC Training Simulator — Landing Page" width="720" />
-  </a>
-</p>
-
----
 
 ## Screenshots
 
