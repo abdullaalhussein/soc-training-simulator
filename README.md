@@ -4,6 +4,8 @@
 
 With a global shortage of 3.5 million cybersecurity professionals, most SOC training is either expensive, static, or disconnected from real investigation workflows. This platform closes that gap — free, self-hosted, and AI-powered.
 
+[![GitHub stars](https://img.shields.io/github/stars/abdullaalhussein/soc-training-simulator?style=flat&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/stargazers)
+[![CI](https://img.shields.io/github/actions/workflow/status/abdullaalhussein/soc-training-simulator/ci.yml?label=CI&logo=github)](https://github.com/abdullaalhussein/soc-training-simulator/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org/)
 [![Express](https://img.shields.io/badge/Express-5-000?logo=express)](https://expressjs.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -11,7 +13,7 @@ With a global shortage of 3.5 million cybersecurity professionals, most SOC trai
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma)](https://www.prisma.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Anthropic](https://img.shields.io/badge/Anthropic-Claude_AI-D4A574?logo=anthropic&logoColor=white)](https://www.anthropic.com/)
-[![Vitest](https://img.shields.io/badge/Vitest-52_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-73_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
 [![Playwright](https://img.shields.io/badge/Playwright-68_tests-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 ---
@@ -23,10 +25,10 @@ SOC Training Simulator is a full-stack, multi-role platform for training cyberse
 ### Demo
 
 <p align="center">
-  <video src="demo.mp4" controls width="720"></video>
+  <a href="docs/screenshots/00-landing-hero.png">
+    <img src="docs/screenshots/00-landing-hero.png" alt="SOC Training Simulator — Landing Page" width="720" />
+  </a>
 </p>
-
-> If the video doesn't load, [download demo.mp4](demo.mp4) or clone the repo to watch locally.
 
 ---
 
@@ -119,6 +121,7 @@ SOC Training Simulator is a full-stack, multi-role platform for training cyberse
 - **Answer resubmission prevention** — first answer is final, blocks answer harvesting exploits
 - **Hint replay protection** — deduplicates hint requests to prevent score penalty stacking
 - **AI prompt injection sanitizer** — 30 regex patterns strip known injection vectors from scenario content
+- **Unicode normalization** — NFC normalization defeats homoglyph-based jailbreak bypasses
 - **Audit logging** — tracks login, password changes, attempt lifecycle, and security events
 - **Content Security Policy** — Helmet.js with `frame-ancestors: 'none'` (clickjacking prevention)
 - **Global + per-route rate limiting** — 200 req/min global, 15 req/15min on auth endpoints
@@ -261,7 +264,7 @@ AI_MAX_CONCURRENT=5        # Max concurrent AI API calls (default: 5)
 | **Server** | Express 5, Socket.io, JWT Auth (httpOnly cookies), RBAC, CSRF, Prisma ORM, Zod, Helmet, PDFKit, Winston, YARA |
 | **AI** | Anthropic Claude API (SOC Mentor, AI Scoring, Scenario Generator) |
 | **Database** | PostgreSQL 16, Prisma ORM (13 models, 7 enums) |
-| **Testing** | Vitest (52 unit tests), Playwright (68 E2E tests across 22 spec files) |
+| **Testing** | Vitest (73 unit tests), Playwright (68 E2E tests across 22 spec files) |
 | **DevOps** | Docker (multi-stage builds), Railway.app, GitHub Actions CI |
 
 ---
@@ -290,7 +293,7 @@ soc-training-simulator/
 ├── prisma/                  # Database schema & seed data
 │   ├── schema.prisma        # 13 models, 7 enums
 │   └── seed.ts              # Demo users & all 13 scenarios
-├── scenarios/               # 8 importable scenario JSON files
+├── scenarios/               # 8 importable scenario JSON files (13 total via seed)
 ├── e2e/                     # Playwright E2E tests (68 tests)
 │   ├── auth/                # Login, RBAC, redirect tests
 │   ├── admin/               # User, scenario, audit, settings tests
@@ -447,9 +450,10 @@ docker-compose down          # Stop services
 cd server && npm test
 ```
 
-52 tests covering the two most critical paths:
+73 tests covering the most critical paths:
 - **Scoring Service** (30 tests) — all 8 checkpoint types, AI grading, fallback grading, edge cases, score recalculation
 - **AI Output Filter** (22 tests) — all 4 filter layers (regex patterns, answer matching, explanation overlap, JSON leak detection)
+- **CSRF Middleware** (21 tests) — token validation, cookie handling, exempt routes, error cases
 
 ### E2E Tests (Playwright)
 
@@ -498,7 +502,7 @@ Deploy 3 services on [Railway](https://railway.app):
 ### CI/CD
 
 GitHub Actions runs on every push/PR to `master`:
-- **Unit tests** — 52 tests via Vitest (scoring service + AI output filter)
+- **Unit tests** — 73 tests via Vitest (scoring service, AI output filter, CSRF middleware)
 - **Type checking** — server and client `tsc --noEmit`
 - **Deployment** — auto-deploys to Railway on push to `master` (requires repository secrets)
 
@@ -543,7 +547,9 @@ Scenarios include top-level fields, a `stages[]` array with nested `logs[]` and 
 
 ## Documentation
 
-Open [`docs/presentation.html`](docs/presentation.html) in a browser for the full architecture & implementation presentation (14 slides, bilingual EN/AR, arrow key navigation).
+- [`docs/presentation.html`](docs/presentation.html) — full architecture & implementation presentation (14 slides, bilingual EN/AR, arrow key navigation)
+- [`SECURITY.md`](SECURITY.md) — security policy and vulnerability reporting
+- [`THREAT_MODEL.md`](THREAT_MODEL.md) — STRIDE threat analysis with 31 threats and 6 residual risks
 
 ---
 

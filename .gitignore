@@ -19,3 +19,10 @@ nul
 nul.mp4
 out/
 tmp-*
+
+# Media & marketing (not part of the application)
+*.mp4
+linkedin-post*.md
+vad,trainer,trainee/
+video/
+remotion.config.ts
