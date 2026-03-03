@@ -31,6 +31,9 @@ jobs:
 
       - name: Run unit tests
         run: cd server && npm test
+        env:
+          JWT_SECRET: ci-test-secret-not-for-production
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-not-for-production
 
   audit:
     name: Dependency Audit
