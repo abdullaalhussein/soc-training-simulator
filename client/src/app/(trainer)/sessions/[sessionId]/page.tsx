@@ -258,8 +258,9 @@ export default function SessionMonitorPage() {
       await updateStatus.mutateAsync({ id: sessionId, status });
       refetch();
       toast({ title: `Session ${status.toLowerCase()}` });
-    } catch {
-      toast({ title: 'Failed', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -268,8 +269,9 @@ export default function SessionMonitorPage() {
       await deleteSession.mutateAsync(sessionId);
       toast({ title: 'Session deleted' });
       router.push('/console');
-    } catch {
-      toast({ title: 'Failed to delete session', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to delete session';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -311,8 +313,9 @@ export default function SessionMonitorPage() {
       toast({ title: 'Hint sent to ' + trainee.userName });
       setHintDialogOpen(false);
       setHintContent('');
-    } catch {
-      toast({ title: 'Failed to send hint', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to send hint';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -337,8 +340,9 @@ export default function SessionMonitorPage() {
       setSelectedNewTrainees([]);
       setTraineeSearch('');
       refetch();
-    } catch {
-      toast({ title: 'Failed to add trainees', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to add trainees';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -348,8 +352,9 @@ export default function SessionMonitorPage() {
       await api.post('/attempts/start', { sessionId, userId });
       toast({ title: `Scenario started for ${userName}` });
       refetch();
-    } catch {
-      toast({ title: 'Failed to start scenario', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to start scenario';
+      toast({ title: msg, variant: 'destructive' });
     } finally {
       setStartingForTrainee(null);
     }
@@ -375,8 +380,9 @@ export default function SessionMonitorPage() {
       a.download = `report-${attemptId}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: 'Failed to download PDF', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to download PDF';
+      toast({ title: msg, variant: 'destructive' });
     } finally {
       setDownloadingPdf(false);
     }
@@ -926,8 +932,9 @@ export default function SessionMonitorPage() {
                   setRetakeDialogOpen(false);
                   setRetakeTargetTrainee(null);
                   refetch();
-                } catch {
-                  toast({ title: 'Failed to start retake', variant: 'destructive' });
+                } catch (err: any) {
+                  const msg = err?.response?.data?.error?.message || 'Failed to start retake';
+                  toast({ title: msg, variant: 'destructive' });
                 }
               }}
             >

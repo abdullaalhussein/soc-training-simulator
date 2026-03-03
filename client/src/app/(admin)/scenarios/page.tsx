@@ -114,8 +114,9 @@ export default function ScenariosPage() {
       a.click();
       URL.revokeObjectURL(url);
       toast({ title: 'Scenario exported' });
-    } catch {
-      toast({ title: 'Failed to export scenario', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to export scenario';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -127,8 +128,9 @@ export default function ScenariosPage() {
       const data = JSON.parse(text);
       await importScenario.mutateAsync(data);
       toast({ title: 'Scenario imported successfully' });
-    } catch {
-      toast({ title: 'Failed to import scenario. Check the JSON format.', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to import scenario. Check the JSON format.';
+      toast({ title: msg, variant: 'destructive' });
     }
     // Reset input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -139,8 +141,9 @@ export default function ScenariosPage() {
     try {
       await deleteScenario.mutateAsync(deleteTarget.id);
       toast({ title: 'Scenario deactivated' });
-    } catch {
-      toast({ title: 'Failed to deactivate scenario', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to deactivate scenario';
+      toast({ title: msg, variant: 'destructive' });
     }
     setDeleteTarget(null);
   };
@@ -150,8 +153,9 @@ export default function ScenariosPage() {
       // Fetch full scenario with stages, hints, checkpoints for editing
       const { data } = await api.get(`/scenarios/${scenario.id}`);
       setEditingScenario(data);
-    } catch {
-      toast({ title: 'Failed to load scenario details', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to load scenario details';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 

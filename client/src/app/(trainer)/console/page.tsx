@@ -59,8 +59,9 @@ export default function TrainerConsole() {
       setDialogOpen(false);
       setNewSession({ name: '', scenarioId: '', timeLimit: '' });
       setSelectedTrainees([]);
-    } catch {
-      toast({ title: 'Failed to create session', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to create session';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -68,8 +69,9 @@ export default function TrainerConsole() {
     try {
       await updateStatus.mutateAsync({ id: sessionId, status });
       toast({ title: `Session ${status.toLowerCase()}` });
-    } catch {
-      toast({ title: 'Failed to update session', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to update session';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 
@@ -77,8 +79,9 @@ export default function TrainerConsole() {
     try {
       await deleteSession.mutateAsync(sessionId);
       toast({ title: 'Session deleted' });
-    } catch {
-      toast({ title: 'Failed to delete session', variant: 'destructive' });
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || 'Failed to delete session';
+      toast({ title: msg, variant: 'destructive' });
     }
   };
 

@@ -4,7 +4,7 @@ import request from 'supertest';
 // vi.hoisted runs before vi.mock hoisting — safe for mock references
 const mockPrisma = vi.hoisted(() => ({
   user: {
-    findUnique: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn().mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINEE' }),
     findMany: vi.fn().mockResolvedValue([]),
     update: vi.fn().mockResolvedValue({}),
   },
@@ -214,7 +214,11 @@ describe('GET /api/auth/me', () => {
 // ─── CSRF Protection ──────────────────────────────────────────
 
 describe('CSRF protection', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Ensure authenticate DB check passes for CSRF tests
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINEE' });
+  });
 
   it('blocks POST with cookie auth but no CSRF token', async () => {
     const token = makeToken();
@@ -270,6 +274,7 @@ describe('RBAC enforcement', () => {
 
   it('blocks TRAINEE from accessing admin user list', async () => {
     const token = makeToken({ role: 'TRAINEE' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINEE' });
 
     const res = await request(app)
       .get('/api/users')
@@ -280,6 +285,7 @@ describe('RBAC enforcement', () => {
 
   it('allows ADMIN to access user list', async () => {
     const token = makeToken({ role: 'ADMIN', email: 'admin@soc.local' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'ADMIN' });
     mockPrisma.user.findMany.mockResolvedValue([]);
 
     const res = await request(app)
@@ -292,6 +298,7 @@ describe('RBAC enforcement', () => {
   it('blocks TRAINEE from scenario creation', async () => {
     const token = makeToken({ role: 'TRAINEE' });
     const csrf = makeCsrf();
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINEE' });
 
     const res = await request(app)
       .post('/api/scenarios')
@@ -304,6 +311,7 @@ describe('RBAC enforcement', () => {
 
   it('allows TRAINER to access scenarios', async () => {
     const token = makeToken({ role: 'TRAINER', email: 'trainer@soc.local' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINER' });
     mockPrisma.scenario.findMany.mockResolvedValue([]);
 
     const res = await request(app)
@@ -360,6 +368,8 @@ describe('POST /api/scenarios/import', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.auditLog.create.mockResolvedValue({});
+    // Ensure authenticate DB check passes (default: TRAINER for this suite)
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINER' });
   });
 
   it('returns 500 for empty body (ZodError not wrapped)', async () => {
@@ -424,6 +434,7 @@ describe('POST /api/scenarios/import', () => {
 
   it('blocks TRAINEE from importing', async () => {
     const token = makeToken({ role: 'TRAINEE' });
+    mockPrisma.user.findUnique.mockResolvedValue({ id: 'user-1', isActive: true, tokenVersion: 0, role: 'TRAINEE' });
     const res = await request(app)
       .post('/api/scenarios/import')
       .set('Cookie', `accessToken=${token}; csrf=${csrf}`)
