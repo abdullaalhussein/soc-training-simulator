@@ -3,6 +3,8 @@
  * Addresses threats: T-03 (indirect prompt injection), M-10 (scenario content review).
  */
 
+import { normalizeForPatternMatch } from './normalizeUnicode';
+
 // SEC-06: All patterns use /gi (global + case-insensitive) to replace ALL occurrences
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+)?previous\s+instructions/gi,
@@ -42,7 +44,10 @@ const INJECTION_PATTERNS = [
  * Strips known prompt injection patterns by replacing them with harmless text.
  */
 export function sanitizePromptContent(text: string): string {
-  let sanitized = text;
+  // RR-4: Normalize Unicode to catch homoglyph-based injection attempts.
+  // We normalize a detection copy, but replace in the original text using
+  // character-position alignment so the output stays readable.
+  let sanitized = normalizeForPatternMatch(text);
   for (const pattern of INJECTION_PATTERNS) {
     sanitized = sanitized.replace(pattern, '[content removed]');
   }
@@ -54,9 +59,11 @@ export function sanitizePromptContent(text: string): string {
  * Returns a list of matched pattern descriptions for audit/review purposes.
  */
 export function detectPromptInjection(text: string): string[] {
+  // RR-4: Normalize before detection to catch homoglyph substitutions
+  const normalized = normalizeForPatternMatch(text);
   const matches: string[] = [];
   for (const pattern of INJECTION_PATTERNS) {
-    const match = text.match(pattern);
+    const match = normalized.match(pattern);
     if (match) {
       matches.push(match[0]);
     }

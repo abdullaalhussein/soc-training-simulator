@@ -3,6 +3,8 @@
  * before forwarding to the AI assistant. Addresses threat H-5.
  */
 
+import { normalizeForPatternMatch } from './normalizeUnicode';
+
 const JAILBREAK_PATTERNS = [
   // Role override attempts
   /ignore\s+(all\s+)?previous\s+instructions/i,
@@ -47,8 +49,11 @@ const JAILBREAK_PATTERNS = [
  * Returns null if the message is safe, or a rejection message if it contains jailbreak patterns.
  */
 export function filterAiInput(message: string): string | null {
+  // RR-4: Normalize Unicode before matching to defeat homoglyph substitution
+  const normalized = normalizeForPatternMatch(message);
+
   for (const pattern of JAILBREAK_PATTERNS) {
-    if (pattern.test(message)) {
+    if (pattern.test(normalized)) {
       return 'I noticed your message contains patterns I cannot process. Please rephrase your question about the investigation, and I will be happy to help guide your analysis.';
     }
   }
